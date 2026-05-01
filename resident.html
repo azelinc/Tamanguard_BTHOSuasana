@@ -132,7 +132,7 @@
             const p = document.getElementById('login-pin').value.trim();
             if(!h || !r || !p) return alert("Fill all fields");
 
-            const combined = `${h}-${r}`;
+            const combined = `${h},${r}`;
             const snap = await db.collection("residents").where("unit_number", "==", combined).where("pin", "==", p).get();
             
             if(!snap.empty) {
