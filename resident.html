@@ -3,331 +3,847 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TamanGuard - Resident App</title>
+    <title>TamanGuard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        @media print { body * { visibility: hidden; } #receipt-modal-content, #receipt-modal-content * { visibility: visible; } #receipt-modal-content { position: absolute; left: 0; top: 0; width: 100%; } #receipt-close-btn, #receipt-print-btn { display: none; } }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        :root {
+            --ink: #0f0f12;
+            --ink-soft: #6b6b7a;
+            --ink-faint: #c4c4ce;
+            --surface: #ffffff;
+            --surface-2: #f4f4f8;
+            --accent: #4f46e5;
+            --accent-glow: #818cf8;
+            --success: #059669;
+            --warn: #d97706;
+            --danger: #dc2626;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'DM Sans', sans-serif; background: var(--surface-2); color: var(--ink); margin: 0; padding-bottom: 88px; min-height: 100vh; }
+        h1,h2,h3,h4,.font-display { font-family: 'Syne', sans-serif; }
+
+        /* ─── OFFLINE BANNER ─── */
+        #offline-banner { background: var(--warn); color: #fff; text-align: center; padding: 6px 16px; font-size: 11px; font-weight: 600; letter-spacing: .05em; display: none; }
+        body.offline #offline-banner { display: block; }
+
+        /* ─── LOGIN ─── */
+        #login-screen { position: fixed; inset: 0; z-index: 200; background: var(--ink); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+        .login-card { background: #1a1a24; border: 1px solid #2e2e3e; border-radius: 28px; padding: 36px 28px; width: 100%; max-width: 360px; }
+        .login-logo { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 800; color: #fff; letter-spacing: -.02em; text-align: center; margin-bottom: 4px; }
+        .login-logo span { color: var(--accent-glow); }
+        .login-sub { font-size: 10px; color: var(--ink-faint); text-align: center; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 32px; }
+        .field-label { font-size: 9px; font-weight: 700; color: #6b6b8a; text-transform: uppercase; letter-spacing: .12em; margin-bottom: 6px; margin-left: 4px; }
+        .field { width: 100%; background: #111118; border: 1px solid #2a2a3a; border-radius: 14px; padding: 14px 16px; color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; outline: none; transition: border-color .2s; margin-bottom: 14px; }
+        .field:focus { border-color: var(--accent-glow); }
+        .field option { background: #1a1a24; }
+        .field::placeholder { color: #3a3a52; }
+        .btn-primary { width: 100%; background: var(--accent); color: #fff; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; border: none; border-radius: 14px; padding: 16px; cursor: pointer; transition: opacity .15s, transform .1s; margin-top: 4px; }
+        .btn-primary:active { opacity: .85; transform: scale(.98); }
+        .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+        #login-error { color: #f87171; font-size: 11px; text-align: center; margin-top: 12px; font-weight: 600; display: none; }
+        #login-attempts { color: #f87171; font-size: 10px; text-align: center; margin-top: 6px; display: none; }
+
+        /* ─── HEADER ─── */
+        #app-header { background: var(--surface); border-bottom: 1px solid #e8e8f0; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .header-unit-label { font-size: 9px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .12em; }
+        .header-unit { font-family: 'Syne', sans-serif; font-size: 17px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
+        .btn-logout { background: none; border: 1px solid #e8e8f0; border-radius: 10px; padding: 6px 14px; font-size: 10px; font-weight: 700; color: var(--danger); cursor: pointer; text-transform: uppercase; letter-spacing: .06em; }
+
+        /* ─── STATUS CARD ─── */
+        .status-card { border-radius: 22px; padding: 20px; display: flex; align-items: center; gap: 16px; transition: background .4s; }
+        .status-card.good { background: linear-gradient(135deg, #065f46, #059669); color: white; }
+        .status-card.warn { background: linear-gradient(135deg, #92400e, #d97706); color: white; }
+        .status-card.danger { background: linear-gradient(135deg, #7f1d1d, #dc2626); color: white; animation: pulse 1.8s ease-in-out infinite; }
+        .status-card.neutral { background: var(--surface-2); border: 1px solid #e8e8f0; color: var(--ink-soft); }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.75} }
+        .status-emoji { font-size: 32px; flex-shrink: 0; }
+        .status-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; opacity: .7; margin-bottom: 4px; }
+        .status-msg { font-size: 12px; font-weight: 500; line-height: 1.5; }
+
+        /* ─── SECTION TITLES ─── */
+        .section-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800; color: var(--ink); margin-bottom: 14px; }
+        .section-sub { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--accent); margin-bottom: 10px; }
+
+        /* ─── NEWS CARDS ─── */
+        .news-card { background: var(--surface); border: 1px solid #e8e8f0; border-radius: 20px; padding: 20px; }
+        .news-date { font-size: 9px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .1em; }
+        .news-title { font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; margin: 4px 0; }
+        .news-body { font-size: 12px; color: var(--ink-soft); line-height: 1.6; }
+
+        /* ─── BILL CARDS ─── */
+        .bill-card { background: var(--surface); border-radius: 18px; padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e8e8f0; transition: border-color .2s; }
+        .bill-card.unpaid { border-color: #fecaca; }
+        .bill-month { font-size: 9px; font-weight: 700; background: var(--accent); color: white; border-radius: 6px; padding: 2px 8px; display: inline-block; margin-bottom: 6px; letter-spacing: .06em; }
+        .bill-amount { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--ink); }
+        .bill-remark { font-size: 10px; color: var(--ink-faint); margin-top: 2px; font-style: italic; }
+        .badge { display: inline-block; border-radius: 100px; padding: 3px 12px; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
+        .badge.paid { background: #d1fae5; color: var(--success); }
+        .badge.unpaid { background: var(--danger); color: white; }
+        .btn-receipt { font-size: 10px; font-weight: 700; color: var(--accent); background: none; border: none; cursor: pointer; text-decoration: underline; margin-top: 6px; display: block; }
+
+        /* ─── FILTER TABS ─── */
+        .filter-row { display: flex; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 2px; }
+        .filter-btn { flex: 1; border: none; background: none; font-family: 'DM Sans', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; padding: 8px 4px; border-radius: 9px; cursor: pointer; color: var(--ink-soft); transition: all .15s; }
+        .filter-btn.active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 6px rgba(0,0,0,.08); }
+
+        /* ─── BILLS SUMMARY ─── */
+        .bills-summary { background: var(--ink); color: white; border-radius: 20px; padding: 20px 22px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+        .bs-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--ink-faint); margin-bottom: 4px; }
+        .bs-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 800; }
+        .bs-value.red { color: #f87171; }
+        .bs-value.green { color: #34d399; }
+
+        /* ─── VISITOR FORM ─── */
+        .visitor-form { background: var(--surface); border-radius: 22px; padding: 22px; border: 1px solid #e8e8f0; margin-bottom: 20px; }
+        .form-field { width: 100%; background: var(--surface-2); border: 1px solid #e8e8f0; border-radius: 12px; padding: 13px 16px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--ink); outline: none; margin-bottom: 10px; transition: border-color .2s; }
+        .form-field:focus { border-color: var(--accent); }
+        .btn-create { width: 100%; background: var(--accent); color: white; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; border: none; border-radius: 12px; padding: 15px; cursor: pointer; transition: opacity .15s, transform .1s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-create:active { opacity: .85; transform: scale(.98); }
+        .btn-create:disabled { opacity: .45; cursor: not-allowed; }
+        .qr-result { display: none; flex-direction: column; align-items: center; border-top: 1px dashed #e8e8f0; margin-top: 20px; padding-top: 20px; }
+        .qr-wrapper { padding: 12px; background: white; border: 3px solid var(--surface-2); border-radius: 16px; cursor: pointer; transition: transform .15s; }
+        .qr-wrapper:active { transform: scale(.96); }
+        .qr-share-hint { font-size: 10px; color: var(--ink-faint); font-weight: 700; text-transform: uppercase; letter-spacing: .1em; margin-top: 10px; animation: blink 1.8s ease-in-out infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+        /* ─── VISITOR CARDS ─── */
+        .visit-card { background: var(--surface); border: 1px solid #e8e8f0; border-radius: 16px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+        .visit-name { font-weight: 600; font-size: 14px; }
+        .visit-plate { font-size: 10px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .1em; }
+        .visit-date { font-size: 9px; color: var(--ink-faint); margin-top: 4px; }
+        .badge.entered { background: #d1fae5; color: var(--success); }
+        .badge.pending { background: #fef3c7; color: var(--warn); }
+        .btn-cancel { font-size: 9px; font-weight: 700; color: var(--danger); background: #fff0f0; border: 1px solid #fecaca; border-radius: 8px; padding: 4px 10px; cursor: pointer; margin-right: 6px; }
+
+        /* ─── RECEIPT MODAL ─── */
+        #receipt-modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 300; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+        .receipt-card { background: white; width: 100%; max-width: 340px; border-radius: 28px; overflow: hidden; }
+        .receipt-header { padding: 28px 24px; text-align: center; border-bottom: 2px dashed #e8e8f0; background: var(--surface-2); }
+        .receipt-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: var(--accent); text-transform: uppercase; }
+        .receipt-body { padding: 24px; }
+        .receipt-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; }
+        .receipt-row-label { color: var(--ink-soft); }
+        .receipt-row-value { font-weight: 700; color: var(--ink); }
+        .receipt-amount-block { text-align: center; padding: 16px 0; margin: 8px 0; border-top: 1px solid #e8e8f0; border-bottom: 1px solid #e8e8f0; }
+        .receipt-for { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .14em; color: var(--ink-faint); margin-bottom: 6px; }
+        .receipt-amount { font-family: 'Syne', sans-serif; font-size: 38px; font-weight: 800; color: var(--ink); }
+        .receipt-note { font-size: 9px; color: var(--ink-faint); text-align: center; font-style: italic; margin-top: 12px; }
+        .receipt-actions { display: flex; gap: 8px; padding: 16px; border-top: 1px solid #e8e8f0; }
+        .btn-ghost { flex: 1; background: var(--surface-2); border: none; border-radius: 12px; padding: 13px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
+        .btn-print { flex: 2; background: var(--accent); border: none; border-radius: 12px; padding: 13px; font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: white; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+
+        /* ─── BOTTOM NAV ─── */
+        #bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid #e8e8f0; display: flex; justify-content: space-around; align-items: center; padding: 8px 0 16px; z-index: 100; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: none; cursor: pointer; padding: 6px 0; }
+        .nav-btn .nav-icon { font-size: 18px; transition: transform .15s; }
+        .nav-btn .nav-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-faint); transition: color .15s; }
+        .nav-btn.active .nav-label { color: var(--accent); }
+        .nav-btn.active .nav-icon { transform: scale(1.15); }
+        .nav-btn-center { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+        .nav-center-btn { width: 52px; height: 52px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; color: white; box-shadow: 0 4px 16px rgba(79,70,229,.4); margin-top: -22px; border: 4px solid var(--surface-2); transition: transform .15s, box-shadow .15s; }
+        .nav-center-btn:active { transform: scale(.92); box-shadow: 0 2px 8px rgba(79,70,229,.3); }
+        .nav-center-label { font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-faint); }
+        .nav-center-label.active { color: var(--accent); }
+
+        /* ─── SKELETON LOADER ─── */
+        .skeleton { background: linear-gradient(90deg, #e8e8f0 25%, #f4f4f8 50%, #e8e8f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 12px; }
+        @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+        /* ─── EMPTY STATE ─── */
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-faint); font-size: 12px; font-weight: 600; }
+
+        /* ─── SPINNER ─── */
+        .spinner { width: 18px; height: 18px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+        @keyframes spin { to{transform:rotate(360deg)} }
+
+        /* ─── TOAST ─── */
+        #toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: white; font-size: 12px; font-weight: 600; padding: 10px 20px; border-radius: 100px; opacity: 0; transition: opacity .25s, transform .25s; z-index: 400; pointer-events: none; white-space: nowrap; }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        @media print {
+            body * { visibility: hidden; }
+            .receipt-card, .receipt-card * { visibility: visible; }
+            .receipt-card { position: absolute; left: 0; top: 0; border-radius: 0; }
+            .receipt-actions { display: none; }
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 pb-20">
+<body>
+
+    <!-- OFFLINE BANNER -->
+    <div id="offline-banner">⚠ You're offline — showing cached data</div>
+
+    <!-- TOAST -->
+    <div id="toast"></div>
 
     <!-- RECEIPT MODAL -->
-    <div id="receipt-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
-        <div id="receipt-modal-content" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
-            <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">TamanGuard Management</p></div>
-            <div class="p-8 space-y-4 text-xs">
-                <div class="flex justify-between"><span class="text-slate-400">Receipt No:</span><span id="rcp-no" class="font-bold text-slate-800">--</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Paid Date:</span><span id="rcp-date" class="font-bold text-slate-800">--</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Unit No:</span><span id="rcp-unit" class="font-bold text-indigo-600">--</span></div>
-                <hr class="border-slate-100">
-                <div class="py-2 text-center"><p id="rcp-remark" class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">--</p><h2 class="text-4xl font-black text-slate-800">RM <span id="rcp-amount">0.00</span></h2></div>
-                <hr class="border-slate-100"><div class="text-[10px] text-center text-slate-400 italic">This is a computer-generated receipt.</div>
+    <div id="receipt-modal">
+        <div class="receipt-card">
+            <div class="receipt-header">
+                <div class="receipt-logo">TamanGuard</div>
+                <div style="font-size:9px;color:var(--ink-faint);letter-spacing:.12em;margin-top:4px;text-transform:uppercase;">Official Payment Receipt</div>
             </div>
-            <div class="p-4 bg-slate-50 flex gap-2"><button onclick="closeReceipt()" class="flex-1 py-3 text-xs font-bold text-slate-500 uppercase">Close</button><button onclick="window.print()" class="flex-1 bg-indigo-600 py-3 text-xs font-bold text-white rounded-xl uppercase">Print / Save</button></div>
+            <div class="receipt-body">
+                <div class="receipt-row"><span class="receipt-row-label">Receipt No.</span><span id="rcp-no" class="receipt-row-value">—</span></div>
+                <div class="receipt-row"><span class="receipt-row-label">Date Paid</span><span id="rcp-date" class="receipt-row-value">—</span></div>
+                <div class="receipt-row"><span class="receipt-row-label">Unit</span><span id="rcp-unit" class="receipt-row-value" style="color:var(--accent)">—</span></div>
+                <div class="receipt-amount-block">
+                    <div id="rcp-for" class="receipt-for">—</div>
+                    <div class="receipt-amount">RM <span id="rcp-amount">0.00</span></div>
+                </div>
+                <div class="receipt-note">This is a computer-generated receipt and does not require a signature.</div>
+            </div>
+            <div class="receipt-actions">
+                <button class="btn-ghost" onclick="closeReceipt()">Close</button>
+                <button class="btn-print" onclick="window.print()">Print / Save PDF</button>
+            </div>
         </div>
     </div>
 
-    <!-- LOGIN OVERLAY -->
-    <div id="login-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
-        <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
-            <h1 class="text-2xl font-black text-indigo-600 mb-2 text-center uppercase tracking-tighter">TamanGuard</h1>
-            <p class="text-slate-400 text-[10px] mb-6 text-center italic font-bold uppercase tracking-widest">Resident Secure Login</p>
-            <div class="space-y-4 mb-6">
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">House Number</label><input id="login-house" type="text" placeholder="e.g. 10" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 uppercase"></div>
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Select Road</label><select id="login-road" class="w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"><option value="">Loading Roads...</option></select></div>
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"></div>
-            </div>
-            <button onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest">Verify & Enter</button>
-            <p id="login-error" class="text-red-500 text-[10px] mt-4 text-center hidden font-bold italic uppercase">❌ Invalid Unit or PIN</p>
+    <!-- LOGIN SCREEN -->
+    <div id="login-screen">
+        <div class="login-card">
+            <div class="login-logo">Taman<span>Guard</span></div>
+            <div class="login-sub">Resident Secure Access</div>
+
+            <div class="field-label">House Number</div>
+            <input id="login-house" type="text" placeholder="e.g. 10" class="field" autocomplete="off" autocapitalize="characters">
+
+            <div class="field-label">Road</div>
+            <select id="login-road" class="field">
+                <option value="">Loading...</option>
+            </select>
+
+            <div class="field-label">Secure PIN</div>
+            <input id="login-pin" type="password" inputmode="numeric" maxlength="6" placeholder="• • • •" class="field">
+
+            <button id="login-btn" class="btn-primary" onclick="handleLogin()">Verify &amp; Enter</button>
+            <div id="login-error">❌ Invalid unit or PIN</div>
+            <div id="login-attempts"></div>
         </div>
     </div>
 
-    <!-- HEADER -->
-    <header class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
-        <div><p class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p><h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2></div>
-        <button onclick="localStorage.clear(); location.reload();" class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">Logout</button>
+    <!-- APP HEADER -->
+    <header id="app-header" style="display:none">
+        <div>
+            <div class="header-unit-label">Resident of</div>
+            <div id="display-unit" class="header-unit">—</div>
+        </div>
+        <button class="btn-logout" onclick="handleLogout()">Logout</button>
     </header>
 
-    <main class="p-4 space-y-6">
-        <!-- PAYMASTER STATUS CARD -->
-        <section id="paymaster-card-container">
-            <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
-               <div class="text-3xl" id="paymaster-emoji">🧐</div>
-               <div class="flex-1">
-                   <h4 class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
-                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
-               </div>
+    <!-- MAIN CONTENT -->
+    <main id="app-main" style="display:none;padding:16px;max-width:480px;margin:0 auto;">
+
+        <!-- STATUS CARD -->
+        <div id="status-card-wrap" style="margin-bottom:20px;">
+            <div id="status-card" class="status-card neutral">
+                <div class="status-emoji">🔄</div>
+                <div>
+                    <div class="status-label">Status Overview</div>
+                    <div id="status-msg" class="status-msg">Loading your data…</div>
+                </div>
             </div>
+        </div>
+
+        <!-- NEWS TAB -->
+        <section id="tab-news">
+            <div class="section-title">Taman News</div>
+            <div id="news-list" class="space-y-3"></div>
         </section>
 
-        <section id="view-news"><h3 class="font-bold text-lg mb-3">Taman News</h3><div id="news-list" class="space-y-4"></div></section>
-        
-        <section id="view-bills" class="hidden">
-            <div class="flex justify-between items-end mb-4">
-                <h3 class="font-bold text-lg">My Security Fees</h3>
-                <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
-                    <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600">All</button>
-                    <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500">Unpaid</button>
-                    <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500">Paid</button>
+        <!-- BILLS TAB -->
+        <section id="tab-bills" style="display:none">
+            <div class="section-title">My Security Fees</div>
+
+            <div id="bills-summary" class="bills-summary" style="display:none">
+                <div>
+                    <div class="bs-label">Outstanding</div>
+                    <div id="bs-total" class="bs-value red">RM 0.00</div>
                 </div>
+                <div style="text-align:right">
+                    <div class="bs-label">Months Unpaid</div>
+                    <div id="bs-count" class="bs-value red">0</div>
+                </div>
+            </div>
+
+            <div class="filter-row" style="margin-bottom:14px">
+                <button class="filter-btn active" id="f-all" onclick="setBillFilter('all')">All</button>
+                <button class="filter-btn" id="f-unpaid" onclick="setBillFilter('unpaid')">Unpaid</button>
+                <button class="filter-btn" id="f-paid" onclick="setBillFilter('paid')">Paid</button>
             </div>
             <div id="bill-list" class="space-y-3"></div>
         </section>
-        
-        <section id="view-invite" class="hidden">
-            <h3 class="font-bold text-lg mb-3">Register Visitor</h3>
-            <div class="bg-white p-6 rounded-3xl shadow-sm border mb-6">
-                <input id="guest-name" type="text" placeholder="Visitor Name" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
-                <input id="guest-phone" type="tel" placeholder="Visitor Phone" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
-                <input id="guest-plate" type="text" placeholder="Vehicle Plate No." class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
-                <button onclick="generateGuestPass()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg">Create QR</button>
-                <div id="qr-result" class="hidden mt-6 flex flex-col items-center border-t pt-6">
-                    <div id="qrcode" onclick="shareQRCode()" class="p-2 bg-white border-4 border-indigo-100 rounded-xl cursor-pointer active:scale-95 transition-transform"></div>
-                    <p class="text-[10px] text-slate-400 font-bold mt-3 uppercase animate-pulse">Click QR to Share</p>
+
+        <!-- VISITOR TAB -->
+        <section id="tab-invite" style="display:none">
+            <div class="section-title">Register Visitor</div>
+
+            <div class="visitor-form">
+                <input id="guest-name" type="text" placeholder="Visitor Full Name" class="form-field">
+                <input id="guest-phone" type="tel" placeholder="Phone Number" class="form-field">
+                <input id="guest-plate" type="text" placeholder="Vehicle Plate (e.g. WXX 1234)" class="form-field" autocapitalize="characters">
+                <button id="create-btn" class="btn-create" onclick="generateGuestPass()">
+                    <span id="create-btn-text">Generate QR Pass</span>
+                </button>
+
+                <div id="qr-result" class="qr-result">
+                    <div id="qrcode" class="qr-wrapper" onclick="shareQRCode()"></div>
+                    <div class="qr-share-hint">Tap QR to Share</div>
                 </div>
             </div>
-            
-            <h3 class="font-bold text-sm mb-3 uppercase tracking-widest text-indigo-600">Active Passes (48h)</h3>
-            <div id="visitor-pending-list" class="space-y-3 mb-6"></div>
-            
-            <h3 class="font-bold text-sm mb-3 uppercase tracking-widest text-slate-400">History</h3>
+
+            <div class="section-sub">Active Passes (within 48h)</div>
+            <div id="visitor-pending-list" class="space-y-3" style="margin-bottom:20px"></div>
+
+            <div class="section-sub" style="color:var(--ink-faint)">History</div>
             <div id="visitor-history-list" class="space-y-3"></div>
         </section>
+
     </main>
 
     <!-- BOTTOM NAV -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50 shadow-lg">
-        <button onclick="switchTab('news')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>📢</span>News</button>
-        <button onclick="switchTab('invite')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center -mt-8 text-white text-xl border-4 border-slate-50 shadow-lg">+</div>Guest</button>
-        <button onclick="switchTab('bills')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
+    <nav id="bottom-nav" style="display:none">
+        <button class="nav-btn active" id="nav-news" onclick="switchTab('news')">
+            <span class="nav-icon">📢</span>
+            <span class="nav-label">News</span>
+        </button>
+        <div class="nav-btn-center" onclick="switchTab('invite')">
+            <div class="nav-center-btn">＋</div>
+            <div class="nav-center-label" id="nav-label-invite">Guest</div>
+        </div>
+        <button class="nav-btn" id="nav-bills" onclick="switchTab('bills')">
+            <span class="nav-icon">💳</span>
+            <span class="nav-label">Bills</span>
+        </button>
     </nav>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
-            authDomain: "mytaman-1db3a.firebaseapp.com",
-            projectId: "mytaman-1db3a",
-            storageBucket: "mytaman-1db3a.firebasestorage.app",
-            messagingSenderId: "112467759191",
-            appId: "1:112467759191:web:0785a5e578741f01891312"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+<script>
+// ════════════════════════════════════════════
+// FIREBASE INIT
+// ════════════════════════════════════════════
+const firebaseConfig = {
+    apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+    authDomain: "mytaman-1db3a.firebaseapp.com",
+    projectId: "mytaman-1db3a",
+    storageBucket: "mytaman-1db3a.firebasestorage.app",
+    messagingSenderId: "112467759191",
+    appId: "1:112467759191:web:0785a5e578741f01891312"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+db.enablePersistence().catch(() => {}); // Offline cache
 
-        let invoiceCache = {};
-        let myBillsRaw = []; 
-        let currentBillFilter = 'all';
-        let myUnit = localStorage.getItem('myUnit');
+// ════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════
+let myUnit = null;
+let myBillsRaw = [];
+let invoiceCache = {};
+let currentBillFilter = 'all';
+let qrInstance = null;
+let loginAttempts = 0;
+let loginLockedUntil = 0;
 
-        function fetchRoads() {
-            db.collection("settings").doc("taman_config").get().then(doc => {
-                const s = document.getElementById('login-road');
-                if(doc.exists && s) {
-                    const r = doc.data().roads || [];
-                    s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
-                }
-            });
+// ════════════════════════════════════════════
+// OFFLINE DETECTION
+// ════════════════════════════════════════════
+window.addEventListener('online',  () => document.body.classList.remove('offline'));
+window.addEventListener('offline', () => document.body.classList.add('offline'));
+if (!navigator.onLine) document.body.classList.add('offline');
+
+// ════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════
+function showToast(msg, duration = 2500) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), duration);
+}
+
+// ════════════════════════════════════════════
+// SESSION — use sessionStorage (tab-scoped, not persistent)
+// ════════════════════════════════════════════
+function saveSession(unit) {
+    sessionStorage.setItem('tg_unit', unit);
+    sessionStorage.setItem('tg_ts', Date.now().toString());
+}
+
+function loadSession() {
+    const unit = sessionStorage.getItem('tg_unit');
+    const ts   = parseInt(sessionStorage.getItem('tg_ts') || '0');
+    const SESSION_TTL = 4 * 60 * 60 * 1000; // 4 hours
+    if (unit && (Date.now() - ts) < SESSION_TTL) return unit;
+    return null;
+}
+
+function clearSession() {
+    sessionStorage.removeItem('tg_unit');
+    sessionStorage.removeItem('tg_ts');
+}
+
+// ════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════
+async function fetchRoads() {
+    try {
+        const doc = await db.collection("settings").doc("taman_config").get();
+        const sel = document.getElementById('login-road');
+        if (doc.exists && sel) {
+            const roads = doc.data().roads || [];
+            sel.innerHTML = roads.map(r => `<option value="${r}">${r}</option>`).join('');
         }
+    } catch (e) {
+        console.warn("Could not fetch roads:", e);
+    }
+}
 
-        async function setIdentity() {
-            const h = document.getElementById('login-house').value.trim().toUpperCase();
-            const r = document.getElementById('login-road').value;
-            const p = document.getElementById('login-pin').value.trim();
-            if(!h || !r || !p) return alert("Fill all fields");
+function getRateLimit() {
+    const stored = localStorage.getItem('tg_attempts');
+    if (!stored) return { attempts: 0, lockedUntil: 0 };
+    return JSON.parse(stored);
+}
 
-            const combined = `${h},${r}`;
-            const snap = await db.collection("residents").where("unit_number", "==", combined).where("pin", "==", p).get();
-            
-            if(!snap.empty) {
-                localStorage.setItem('myUnit', combined);
-                location.reload();
-            } else {
-                document.getElementById('login-error').classList.remove('hidden');
+function setRateLimit(attempts, lockedUntil) {
+    localStorage.setItem('tg_attempts', JSON.stringify({ attempts, lockedUntil }));
+}
+
+async function handleLogin() {
+    const btn  = document.getElementById('login-btn');
+    const errEl = document.getElementById('login-error');
+    const attEl = document.getElementById('login-attempts');
+    errEl.style.display = 'none';
+
+    // Rate limit check
+    const rl = getRateLimit();
+    if (Date.now() < rl.lockedUntil) {
+        const secs = Math.ceil((rl.lockedUntil - Date.now()) / 1000);
+        attEl.style.display = 'block';
+        attEl.textContent = `Too many attempts. Try again in ${secs}s`;
+        return;
+    }
+
+    const house = document.getElementById('login-house').value.trim().toUpperCase();
+    const road  = document.getElementById('login-road').value;
+    const pin   = document.getElementById('login-pin').value.trim();
+
+    if (!house || !road || !pin) { showToast("Please fill all fields"); return; }
+    if (pin.length < 4) { showToast("PIN must be at least 4 digits"); return; }
+
+    // Loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    try {
+        const combined = `${house},${road}`;
+        // NOTE: For production, move this verification to a Firebase Cloud Function
+        // so PINs are never compared client-side. The Cloud Function should:
+        // 1. Accept (unit, pin) → hash pin → compare stored hash → return signed JWT
+        const snap = await db.collection("residents")
+            .where("unit_number", "==", combined)
+            .where("pin", "==", pin)
+            .get();
+
+        if (!snap.empty) {
+            setRateLimit(0, 0); // reset on success
+            saveSession(combined);
+            myUnit = combined;
+            showApp();
+        } else {
+            const attempts = rl.attempts + 1;
+            const lockDuration = attempts >= 5 ? 5 * 60 * 1000 : attempts >= 3 ? 60 * 1000 : 0;
+            const lockedUntil = lockDuration ? Date.now() + lockDuration : 0;
+            setRateLimit(attempts, lockedUntil);
+
+            errEl.style.display = 'block';
+            if (attempts >= 3) {
+                attEl.style.display = 'block';
+                attEl.textContent = attempts >= 5
+                    ? `Account locked for 5 minutes after too many attempts.`
+                    : `${5 - attempts} attempts remaining before lockout.`;
             }
         }
+    } catch(e) {
+        showToast("Connection error. Check your internet.");
+        console.error(e);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Verify &amp; Enter';
+    }
+}
 
-        function initApp() {
-            document.getElementById('display-unit').innerText = "NO " + myUnit;
-            loadNews(); loadBills(); loadMyVisitors(); 
-        }
+function handleLogout() {
+    if (!confirm("Log out of TamanGuard?")) return;
+    clearSession();
+    location.reload();
+}
 
-        function switchTab(t) {
-            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
-            document.getElementById('view-' + t).classList.remove('hidden');
-            document.getElementById('paymaster-card-container').classList.remove('hidden');
-        }
+// ════════════════════════════════════════════
+// APP BOOTSTRAP
+// ════════════════════════════════════════════
+function showLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    fetchRoads();
+}
 
-        function loadNews() {
-            db.collection("announcements").orderBy("timestamp", "desc").limit(10).onSnapshot(s => {
-                const list = document.getElementById('news-list'); list.innerHTML = "";
-                s.forEach(doc => { const n = doc.data(); list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${n.date || 'Update'}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.message}</p></div>`; });
-            });
-        }
+function showApp() {
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app-header').style.display = 'flex';
+    document.getElementById('app-main').style.display = 'block';
+    document.getElementById('bottom-nav').style.display = 'flex';
+    document.getElementById('display-unit').textContent = "NO " + myUnit;
+    initListeners();
+}
 
-        function loadBills() {
-            db.collection("invoices").where("unit_number", "==", myUnit).onSnapshot(snapshot => {
-                myBillsRaw = [];
-                let uC = 0, uT = 0, hasI = !snapshot.empty;
-                
-                snapshot.forEach(doc => {
-                    const b = doc.data();
-                    b.id = doc.id;
-                    myBillsRaw.push(b);
-                    if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
-                });
+window.addEventListener('load', () => {
+    const session = loadSession();
+    if (session) {
+        myUnit = session;
+        showApp();
+    } else {
+        showLogin();
+    }
+});
 
-                myBillsRaw.sort((a, b) => b.month.localeCompare(a.month));
-                updatePaymasterUI(uC, uT, hasI);
-                renderBillList();
-            });
-        }
+// Enter key on PIN field
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('login-pin')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') handleLogin();
+    });
+});
 
-        function setBillFilter(filter) {
-            currentBillFilter = filter;
-            ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
-                document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
-            });
-            document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
-            renderBillList();
-        }
+// ════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════
+let currentTab = 'news';
 
-        function renderBillList() {
-            const list = document.getElementById('bill-list');
-            list.innerHTML = "";
-            invoiceCache = {};
+function switchTab(tab) {
+    ['news', 'bills', 'invite'].forEach(t => {
+        document.getElementById(`tab-${t}`).style.display = 'none';
+    });
+    document.getElementById(`tab-${tab}`).style.display = 'block';
 
-            const filtered = myBillsRaw.filter(b => {
-                if(currentBillFilter === 'paid') return b.status === 'paid';
-                if(currentBillFilter === 'unpaid') return b.status !== 'paid';
-                return true;
-            });
+    // nav active states
+    ['news', 'bills'].forEach(t => {
+        document.getElementById(`nav-${t}`)?.classList.toggle('active', t === tab);
+    });
+    const inviteLabel = document.getElementById('nav-label-invite');
+    if (inviteLabel) inviteLabel.classList.toggle('active', tab === 'invite');
 
-            if(filtered.length === 0) {
-                list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No ${currentBillFilter === 'all' ? '' : currentBillFilter} records found.</p>`;
+    currentTab = tab;
+}
+
+// ════════════════════════════════════════════
+// REAL-TIME LISTENERS
+// ════════════════════════════════════════════
+function initListeners() {
+    listenNews();
+    listenBills();
+    listenVisitors();
+}
+
+// ─── NEWS ────────────────────────────────────
+function listenNews() {
+    const list = document.getElementById('news-list');
+    list.innerHTML = skeletonCards(3);
+
+    db.collection("announcements")
+        .orderBy("timestamp", "desc")
+        .limit(10)
+        .onSnapshot(snap => {
+            if (snap.empty) {
+                list.innerHTML = '<div class="empty-state">No announcements yet.</div>';
                 return;
             }
+            const html = snap.docs.map(doc => {
+                const n = doc.data();
+                return `<div class="news-card">
+                    <div class="news-date">${sanitize(n.date || 'Update')}</div>
+                    <div class="news-title">${sanitize(n.title)}</div>
+                    <div class="news-body">${sanitize(n.message)}</div>
+                </div>`;
+            }).join('');
+            list.innerHTML = html;
+        }, err => {
+            list.innerHTML = '<div class="empty-state">Could not load news.</div>';
+            console.error(err);
+        });
+}
 
-            filtered.forEach(b => {
+// ─── BILLS ───────────────────────────────────
+function listenBills() {
+    db.collection("invoices")
+        .where("unit_number", "==", myUnit)
+        .onSnapshot(snap => {
+            myBillsRaw = [];
+            invoiceCache = {};
+            let unpaidCount = 0, unpaidTotal = 0;
+
+            snap.forEach(doc => {
+                const b = { ...doc.data(), id: doc.id };
+                myBillsRaw.push(b);
                 invoiceCache[b.id] = b;
-                const isP = b.status === 'paid';
-                const amt = parseFloat(b.amount) || 0;
-                list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
+                if (b.status !== 'paid') {
+                    unpaidCount++;
+                    unpaidTotal += parseFloat(b.amount) || 0;
+                }
+            });
+
+            myBillsRaw.sort((a, b) => b.month.localeCompare(a.month));
+            updateStatusCard(unpaidCount, unpaidTotal, !snap.empty);
+            updateBillsSummary(unpaidCount, unpaidTotal);
+            renderBillList();
+        }, err => console.error("Bills listener error:", err));
+}
+
+function updateStatusCard(count, total, hasRecords) {
+    const card = document.getElementById('status-card');
+    const msg  = document.getElementById('status-msg');
+    const emoji = card.querySelector('.status-emoji');
+
+    card.className = 'status-card';
+    if (!hasRecords) {
+        card.classList.add('neutral');
+        emoji.textContent = '👋';
+        msg.textContent = 'No records found. Contact admin for assistance.';
+    } else if (count === 0) {
+        card.classList.add('good');
+        emoji.textContent = '🏆';
+        msg.textContent = 'Excellent! All fees are up to date. Thank you for keeping our taman safe!';
+    } else if (count < 3) {
+        card.classList.add('warn');
+        emoji.textContent = '🔔';
+        msg.textContent = `Reminder: RM${total.toFixed(2)} outstanding across ${count} month(s). Your contribution keeps our taman safe!`;
+    } else {
+        card.classList.add('danger');
+        emoji.textContent = '⚠️';
+        msg.textContent = `Urgent: RM${total.toFixed(2)} overdue for ${count} month(s). Please settle as soon as possible.`;
+    }
+}
+
+function updateBillsSummary(count, total) {
+    const summary = document.getElementById('bills-summary');
+    if (count > 0) {
+        summary.style.display = 'flex';
+        document.getElementById('bs-total').textContent = `RM ${total.toFixed(2)}`;
+        document.getElementById('bs-count').textContent = count;
+    } else {
+        summary.style.display = 'none';
+    }
+}
+
+function setBillFilter(filter) {
+    currentBillFilter = filter;
+    ['all', 'paid', 'unpaid'].forEach(f => {
+        document.getElementById(`f-${f}`).classList.toggle('active', f === filter);
+    });
+    renderBillList();
+}
+
+function renderBillList() {
+    const list = document.getElementById('bill-list');
+
+    const filtered = myBillsRaw.filter(b => {
+        if (currentBillFilter === 'paid')   return b.status === 'paid';
+        if (currentBillFilter === 'unpaid') return b.status !== 'paid';
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = `<div class="empty-state">No ${currentBillFilter === 'all' ? '' : currentBillFilter} records.</div>`;
+        return;
+    }
+
+    const html = filtered.map(b => {
+        const isPaid = b.status === 'paid';
+        const amt    = parseFloat(b.amount) || 0;
+        return `<div class="bill-card ${isPaid ? '' : 'unpaid'}">
+            <div>
+                <div class="bill-month">${sanitize(b.month)}</div>
+                <div class="bill-amount">RM${amt.toFixed(2)}</div>
+                <div class="bill-remark">${sanitize(b.remark || 'Security Fee')}</div>
+            </div>
+            <div style="text-align:right">
+                <span class="badge ${isPaid ? 'paid' : 'unpaid'}">${isPaid ? 'Paid' : 'Unpaid'}</span>
+                ${isPaid ? `<button class="btn-receipt" onclick="openReceipt('${b.id}')">View Receipt</button>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    list.innerHTML = html;
+}
+
+// ─── VISITORS ────────────────────────────────
+function listenVisitors() {
+    db.collection("visits")
+        .where("unit_number", "==", myUnit)
+        .onSnapshot(snap => {
+            const data = [];
+            snap.forEach(doc => data.push({ ...doc.data(), id: doc.id }));
+            data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
+            const now    = Date.now();
+            const limit  = 48 * 60 * 60 * 1000;
+            let pendingH = '', historyH = '';
+
+            data.forEach(v => {
+                const timeMs      = v.timestamp ? v.timestamp.toDate().getTime() : now;
+                const dt          = v.timestamp ? v.timestamp.toDate().toLocaleDateString('en-MY') : 'Just now';
+                const isWithin48  = (now - timeMs) < limit;
+                const isEntered   = v.status === 'entered';
+                const statusClass = isEntered ? 'entered' : 'pending';
+
+                const card = `<div class="visit-card">
                     <div>
-                        <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month}</p>
-                        <p class="font-black text-lg">RM${amt.toFixed(2)}</p>
-                        <p class="text-[10px] text-slate-400 italic">${b.remark || 'General Fee'}</p>
+                        <div class="visit-name">${sanitize(v.visitor_name)}</div>
+                        <div class="visit-plate">${sanitize(v.car_plate)}</div>
+                        <div class="visit-date">${dt}</div>
                     </div>
-                    <div class="text-right">
-                        <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
-                        ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : ''}
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+                        <div style="display:flex;align-items:center;gap:6px">
+                            ${(!isEntered && isWithin48) ? `<button class="btn-cancel" onclick="cancelVisit('${v.id}')">Cancel</button>` : ''}
+                            <span class="badge ${statusClass}">${(v.status || 'pending').toUpperCase()}</span>
+                        </div>
                     </div>
                 </div>`;
+
+                if (isWithin48) pendingH += card;
+                else historyH += card;
             });
+
+            document.getElementById('visitor-pending-list').innerHTML =
+                pendingH || '<div class="empty-state">No active passes.</div>';
+            document.getElementById('visitor-history-list').innerHTML =
+                historyH || '<div class="empty-state">No past history.</div>';
+        }, err => console.error("Visitor listener error:", err));
+}
+
+async function cancelVisit(id) {
+    if (!confirm("Cancel this visitor pass?")) return;
+    try {
+        await db.collection("visits").doc(id).delete();
+        showToast("Visitor pass cancelled.");
+    } catch (e) {
+        showToast("Could not cancel. Try again.");
+        console.error(e);
+    }
+}
+
+// ─── GENERATE QR ─────────────────────────────
+async function generateGuestPass() {
+    const name  = document.getElementById('guest-name').value.trim();
+    const phone = document.getElementById('guest-phone').value.trim();
+    const plate = document.getElementById('guest-plate').value.trim().toUpperCase();
+
+    if (!name || !phone || !plate) { showToast("Fill in all fields first."); return; }
+
+    const btn     = document.getElementById('create-btn');
+    const btnText = document.getElementById('create-btn-text');
+    btn.disabled  = true;
+    btnText.innerHTML = '<span class="spinner"></span>';
+
+    try {
+        const docRef = await db.collection("visits").add({
+            visitor_name: name,
+            phone_number: phone,
+            car_plate:    plate,
+            unit_number:  myUnit,
+            status:       "pending",
+            timestamp:    firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Build / update QR
+        const qrDiv = document.getElementById('qrcode');
+        qrDiv.innerHTML = '';
+        qrInstance = new QRCode(qrDiv, { text: docRef.id, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.H });
+
+        document.getElementById('qr-result').style.display = 'flex';
+
+        // Clear inputs
+        ['guest-name','guest-phone','guest-plate'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+
+        showToast("✅ Visitor pass created!");
+    } catch (e) {
+        showToast("Error creating pass. Check connection.");
+        console.error(e);
+    } finally {
+        btn.disabled  = false;
+        btnText.textContent = 'Generate QR Pass';
+    }
+}
+
+async function shareQRCode() {
+    const canvas = document.querySelector('#qrcode canvas');
+    if (!canvas) return;
+    try {
+        const dataUrl = canvas.toDataURL("image/png");
+        const blob    = await (await fetch(dataUrl)).blob();
+        const file    = new File([blob], "VisitorQR.png", { type: "image/png" });
+
+        if (navigator.canShare?.({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'TamanGuard Visitor Pass', text: 'Show this QR at the guardhouse.' });
+        } else {
+            const a = document.createElement('a');
+            a.download = 'VisitorQR.png';
+            a.href     = dataUrl;
+            a.click();
         }
+    } catch (e) {
+        if (e.name !== 'AbortError') showToast("Could not share QR.");
+    }
+}
 
-        function updatePaymasterUI(count, total, hasI) {
-            const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
-            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found. Please contact Admin for more info. "; return; }
-            if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Excellent! You are a great paymaster. Fees are up to date. Thanks for keeping our Taman safe!"; } 
-            else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Reminder: RM${total.toFixed(2)} outstanding for ${count} month(s). Your contribution will help us keep our taman safe!`; } 
-            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)} outstanding for ${count} month(s). We need your help to keep our taman safe!!`; }
-        }
+// ─── RECEIPT ─────────────────────────────────
+function openReceipt(id) {
+    const d = invoiceCache[id];
+    if (!d) return;
 
-        function openReceipt(id) {
-            const d = invoiceCache[id]; if(!d) return;
-            document.getElementById('rcp-no').innerText = d.receipt_no || 'N/A'; document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); document.getElementById('rcp-unit').innerText = d.unit_number; document.getElementById('rcp-remark').innerText = d.month + " - " + (d.remark || 'Security Fee');
-            let dt = "N/A"; if(d.payment_date && d.payment_date.toDate) dt = d.payment_date.toDate().toLocaleDateString('en-GB'); else if(d.payment_date) dt = new Date(d.payment_date).toLocaleDateString('en-GB');
-            document.getElementById('rcp-date').innerText = dt; document.getElementById('receipt-modal').classList.remove('hidden');
-        }
-        function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
+    document.getElementById('rcp-no').textContent     = d.receipt_no || 'N/A';
+    document.getElementById('rcp-amount').textContent = parseFloat(d.amount).toFixed(2);
+    document.getElementById('rcp-unit').textContent   = d.unit_number;
+    document.getElementById('rcp-for').textContent    = `${d.month} — ${d.remark || 'Security Fee'}`;
 
-        function loadMyVisitors() {
-            db.collection("visits").where("unit_number", "==", myUnit).onSnapshot(snapshot => {
-                const pendingList = document.getElementById('visitor-pending-list');
-                const historyList = document.getElementById('visitor-history-list');
-                let data = []; 
-                snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-                
-                data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+    let dt = 'N/A';
+    if (d.payment_date?.toDate) dt = d.payment_date.toDate().toLocaleDateString('en-GB');
+    else if (d.payment_date)    dt = new Date(d.payment_date).toLocaleDateString('en-GB');
+    document.getElementById('rcp-date').textContent = dt;
 
-                let pendingH = "", historyH = "";
-                const now = new Date().getTime();
-                const limit = 48 * 60 * 60 * 1000; // 48 hours in ms
+    document.getElementById('receipt-modal').style.display = 'flex';
+}
 
-                data.forEach(v => {
-                    const isE = v.status === 'entered';
-                    const timeMs = v.timestamp ? v.timestamp.toDate().getTime() : now;
-                    const dt = v.timestamp ? v.timestamp.toDate().toLocaleDateString() : 'Just now';
-                    const isWithin48 = (now - timeMs) < limit;
+function closeReceipt() {
+    document.getElementById('receipt-modal').style.display = 'none';
+}
 
-                    const cardHtml = `<div class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm">
-                        <div><p class="text-sm font-bold text-slate-800">${v.visitor_name}</p><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.car_plate}</p></div>
-                        <div class="text-right">
-                            <div class="flex gap-2 justify-end mb-1">
-                                ${(!isE && isWithin48) ? `<button onclick="cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                            </div>
-                            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                        </div>
-                    </div>`;
+// ════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════
 
-                    if (isWithin48) pendingH += cardHtml;
-                    else historyH += cardHtml;
-                });
+// XSS-safe text insertion
+function sanitize(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+}
 
-                pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-                historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
-            });
-        }
-        
-        async function cancelVisit(id) { if(confirm("Cancel visitor pass?")) await db.collection("visits").doc(id).delete(); }
-
-        let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
-        
-        async function generateGuestPass() {
-            const n = document.getElementById('guest-name').value, ph = document.getElementById('guest-phone').value, pl = document.getElementById('guest-plate').value;
-            if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
-            const doc = await db.collection("visits").add({ visitor_name: n, phone_number: ph, car_plate: pl.toUpperCase(), unit_number: myUnit, status: "pending", timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(doc.id);
-            document.getElementById('guest-name').value = ""; document.getElementById('guest-phone').value = ""; document.getElementById('guest-plate').value = "";
-        }
-
-        async function shareQRCode() {
-            const qrCanvas = document.querySelector('#qrcode canvas');
-            if (!qrCanvas) return;
-            
-            try {
-                const dataUrl = qrCanvas.toDataURL("image/png");
-                const blob = await (await fetch(dataUrl)).blob();
-                const file = new File([blob], "VisitorQR.png", { type: "image/png" });
-
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'TamanGuard Visitor Pass',
-                        text: 'Scan this QR at the guard house for entry.'
-                    });
-                } else {
-                    // Fallback for desktop/older browsers
-                    const link = document.createElement('a');
-                    link.download = 'VisitorQR.png';
-                    link.href = dataUrl;
-                    link.click();
-                }
-            } catch (err) {
-                console.error("Sharing failed", err);
-            }
-        }
-
-        window.onload = () => {
-            if(!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); }
-            else initApp();
-        };
-    </script>
+function skeletonCards(n) {
+    return Array(n).fill('').map(() =>
+        `<div style="padding:20px;border-radius:20px;background:#fff;border:1px solid #e8e8f0">
+            <div class="skeleton" style="height:10px;width:30%;margin-bottom:10px"></div>
+            <div class="skeleton" style="height:14px;width:70%;margin-bottom:8px"></div>
+            <div class="skeleton" style="height:11px;width:90%"></div>
+        </div>`
+    ).join('');
+}
+</script>
 </body>
 </html>
