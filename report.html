@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIG Taman - Financial Reports</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-white p-4 font-sans text-slate-800">
+
+    <!-- REPORT NAVIGATION -->
+    <div id="report-nav" class="flex gap-2 mb-6 bg-slate-100 p-1 rounded-xl">
+        <button onclick="switchReport('overall')" id="btn-overall" class="rep-btn flex-1 py-2 text-[10px] font-bold uppercase rounded-lg bg-white shadow-sm text-blue-600">Overall Status</button>
+        <button onclick="switchReport('residents')" id="btn-residents" class="rep-btn flex-1 py-2 text-[10px] font-bold uppercase rounded-lg text-slate-500">Resident Ledger</button>
+        <button onclick="switchReport('trends')" id="btn-trends" class="rep-btn flex-1 py-2 text-[10px] font-bold uppercase rounded-lg text-slate-500">Monthly Trends</button>
+    </div>
+
+    <!-- VIEW 1: OVERALL STATUS -->
+    <div id="view-overall" class="report-view space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+            <div class="p-6 bg-emerald-50 border border-emerald-100 rounded-3xl">
+                <p class="text-[10px] font-bold text-emerald-600 uppercase">Total Collected</p>
+                <h2 id="ov-paid" class="text-2xl font-black text-emerald-700">RM 0</h2>
+            </div>
+            <div class="p-6 bg-rose-50 border border-rose-100 rounded-3xl">
+                <p class="text-[10px] font-bold text-rose-600 uppercase">Total Outstanding</p>
+                <h2 id="ov-unpaid" class="text-2xl font-black text-rose-700">RM 0</h2>
+            </div>
+        </div>
+        <div class="p-6 bg-slate-50 rounded-3xl border border-slate-100 text-center">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Collection Efficiency</p>
+            <h2 id="ov-rate" class="text-4xl font-black text-slate-800">0%</h2>
+        </div>
+    </div>
+
+    <!-- VIEW 2: RESIDENT LEDGER -->
+    <div id="view-residents" class="report-view hidden space-y-4">
+        <div class="overflow-x-auto border rounded-2xl">
+            <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 border-b">
+                    <tr>
+                        <th class="p-3">Unit</th>
+                        <th class="p-3">Resident</th>
+                        <th class="p-3">Paid / Total</th>
+                        <th class="p-3">Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resident-ledger-body" class="divide-y">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- VIEW 3: PAYMENT TRENDS -->
+    <div id="view-trends" class="report-view hidden space-y-3">
+        <h3 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Performance by Month</h3>
+        <div id="trends-container" class="space-y-2">
+        </div>
+    </div>
+
+    <script>
+        // --- 0. SECURITY CHECK ---
+        // This must run before anything else loads
+        function checkReportSecurity() {
+            const role = sessionStorage.getItem('adminRole');
+            
+            // Only allow Super Admin and Treasurer
+            if (role !== 'super_admin' && role !== 'treasurer') {
+                document.body.innerHTML = `
+                    <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-family: sans-serif; background: #fff1f2; color: #be123c; padding: 20px;">
+                        <div style="font-size: 60px; margin-bottom: 20px;">🚫</div>
+                        <h1 style="font-size: 20px; font-weight: 900; margin-bottom: 10px;">ACCESS DENIED</h1>
+                        <p style="font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #fb7185;">
+                            Your account (${role || 'Guest'}) does not have permission<br>to view Financial Reports.
+                        </p>
+                    </div>
+                `;
+                return false;
+            }
+            return true;
+        }
+
+        // 1. FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+            authDomain: "mytaman-1db3a.firebaseapp.com",
+            projectId: "mytaman-1db3a",
+            storageBucket: "mytaman-1db3a.firebasestorage.app",
+            messagingSenderId: "112467759191",
+            appId: "1:112467759191:web:0785a5e578741f01891312"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let allInvoices = [];
+        let allResidents = [];
+
+        // 2. DATA LISTENER
+        function initData() {
+            db.collection("residents").onSnapshot(resSnap => {
+                allResidents = resSnap.docs.map(d => ({id: d.id, ...d.data()}));
+                db.collection("invoices").onSnapshot(invSnap => {
+                    allInvoices = invSnap.docs.map(d => d.data());
+                    refreshAllViews();
+                });
+            });
+        }
+
+        function refreshAllViews() {
+            renderOverall();
+            renderLedger();
+            renderTrends();
+        }
+
+        function renderOverall() {
+            let paid = 0; let unpaid = 0;
+            allInvoices.forEach(inv => {
+                const amt = parseFloat(inv.amount) || 0;
+                if(inv.status === 'paid') paid += amt; else unpaid += amt;
+            });
+            document.getElementById('ov-paid').innerText = "RM " + paid.toLocaleString();
+            document.getElementById('ov-unpaid').innerText = "RM " + unpaid.toLocaleString();
+            const rate = (paid + unpaid) > 0 ? Math.round((paid / (paid + unpaid)) * 100) : 0;
+            document.getElementById('ov-rate').innerText = rate + "%";
+        }
+
+        function renderLedger() {
+            const tbody = document.getElementById('resident-ledger-body');
+            tbody.innerHTML = "";
+            allResidents.sort((a,b) => a.unit_number.localeCompare(b.unit_number)).forEach(res => {
+                const resInvoices = allInvoices.filter(i => i.unit_number === res.unit_number);
+                let resPaid = 0; let resTotal = 0;
+                resInvoices.forEach(i => {
+                    const a = parseFloat(i.amount) || 0;
+                    resTotal += a;
+                    if(i.status === 'paid') resPaid += a;
+                });
+                const isClear = resPaid >= resTotal && resTotal > 0;
+                tbody.innerHTML += `
+                    <tr class="${!isClear && resTotal > 0 ? 'bg-rose-50/30' : ''}">
+                        <td class="p-3 font-bold text-slate-900">${res.unit_number}</td>
+                        <td class="p-3 text-slate-500 text-[10px]">${res.full_name}</td>
+                        <td class="p-3 font-mono">RM ${resPaid} / ${resTotal}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 rounded-full text-[8px] font-bold ${isClear ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}">
+                                ${isClear ? 'CLEAR' : 'DEBT'}
+                            </span>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        function renderTrends() {
+            const container = document.getElementById('trends-container');
+            container.innerHTML = "";
+            let months = {};
+            allInvoices.forEach(inv => {
+                if(!months[inv.month]) months[inv.month] = {p: 0, t: 0};
+                const a = parseFloat(inv.amount) || 0;
+                months[inv.month].t += a;
+                if(inv.status === 'paid') months[inv.month].p += a;
+            });
+            Object.keys(months).sort().reverse().forEach(m => {
+                const s = months[m];
+                const pct = s.t > 0 ? Math.round((s.p / s.t) * 100) : 0;
+                container.innerHTML += `
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-black uppercase text-slate-700">${m}</span>
+                            <span class="text-[10px] font-bold text-blue-600">${pct}% Collected</span>
+                        </div>
+                        <div class="w-full bg-slate-200 h-2 rounded-full overflow-hidden flex">
+                            <div class="bg-emerald-500 h-full" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="flex justify-between mt-2 text-[9px] font-bold">
+                            <span class="text-emerald-600 text-slate-400">Paid: RM${s.p}</span>
+                            <span class="text-rose-500">Due: RM${s.t - s.p}</span>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function switchReport(view) {
+            document.querySelectorAll('.report-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById('view-' + view).classList.remove('hidden');
+            document.querySelectorAll('.rep-btn').forEach(b => {
+                b.classList.remove('bg-white', 'shadow-sm', 'text-blue-600');
+                b.classList.add('text-slate-500');
+            });
+            document.getElementById('btn-' + view).classList.add('bg-white', 'shadow-sm', 'text-blue-600');
+            document.getElementById('btn-' + view).classList.remove('text-slate-500');
+        }
+
+        // --- EXECUTION ---
+        // Only initialize data if security check passes
+        if (checkReportSecurity()) {
+            initData();
+        }
+    </script>
+</body>
+</html>
