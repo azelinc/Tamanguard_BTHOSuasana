@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TamanGuard - Resident App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        @media print { body * { visibility: hidden; } #receipt-modal-content, #receipt-modal-content * { visibility: visible; } #receipt-modal-content { position: absolute; left: 0; top: 0; width: 100%; } #receipt-close-btn, #receipt-print-btn { display: none; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 pb-20">
+
+    <!-- RECEIPT MODAL -->
+    <div id="receipt-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
+        <div id="receipt-modal-content" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
+            <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">TamanGuard Management</p></div>
+            <div class="p-8 space-y-4 text-xs">
+                <div class="flex justify-between"><span class="text-slate-400">Receipt No:</span><span id="rcp-no" class="font-bold text-slate-800">--</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Paid Date:</span><span id="rcp-date" class="font-bold text-slate-800">--</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Unit No:</span><span id="rcp-unit" class="font-bold text-indigo-600">--</span></div>
+                <hr class="border-slate-100">
+                <div class="py-2 text-center"><p id="rcp-remark" class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">--</p><h2 class="text-4xl font-black text-slate-800">RM <span id="rcp-amount">0.00</span></h2></div>
+                <hr class="border-slate-100"><div class="text-[10px] text-center text-slate-400 italic">This is a computer-generated receipt.</div>
+            </div>
+            <div class="p-4 bg-slate-50 flex gap-2"><button onclick="closeReceipt()" class="flex-1 py-3 text-xs font-bold text-slate-500 uppercase">Close</button><button onclick="window.print()" class="flex-1 bg-indigo-600 py-3 text-xs font-bold text-white rounded-xl uppercase">Print / Save</button></div>
+        </div>
+    </div>
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
+        <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
+            <h1 class="text-2xl font-black text-indigo-600 mb-2 text-center uppercase tracking-tighter">TamanGuard</h1>
+            <p class="text-slate-400 text-[10px] mb-6 text-center italic font-bold uppercase tracking-widest">Resident Secure Login</p>
+            <div class="space-y-4 mb-6">
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">House Number</label><input id="login-house" type="text" placeholder="e.g. 10" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 uppercase"></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Select Road</label><select id="login-road" class="w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"><option value="">Loading Roads...</option></select></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"></div>
+            </div>
+            <button onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest">Verify & Enter</button>
+            <p id="login-error" class="text-red-500 text-[10px] mt-4 text-center hidden font-bold italic uppercase">❌ Invalid Unit or PIN</p>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
+        <div><p class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p><h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2></div>
+        <button onclick="localStorage.clear(); location.reload();" class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">Logout</button>
+    </header>
+
+    <main class="p-4 space-y-6">
+        <!-- PAYMASTER STATUS CARD -->
+        <section id="paymaster-card-container">
+            <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
+               <div class="text-3xl" id="paymaster-emoji">🧐</div>
+               <div class="flex-1">
+                   <h4 class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
+                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
+               </div>
+            </div>
+        </section>
+
+        <section id="view-news"><h3 class="font-bold text-lg mb-3">Taman News</h3><div id="news-list" class="space-y-4"></div></section>
+        
+        <section id="view-bills" class="hidden">
+            <div class="flex justify-between items-end mb-4">
+                <h3 class="font-bold text-lg">My Security Fees</h3>
+                <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
+                    <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600">All</button>
+                    <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500">Unpaid</button>
+                    <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500">Paid</button>
+                </div>
+            </div>
+            <div id="bill-list" class="space-y-3"></div>
+        </section>
+        
+        <section id="view-invite" class="hidden">
+            <h3 class="font-bold text-lg mb-3">Register Visitor</h3>
+            <div class="bg-white p-6 rounded-3xl shadow-sm border mb-6">
+                <input id="guest-name" type="text" placeholder="Visitor Name" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-phone" type="tel" placeholder="Visitor Phone" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-plate" type="text" placeholder="Vehicle Plate No." class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <button onclick="generateGuestPass()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg">Create QR</button>
+                <div id="qr-result" class="hidden mt-6 flex flex-col items-center border-t pt-6"><div id="qrcode" class="p-2 bg-white border-4 border-indigo-100 rounded-xl"></div></div>
+            </div>
+            <h3 class="font-bold text-lg mb-3 italic text-slate-500">History</h3>
+            <div id="my-visitor-list" class="space-y-3"></div>
+        </section>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50 shadow-lg">
+        <button onclick="switchTab('news')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>📢</span>News</button>
+        <button onclick="switchTab('invite')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center -mt-8 text-white text-xl border-4 border-slate-50 shadow-lg">+</div>Guest</button>
+        <button onclick="switchTab('bills')" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
+    </nav>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+            authDomain: "mytaman-1db3a.firebaseapp.com",
+            projectId: "mytaman-1db3a",
+            storageBucket: "mytaman-1db3a.firebasestorage.app",
+            messagingSenderId: "112467759191",
+            appId: "1:112467759191:web:0785a5e578741f01891312"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let invoiceCache = {};
+        let myBillsRaw = []; 
+        let currentBillFilter = 'all';
+        let myUnit = localStorage.getItem('myUnit');
+
+        function fetchRoads() {
+            db.collection("settings").doc("taman_config").get().then(doc => {
+                const s = document.getElementById('login-road');
+                if(doc.exists && s) {
+                    const r = doc.data().roads || [];
+                    s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+                }
+            });
+        }
+
+        async function setIdentity() {
+            const h = document.getElementById('login-house').value.trim().toUpperCase();
+            const r = document.getElementById('login-road').value;
+            const p = document.getElementById('login-pin').value.trim();
+            if(!h || !r || !p) return alert("Fill all fields");
+
+            const combined = `${h}-${r}`;
+            const snap = await db.collection("residents").where("unit_number", "==", combined).where("pin", "==", p).get();
+            
+            if(!snap.empty) {
+                localStorage.setItem('myUnit', combined);
+                location.reload();
+            } else {
+                document.getElementById('login-error').classList.remove('hidden');
+            }
+        }
+
+        function initApp() {
+            document.getElementById('display-unit').innerText = "NO " + myUnit;
+            loadNews(); loadBills(); loadMyVisitors(); 
+        }
+
+        function switchTab(t) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('view-' + t).classList.remove('hidden');
+            document.getElementById('paymaster-card-container').classList.remove('hidden');
+        }
+
+        function loadNews() {
+            db.collection("announcements").orderBy("timestamp", "desc").limit(10).onSnapshot(s => {
+                const list = document.getElementById('news-list'); list.innerHTML = "";
+                s.forEach(doc => { const n = doc.data(); list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${n.date || 'Update'}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.message}</p></div>`; });
+            });
+        }
+
+        function loadBills() {
+            db.collection("invoices").where("unit_number", "==", myUnit).onSnapshot(snapshot => {
+                myBillsRaw = [];
+                let uC = 0, uT = 0, hasI = !snapshot.empty;
+                
+                snapshot.forEach(doc => {
+                    const b = doc.data();
+                    b.id = doc.id;
+                    myBillsRaw.push(b);
+                    if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
+                });
+
+                // Sort by month (Newest First)
+                myBillsRaw.sort((a, b) => b.month.localeCompare(a.month));
+                
+                updatePaymasterUI(uC, uT, hasI);
+                renderBillList();
+            });
+        }
+
+        function setBillFilter(filter) {
+            currentBillFilter = filter;
+            ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
+                document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
+            });
+            document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
+            renderBillList();
+        }
+
+        function renderBillList() {
+            const list = document.getElementById('bill-list');
+            list.innerHTML = "";
+            invoiceCache = {};
+
+            const filtered = myBillsRaw.filter(b => {
+                if(currentBillFilter === 'paid') return b.status === 'paid';
+                if(currentBillFilter === 'unpaid') return b.status !== 'paid';
+                return true;
+            });
+
+            if(filtered.length === 0) {
+                list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No ${currentBillFilter === 'all' ? '' : currentBillFilter} records found.</p>`;
+                return;
+            }
+
+            filtered.forEach(b => {
+                invoiceCache[b.id] = b;
+                const isP = b.status === 'paid';
+                const amt = parseFloat(b.amount) || 0;
+                list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
+                    <div>
+                        <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month}</p>
+                        <p class="font-black text-lg">RM${amt.toFixed(2)}</p>
+                        <p class="text-[10px] text-slate-400 italic">${b.remark || 'General Fee'}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
+                        ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : ''}
+                    </div>
+                </div>`;
+            });
+        }
+
+        function updatePaymasterUI(count, total, hasI) {
+            const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
+            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
+            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
+            if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Excellent! You are a great paymaster. Fees are up to date. Thanks for keeping our Taman safe!"; } 
+            else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Reminder: RM${total.toFixed(2)} outstanding for ${count} month(s). Your contribution will help us keep our taman safe!`; } 
+            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)} outstanding for ${count} month(s). We need your help to keep our taman safe!!`; }
+        }
+
+        function openReceipt(id) {
+            const d = invoiceCache[id]; if(!d) return;
+            document.getElementById('rcp-no').innerText = d.receipt_no || 'N/A'; document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); document.getElementById('rcp-unit').innerText = d.unit_number; document.getElementById('rcp-remark').innerText = d.month + " - " + (d.remark || 'Security Fee');
+            let dt = "N/A"; if(d.payment_date && d.payment_date.toDate) dt = d.payment_date.toDate().toLocaleDateString('en-GB'); else if(d.payment_date) dt = new Date(d.payment_date).toLocaleDateString('en-GB');
+            document.getElementById('rcp-date').innerText = dt; document.getElementById('receipt-modal').classList.remove('hidden');
+        }
+        function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
+
+        function loadMyVisitors() {
+            db.collection("visits").where("unit_number", "==", myUnit).onSnapshot(snapshot => {
+                const list = document.getElementById('my-visitor-list'); let data = []; 
+                snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
+                data.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                if(data.length === 0) { list.innerHTML = '<p class="text-slate-400 text-center py-10 text-xs italic">No history.</p>'; return; }
+                let h = "";
+                data.forEach(v => {
+                    const isE = v.status === 'entered'; const dt = v.timestamp ? v.timestamp.toDate().toLocaleDateString() : 'Just now';
+                    h += `<div class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm"><div><p class="text-sm font-bold text-slate-800">${v.visitor_name}</p><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.car_plate}</p></div><div class="text-right"><div class="flex gap-2 justify-end mb-1">${!isE ? `<button onclick="cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}<span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span></div><p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p></div></div>`;
+                });
+                list.innerHTML = h;
+            });
+        }
+        async function cancelVisit(id) { if(confirm("Cancel visitor pass?")) await db.collection("visits").doc(id).delete(); }
+
+        let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+        async function generateGuestPass() {
+            const n = document.getElementById('guest-name').value, ph = document.getElementById('guest-phone').value, pl = document.getElementById('guest-plate').value;
+            if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
+            const doc = await db.collection("visits").add({ visitor_name: n, phone_number: ph, car_plate: pl.toUpperCase(), unit_number: myUnit, status: "pending", timestamp: firebase.firestore.FieldValue.serverTimestamp() });
+            document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(doc.id);
+            document.getElementById('guest-name').value = ""; document.getElementById('guest-phone').value = ""; document.getElementById('guest-plate').value = "";
+        }
+
+        window.onload = () => {
+            if(!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); }
+            else initApp();
+        };
+    </script>
+</body>
+</html>
