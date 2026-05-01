@@ -218,7 +218,8 @@
             const h = prompt("House Number (e.g. 10):"); if(!h || currentRoads.length === 0) return alert("Add road names in Users tab first.");
             const choice = prompt("Select Road Number:\n" + currentRoads.map((r, i) => `${i+1}. ${r}`).join("\n"));
             const road = currentRoads[parseInt(choice)-1]; const n = prompt("Full Name:"), p = prompt("Set Login PIN:");
-            if(h && road && n && p) await db.collection("residents").add({ unit_number: `${h.trim().toUpperCase()}-${road}`, full_name: n, pin: p.trim() });
+            
+            if(h && road && n && p) await db.collection("residents").add({ unit_number: `${h.trim().toUpperCase()},${road}`, full_name: n, pin: p.trim() });
         }
         db.collection("residents").orderBy("unit_number").onSnapshot(s => {
             const tb = document.getElementById('resident-table-body'); let rs = "";
