@@ -228,7 +228,7 @@
         function updatePaymasterUI(count, total, hasI) {
             const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
+            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found. Please contact Admin for more info. "; return; }
             if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Excellent! You are a great paymaster. Fees are up to date. Thanks for keeping our Taman safe!"; } 
             else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Reminder: RM${total.toFixed(2)} outstanding for ${count} month(s). Your contribution will help us keep our taman safe!`; } 
             else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)} outstanding for ${count} month(s). We need your help to keep our taman safe!!`; }
