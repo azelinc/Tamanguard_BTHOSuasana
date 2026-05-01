@@ -144,7 +144,8 @@
         }
 
         function initApp() {
-            document.getElementById('display-unit').innerText = "NO " + myUnit;
+            
+            document.getElementById('display-unit').innerText = "NO " + myUnit.replace(',', ' ');
             loadNews(); loadBills(); loadMyVisitors(); 
         }
 
