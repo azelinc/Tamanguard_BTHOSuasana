@@ -13,6 +13,11 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .spinner { border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* CRITICAL: Hide app elements by default to prevent stuck screens on new devices */
+        #app-header, #app-main, #app-nav { 
+            display: none; 
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 pb-20">
@@ -65,13 +70,13 @@
     </div>
 
     <!-- HEADER -->
-    <header class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
+    <header id="app-header" class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
         <div><p id="taman-display" class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p><h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2></div>
         <button onclick="logout()" class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">Logout</button>
     </header>
 
-    <main class="p-4 space-y-6">
-        <!-- PAYMASTER STATUS CARD (Moved outside tab views for persistence) -->
+    <main id="app-main" class="p-4 space-y-6">
+        <!-- PAYMASTER STATUS CARD -->
         <section id="paymaster-card-container">
             <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
                <div class="text-3xl" id="paymaster-emoji">🧐</div>
@@ -122,7 +127,7 @@
     </main>
 
     <!-- BOTTOM NAV -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50 shadow-lg">
+    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50 shadow-lg">
         <button onclick="switchTab('news')" id="nav-news" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-indigo-600"><span>📢</span>News</button>
         <button onclick="switchTab('invite')" id="nav-invite" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center -mt-8 text-white text-xl border-4 border-slate-50 shadow-lg">+</div>Guest</button>
         <button onclick="switchTab('bills')" id="nav-bills" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
@@ -196,21 +201,20 @@
             });
         }
 
-        // Updated for persistence
-function switchTab(t) {
-    // Hide ONLY the view sections, leave the paymaster container alone
-    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-    
-    // Show the selected tab
-    document.getElementById('view-' + t).classList.remove('hidden');
-    
-    // Update Nav UI colors
-    ['news', 'invite', 'bills'].forEach(tab => {
-        const btn = document.getElementById('nav-' + tab);
-        btn.classList.toggle('text-indigo-600', tab === t);
-        btn.classList.toggle('text-slate-400', tab !== t);
-    });
-}
+        function switchTab(t) {
+            // Hide only tab content sections
+            document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+            document.getElementById('view-' + t).classList.remove('hidden');
+            
+            // Keep paymaster container visible
+            document.getElementById('paymaster-card-container').classList.remove('hidden');
+            
+            ['news', 'invite', 'bills'].forEach(tab => {
+                const btn = document.getElementById('nav-' + tab);
+                btn.classList.toggle('text-indigo-600', tab === t);
+                btn.classList.toggle('text-slate-400', tab !== t);
+            });
+        }
 
         function loadNews() {
             unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
@@ -224,34 +228,32 @@ function switchTab(t) {
             });
         }
 
-       function loadBills() {
-    const myRoad = localStorage.getItem('myRoad'); // Retrieve the road from login
-    
-    // Updated query to filter by both Unit AND Road
-    unsubBills = db.collection("invoices")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad) 
-        .onSnapshot(snapshot => {
-            myBillsRaw = [];
-            let uC = 0, uT = 0, hasI = !snapshot.empty;
-            
-            snapshot.forEach(doc => {
-                const b = doc.data();
-                b.id = doc.id;
-                myBillsRaw.push(b);
-                if(b.status !== 'paid') { 
-                    uC++; 
-                    uT += (parseFloat(b.amount) || 0); 
-                }
-            });
+        function loadBills() {
+            const myRoad = localStorage.getItem('myRoad'); 
+            unsubBills = db.collection("invoices")
+                .where("unitNumber", "==", myUnit)
+                .where("road", "==", myRoad)
+                .onSnapshot(snapshot => {
+                    myBillsRaw = [];
+                    let uC = 0, uT = 0, hasI = !snapshot.empty;
+                    
+                    snapshot.forEach(doc => {
+                        const b = doc.data();
+                        b.id = doc.id;
+                        myBillsRaw.push(b);
+                        if(b.status !== 'paid') { 
+                            uC++; 
+                            uT += (parseFloat(b.amount) || 0); 
+                        }
+                    });
 
-            myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
-            updatePaymasterUI(uC, uT, hasI);
-            renderBillList();
-        }, err => {
-            console.error("Billing Sync Error:", err);
-        });
-}
+                    myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
+                    updatePaymasterUI(uC, uT, hasI);
+                    renderBillList();
+                }, err => {
+                    console.error("Billing Sync Error:", err);
+                });
+        }
 
         function setBillFilter(filter) {
             currentBillFilter = filter;
@@ -334,32 +336,31 @@ function switchTab(t) {
                 const limit = 48 * 60 * 60 * 1000; 
 
                 data.forEach(v => {
-    const isE = v.status === 'entered';
-    const isPending = v.status === 'pending' || !v.status; // Check if still pending
-    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-    const isWithin48 = (now - timeMs) < limit;
+                    const isE = v.status === 'entered';
+                    const isPending = v.status === 'pending' || !v.status; 
+                    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+                    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                    const isWithin48 = (now - timeMs) < limit;
 
-    // Add onclick only if it is pending and within 48h
-    const clickHandler = (isPending && isWithin48) ? `onclick="reShowQR('${v.id}')"` : '';
+                    const clickHandler = (isPending && isWithin48) ? `onclick="reShowQR('${v.id}')"` : '';
 
-    const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-        <div>
-            <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
-        </div>
-        <div class="text-right">
-            <div class="flex gap-2 justify-end mb-1">
-                ${(!isE && isWithin48) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-            </div>
-            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-        </div>
-    </div>`;
+                    const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="flex gap-2 justify-end mb-1">
+                                ${(!isE && isWithin48) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                            </div>
+                            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
+                        </div>
+                    </div>`;
 
-    if (isWithin48 && !v.exitTime) pendingH += cardHtml;
-    else historyH += cardHtml;
-});
+                    if (isWithin48 && !v.exitTime) pendingH += cardHtml;
+                    else historyH += cardHtml;
+                });
 
                 pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
                 historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
@@ -416,58 +417,51 @@ function switchTab(t) {
             } catch (err) { console.error("Sharing failed", err); }
         }
 
-function logout() {
-    // 1. Kill all active listeners to stop "Syncing data" loops
-    if(unsubBills) unsubBills(); 
-    if(unsubNews) unsubNews(); 
-    if(unsubVisits) unsubVisits();
-    
-    // 2. Clear all resident data
-    localStorage.clear(); 
-    
-    // 3. Force UI reset immediately
-    document.getElementById('login-screen').classList.remove('hidden');
-    document.querySelector('main').classList.add('hidden');
-    document.querySelector('nav').classList.add('hidden');
-    document.querySelector('header').classList.add('hidden');
-    
-    // 4. Reload to a clean state
-    location.reload();
-}
+        function logout() {
+            if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
+            localStorage.clear(); 
+            
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('app-main').style.display = 'none';
+            document.getElementById('app-nav').style.display = 'none';
+            document.getElementById('app-header').style.display = 'none';
+            
+            location.reload();
+        }
 
-function reShowQR(visitId) {
-    document.getElementById('qr-result').classList.remove('hidden');
-    qrObj.clear();
-    qrObj.makeCode(visitId);
-    
-    // Scroll the entire window to the top so the QR is visible on small screens
-    window.scrollTo({
-        top: 0,
-        behavior: 'smooth'
-    });
-}
-    
-    // Optional: Visual feedback
-    console.log("Re-showing QR for visit:", visitId);
-}
+        function reShowQR(visitId) {
+            document.getElementById('qr-result').classList.remove('hidden');
+            qrObj.clear();
+            qrObj.makeCode(visitId);
+            
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
         
-window.onload = () => {
-    // Re-verify myUnit from storage
-    myUnit = localStorage.getItem('myUnit');
-    
-    if(!myUnit) { 
-        // Force login overlay and hide app content
-        document.getElementById('login-screen').classList.remove('hidden'); 
-        document.querySelector('main').style.display = 'none';
-        document.querySelector('nav').style.display = 'none';
-        fetchRoads(); 
-    } else {
-        // Safe to initialize
-        document.querySelector('main').style.display = 'block';
-        document.querySelector('nav').style.display = 'flex';
-        initApp();
-    }
-};
+        window.onload = () => {
+            const savedUnit = localStorage.getItem('myUnit');
+            const loginScreen = document.getElementById('login-screen');
+            const appHeader = document.getElementById('app-header');
+            const appMain = document.getElementById('app-main');
+            const appNav = document.getElementById('app-nav');
+
+            if (!savedUnit) {
+                loginScreen.classList.remove('hidden');
+                if(appHeader) appHeader.style.display = 'none';
+                if(appMain) appMain.style.display = 'none';
+                if(appNav) appNav.style.display = 'none';
+                fetchRoads(); 
+            } else {
+                myUnit = savedUnit;
+                loginScreen.classList.add('hidden');
+                if(appHeader) appHeader.style.display = 'flex';
+                if(appMain) appMain.style.display = 'block';
+                if(appNav) appNav.style.display = 'flex';
+                initApp();
+            }
+        };
     </script>
 </body>
 </html>
