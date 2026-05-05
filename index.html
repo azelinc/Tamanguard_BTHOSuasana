@@ -1,300 +1,457 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TamanGuard - Admin Pro</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <style>
-        .tab-content { display: none; }
-        .active-section { display: block; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TamanGuard - Admin Pro</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    ::-webkit-scrollbar{width:8px;height:8px;}
+    ::-webkit-scrollbar-track{background:rgba(30,41,59,.5);}
+    ::-webkit-scrollbar-thumb{background:#3b82f6;border-radius:4px;}
+    .glass{background:rgba(30,41,59,.7);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);}
+    .tab-btn.active{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#60a5fa;}
+    .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:18px;height:18px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+  </style>
 </head>
-<body class="bg-slate-100 min-h-screen font-sans text-slate-800">
+<body class="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen font-sans text-white">
 
-    <!-- LOGIN OVERLAY -->
-    <div id="admin-login-overlay" class="fixed inset-0 bg-slate-900 z-[200] flex items-center justify-center p-6">
-        <div class="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-sm text-center border-t-8 border-blue-600">
-            <h2 class="text-2xl font-black text-slate-800 mb-1 tracking-tighter">TamanGuard</h2>
-            <p class="text-slate-400 text-[10px] mb-6 uppercase font-bold tracking-widest">Authorized Personnel Only</p>
-            <input id="login-user" type="text" placeholder="Username" class="w-full p-4 bg-slate-50 border rounded-2xl mb-3 outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-            <input id="login-pass" type="password" placeholder="Password" class="w-full p-4 bg-slate-50 border rounded-2xl mb-6 outline-none focus:ring-2 focus:ring-blue-500 font-bold">
-            <button id="btn-login-exec" onclick="verifyAdminLogin()" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-lg">Sign In</button>
-            <p id="login-error-msg" class="text-red-500 text-xs mt-4 font-bold hidden uppercase italic">❌ Invalid Credentials</p>
+  <!-- Toast -->
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none bg-slate-800 border border-slate-700 text-white"></div>
+
+  <!-- Admin Overlay -->
+  <div id="adminOverlay" class="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur flex items-center justify-center">
+    <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 relative overflow-hidden">
+      <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400"></div>
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-400 text-2xl"><i class="fas fa-shield-halved"></i></div>
+        <h2 class="text-2xl font-bold">Admin Login</h2>
+        <p class="text-slate-400 text-sm mt-2">TamanGuard Management System</p>
+      </div>
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Email</label>
+          <div class="relative">
+            <i class="fas fa-envelope absolute left-3 top-3 text-slate-500"></i>
+            <input type="email" id="loginEmail" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="admin@example.com" required>
+          </div>
         </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Password</label>
+          <div class="relative">
+            <i class="fas fa-lock absolute left-3 top-3 text-slate-500"></i>
+            <input type="password" id="loginPassword" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="••••••••" required>
+          </div>
+        </div>
+        <button type="submit" id="loginBtn" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-medium py-2.5 rounded-lg transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2">
+          <span>Login</span><i class="fas fa-arrow-right"></i>
+        </button>
+      </form>
+
+      <div id="firstAdminForm" class="hidden space-y-5 mt-6 border-t border-slate-700 pt-6">
+        <div class="text-center">
+          <h3 class="text-lg font-semibold">Create First Admin</h3>
+          <p class="text-slate-400 text-sm">No admin accounts found</p>
+        </div>
+        <input type="text" id="faName" placeholder="Full Name" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:border-blue-500" required>
+        <input type="email" id="faEmail" placeholder="Email" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:border-blue-500" required>
+        <input type="password" id="faPassword" placeholder="Password (min 6 chars)" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:border-blue-500" required>
+        <button id="createFirstAdminBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
+          <span>Create Admin</span><i class="fas fa-user-plus"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <nav class="fixed top-0 w-full z-40 bg-slate-900/80 backdrop-blur border-b border-slate-700/50 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">TG</div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">TamanGuard</h1>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            <span id="tamanNameDisplay">Loading...</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <div id="userBadge" class="hidden flex items-center gap-2 glass px-3 py-1.5 rounded-full">
+          <div class="w-6 h-6 bg-blue-500/20 rounded-full flex items-center justify-center text-xs text-blue-400"><i class="fas fa-user"></i></div>
+          <span id="userName" class="text-sm font-medium">Admin</span>
+          <span id="userRole" class="text-[10px] uppercase tracking-wider bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Role</span>
+        </div>
+        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all"><i class="fas fa-sign-out-alt"></i></button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="pt-20 pb-6 px-4 max-w-7xl mx-auto">
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="glass rounded-xl p-4 border-l-4 border-blue-500">
+        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Residents</div>
+        <div id="statResidents" class="text-2xl font-bold">0</div>
+      </div>
+      <div class="glass rounded-xl p-4 border-l-4 border-emerald-500">
+        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Active Visits</div>
+        <div id="statVisits" class="text-2xl font-bold">0</div>
+      </div>
+      <div class="glass rounded-xl p-4 border-l-4 border-amber-500">
+        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Unpaid Bills</div>
+        <div id="statBills" class="text-2xl font-bold">0</div>
+      </div>
     </div>
 
-    <!-- MAIN DASHBOARD -->
-    <div id="main-dashboard-content" class="hidden">
-        <div class="max-w-5xl mx-auto p-4 md:p-8">
-            <header class="bg-white p-6 rounded-2xl shadow-sm mb-6 border border-slate-200">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <!-- PLACE A: Dynamic Taman Name -->
-                        <h1 id="header-taman-name" class="text-2xl font-black text-slate-800 tracking-tighter">...</h1>
-                        <p id="user-display-name" class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter"></p>
-                    </div>
-                    
-                    <div class="flex items-center gap-6">
-                        <!-- PLACE B: Branding -->
-                        <div class="text-right hidden md:block border-r pr-6 border-slate-100">
-                            <span class="text-xl font-grey text-slate-800 tracking-tighter block">TamanGuard</span>
-                            <span class="text-blue-600 text-[10px] font-bold block uppercase -mt-1">Management System</span>
-                        </div>
-                        <button onclick="logoutAdmin()" class="bg-slate-100 text-slate-500 px-4 py-2 rounded-xl text-[10px] font-bold uppercase hover:bg-red-500 hover:text-white transition-all">Logout</button>
-                    </div>
-                </div>
-                
-                <nav id="admin-nav" class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                    <button onclick="showTab('news')" id="nav-news" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">News</button>
-                    <button onclick="showTab('residents')" id="nav-residents" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">Residents</button>
-                    <button onclick="showTab('visitors')" id="nav-visitors" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all">Visitors</button>
-                    <button onclick="showTab('billing')" id="nav-billing" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all hidden">💰 Billing</button>
-                    <button onclick="showTab('analytics')" id="nav-analytics" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all hidden">📊 Analytics</button>
-                    <button onclick="showTab('users')" id="nav-users" class="nav-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all hidden">⚙️ Settings</button>
-                </nav>
-            </header>
-
-            <!-- NEWS -->
-            <section id="sec-news" class="tab-content">
-                <div class="flex justify-between items-center mb-4"><h2 class="font-bold text-slate-700 text-sm uppercase">Announcements</h2><button onclick="postNews()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-xs font-bold">+ New Post</button></div>
-                <div id="news-feed" class="space-y-4"></div>
-            </section>
-
-            <!-- RESIDENTS -->
-            <section id="sec-residents" class="tab-content">
-                <div class="flex justify-between items-center mb-4 px-2"><h2 class="font-bold text-slate-700 text-sm uppercase">Resident Master List</h2><button onclick="addResident()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">+ New Resident</button></div>
-                <div class="bg-white rounded-2xl border shadow-sm overflow-hidden"><table class="w-full text-left text-sm"><tbody id="resident-table-body" class="divide-y"></tbody></table></div>
-            </section>
-
-            <!-- SECURITY / VISITORS -->
-            <section id="sec-visitors" class="tab-content space-y-4">
-                <div class="bg-white p-6 rounded-2xl border shadow-sm">
-                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                        <div><h2 class="font-black text-indigo-600 uppercase text-xs tracking-widest italic">Visitor Entry Master Log</h2></div>
-                        <input type="text" id="vis-search-input" onkeyup="filterVisitorTable()" placeholder="🔍 Search Plate or Unit..." class="w-full md:w-64 p-2 px-4 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50">
-                    </div>
-                    <div class="overflow-x-auto border rounded-xl"><table class="w-full text-left text-[11px] border-collapse"><thead class="bg-slate-800 text-slate-300 uppercase font-bold"><tr><th class="p-4">Time / Date</th><th class="p-4">Visitor & Vehicle</th><th class="p-4 text-center">Unit No</th><th class="p-4">Contact No</th><th class="p-4 text-center">Status</th><th class="p-4 text-right">Action</th></tr></thead><tbody id="visitor-log-body" class="divide-y divide-slate-100"></tbody></table></div>
-                </div>
-            </section>
-
-            <!-- BILLING -->
-            <section id="sec-billing" class="tab-content space-y-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="bg-white p-6 rounded-2xl border-2 border-orange-100 shadow-sm">
-                        <h3 class="font-black text-orange-600 uppercase text-[10px] mb-3 uppercase tracking-widest italic">1. Bulk Billing</h3>
-                        <div class="space-y-3">
-                            <div class="flex gap-2"><input id="bulk-month" type="month" class="flex-1 p-2 bg-slate-50 border rounded-xl text-sm outline-none"><input id="bulk-amount" type="number" value="100" class="w-20 p-2 bg-slate-50 border rounded-xl text-sm font-bold text-center"></div>
-                            <input id="bulk-remark" type="text" value="Security Fee" class="w-full p-2 bg-slate-50 border rounded-xl text-sm">
-                            <button onclick="execBulkBill()" class="w-full bg-orange-600 text-white py-2 rounded-xl font-bold shadow-md hover:scale-[1.02] transition-all">Generate All Bills</button>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl border-2 border-blue-100 shadow-sm">
-                        <h3 class="font-black text-blue-600 uppercase text-[10px] mb-3 uppercase tracking-widest italic">2. Custom Single Bill</h3>
-                        <div class="space-y-3">
-                            <div class="flex gap-2"><input id="ind-unit" type="text" placeholder="Unit" class="w-24 p-2 bg-slate-50 border rounded-xl text-sm uppercase font-bold text-center"><input id="ind-month" type="month" class="flex-1 p-2 bg-slate-50 border rounded-xl text-sm"></div>
-                            <div class="flex gap-2"><input id="ind-amount" type="number" placeholder="RM" class="w-20 p-2 bg-slate-50 border rounded-xl text-sm font-bold text-center"><input id="ind-remark" type="text" placeholder="Remark" class="flex-1 p-2 bg-slate-50 border rounded-xl text-sm"></div>
-                            <button onclick="execIndividualBill()" class="w-full bg-blue-600 text-white py-2 rounded-xl font-bold shadow-md hover:scale-[1.02] transition-all">Create Bill</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-2xl border shadow-sm overflow-hidden">
-                    <div class="p-4 bg-slate-50 flex flex-col md:flex-row gap-2 border-b">
-                        <input type="text" id="bill-filter" onkeyup="renderInvoiceTable()" placeholder="🔍 Search House No..." class="flex-1 p-2 px-4 border rounded-xl text-xs outline-none focus:ring-2 focus:ring-orange-500">
-                        <select id="bill-sort-opt" onchange="renderInvoiceTable()" class="p-2 border rounded-xl text-[10px] font-bold text-slate-500 outline-none">
-                            <option value="timestamp">Sort: Recently Created</option>
-                            <option value="unit">Sort: House Number</option>
-                            <option value="month">Sort: Month</option>
-                        </select>
-                    </div>
-                    <table class="w-full text-left text-[11px] border-collapse"><tbody id="bill-table-body" class="divide-y divide-slate-100"></tbody></table>
-                </div>
-            </section>
-
-            <!-- ANALYTICS -->
-            <section id="sec-analytics" class="tab-content h-[600px]"><iframe src="report.html" class="w-full h-full border-0 rounded-2xl bg-white shadow-inner"></iframe></section>
-
-            <!-- USER MANAGEMENT & ROAD MANAGER -->
-            <section id="sec-users" class="tab-content space-y-8">
-                <div class="bg-white p-6 rounded-2xl border shadow-sm">
-                    <div class="flex justify-between items-center mb-6"><h2 class="font-bold text-slate-700 text-sm uppercase">Staff Accounts</h2><button onclick="addAdminUser()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold">+ New User</button></div>
-                    <table class="w-full text-left text-sm border-t"><tbody id="admin-user-list" class="divide-y"></tbody></table>
-                </div>
-                
-                <div class="bg-white p-6 rounded-2xl border shadow-sm">
-                    <h2 class="font-black text-slate-400 text-[10px] uppercase tracking-widest mb-6 border-b pb-2">Taman Configuration</h2>
-                    
-                    <!-- NEW TAMAN NAME MANAGER -->
-                    <div class="mb-8">
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">A: Dynamic Taman Name</label>
-                        <div class="flex gap-2">
-                            <input id="taman-name-input" type="text" placeholder="e.g. SUASANA RESIDENCE" class="flex-1 p-2 border rounded-xl text-xs uppercase font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500">
-                            <button onclick="updateTamanName()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Update Name</button>
-                        </div>
-                    </div>
-
-                    <div>
-                        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2">Nama Jalan List</label>
-                        <div class="flex gap-2 mb-4">
-                            <input id="new-road-name" type="text" placeholder="E.G. JALAN 5/3" class="flex-1 p-2 border rounded-xl text-xs uppercase font-bold bg-slate-50 outline-none focus:ring-2 focus:ring-indigo-500">
-                            <button onclick="addRoadName()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Add Road</button>
-                        </div>
-                        <div id="road-list-container" class="flex flex-wrap gap-2"></div>
-                    </div>
-                </div>
-            </section>
-        </div>
+    <!-- Tabs -->
+    <div class="glass rounded-xl p-1 mb-6 flex flex-wrap gap-1 sticky top-16 z-30">
+      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="news"><i class="fas fa-bullhorn text-blue-400"></i>News</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="residents"><i class="fas fa-users text-emerald-400"></i>Residents</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="visitors"><i class="fas fa-car text-amber-400"></i>Visitors</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="billing"><i class="fas fa-file-invoice-dollar text-purple-400"></i>Billing</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="analytics"><i class="fas fa-chart-line text-rose-400"></i>Analytics</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="settings"><i class="fas fa-cog text-slate-400"></i>Settings</button>
     </div>
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
-            authDomain: "mytaman-1db3a.firebaseapp.com",
-            projectId: "mytaman-1db3a",
-            storageBucket: "mytaman-1db3a.firebasestorage.app",
-            messagingSenderId: "112467759191",
-            appId: "1:112467759191:web:0785a5e578741f01891312"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
+    <!-- Tab Contents -->
+    <div id="tabContents">
+      <!-- News -->
+      <div id="tab-news" class="tab-pane">
+        <div class="glass rounded-xl p-6 mb-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-blue-400"></i>Post Announcement</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <input type="text" id="newsTitle" placeholder="Title" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
+            <input type="text" id="newsImage" placeholder="Image URL (optional)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
+            <button id="postNewsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center justify-center gap-2"><span>Post</span><i class="fas fa-paper-plane"></i></button>
+          </div>
+          <textarea id="newsContent" placeholder="Announcement details..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 h-24 resize-none"></textarea>
+        </div>
+        <div id="newsList" class="space-y-4"></div>
+      </div>
 
-        let currentRoads = [];
-        let allInvoicesCache = [];
+      <!-- Residents -->
+      <div id="tab-residents" class="tab-pane hidden">
+        <div class="flex flex-col md:flex-row gap-4 mb-4">
+          <div class="relative flex-1">
+            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
+            <input type="text" id="residentSearch" placeholder="Search residents..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
+          </div>
+          <button id="addResidentBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i>Add Resident</button>
+        </div>
+        <div id="roadFilters" class="flex flex-wrap gap-2 mb-4"></div>
+        <div id="residentsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
 
-        async function verifyAdminLogin() {
-            const u = document.getElementById('login-user').value.trim(), p = document.getElementById('login-pass').value.trim();
-            if(!u || !p) return;
-            const snap = await db.collection("admin_accounts").where("username", "==", u).where("password", "==", p).get();
-            if(!snap.empty) {
-                const d = snap.docs[0].data();
-                sessionStorage.setItem('adminAuth', 'true'); sessionStorage.setItem('adminRole', d.role); sessionStorage.setItem('adminName', d.name);
-                location.reload();
-            } else document.getElementById('login-error-msg').classList.remove('hidden');
-        }
+      <!-- Visitors -->
+      <div id="tab-visitors" class="tab-pane hidden">
+        <div class="flex flex-col md:flex-row gap-4 mb-4">
+          <div class="relative flex-1">
+            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
+            <input type="text" id="visitorSearch" placeholder="Search visits..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
+          </div>
+          <button id="addVisitorBtn" class="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i>Visitor Entry</button>
+        </div>
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
+                <tr>
+                  <th class="px-4 py-3">Date/Time</th>
+                  <th class="px-4 py-3">Car Plate</th>
+                  <th class="px-4 py-3">Unit</th>
+                  <th class="px-4 py-3">Visitor</th>
+                  <th class="px-4 py-3">Phone</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mt-4 text-center">
+          <button id="loadMoreVisitors" class="hidden px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-300 transition-all">Load More</button>
+        </div>
+      </div>
 
-        function applyRolePermissions(role) {
-            if(role === 'super_admin') { document.getElementById('nav-billing').classList.remove('hidden'); document.getElementById('nav-analytics').classList.remove('hidden'); document.getElementById('nav-users').classList.remove('hidden'); }
-            else if (role === 'treasurer') { document.getElementById('nav-billing').classList.remove('hidden'); document.getElementById('nav-analytics').classList.remove('hidden'); }
-        }
+      <!-- Billing -->
+      <div id="tab-billing" class="tab-pane hidden">
+        <div class="glass rounded-xl p-6 mb-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-file-invoice text-purple-400"></i>Generate Monthly Bills</h3>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <select id="bulkMonth" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-white">
+              <option value="">Select Month</option>
+              <option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option>
+              <option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
+            </select>
+            <input type="number" id="bulkYear" placeholder="Year" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-white" min="2020" max="2099">
+            <input type="number" id="bulkAmount" placeholder="Amount (RM)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-white" min="0" step="0.01">
+            <input type="date" id="bulkDue" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500 text-white">
+          </div>
+          <button id="generateBulkBtn" class="mt-4 w-full md:w-auto bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-6 py-2.5 font-medium transition-all flex items-center justify-center gap-2">
+            <span>Generate Bills</span><i class="fas fa-bolt"></i>
+          </button>
+        </div>
+        <div class="flex flex-col md:flex-row gap-4 mb-4">
+          <div class="relative flex-1">
+            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
+            <input type="text" id="invoiceSearch" placeholder="Search invoices..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
+          </div>
+          <button id="addInvoiceBtn" class="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i>Custom Bill</button>
+        </div>
+        <div class="glass rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
+                <tr>
+                  <th class="px-4 py-3">Invoice #</th>
+                  <th class="px-4 py-3">Unit</th>
+                  <th class="px-4 py-3">Month/Year</th>
+                  <th class="px-4 py-3">Amount</th>
+                  <th class="px-4 py-3">Due Date</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="invoicesTableBody" class="divide-y divide-slate-700/50"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="mt-4 text-center">
+          <button id="loadMoreInvoices" class="hidden px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-sm text-slate-300 transition-all">Load More</button>
+        </div>
+      </div>
 
-        function showTab(tabId) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-section'));
-            document.getElementById('sec-' + tabId).classList.add('active-section');
-            document.querySelectorAll('.nav-btn').forEach(btn => { btn.classList.remove('bg-blue-600', 'bg-orange-600', 'bg-emerald-600', 'bg-indigo-600', 'bg-slate-900', 'text-white'); btn.classList.add('text-slate-500'); });
-            const activeBtn = document.getElementById('nav-' + tabId);
-            const colors = {residents:'bg-blue-600', billing:'bg-orange-600', news:'bg-emerald-600', analytics:'bg-indigo-600', visitors:'bg-indigo-600', users: 'bg-slate-900'};
-            activeBtn.classList.remove('text-slate-500'); activeBtn.classList.add(colors[tabId], 'text-white');
-        }
+      <!-- Analytics -->
+      <div id="tab-analytics" class="tab-pane hidden">
+        <div class="glass rounded-xl p-1 h-[70vh]">
+          <iframe src="report.html" class="w-full h-full rounded-lg border-0 bg-slate-900"></iframe>
+        </div>
+      </div>
 
-        // TAMAN CONFIG MANAGER
-        function syncTamanSettings() {
-            db.collection("settings").doc("taman_config").onSnapshot(doc => {
-                if(doc.exists) {
-                    const data = doc.data();
-                    currentRoads = data.roads || [];
-                    const tamanName = data.taman_name || "TamanGuard";
-                    document.getElementById('header-taman-name').innerText = tamanName;
-                    if(document.getElementById('taman-name-input')) document.getElementById('taman-name-input').value = tamanName;
-                    renderRoadChips();
-                }
-            });
-        }
-        async function updateTamanName() {
-            const n = document.getElementById('taman-name-input').value.trim().toUpperCase();
-            if(!n) return;
-            await db.collection("settings").doc("taman_config").set({ taman_name: n }, {merge: true});
-            alert("Taman Name Updated Successfully");
-        }
-        function renderRoadChips() { const c = document.getElementById('road-list-container'); if(!c) return; c.innerHTML = currentRoads.map(r => `<div class="bg-slate-100 border px-3 py-1 rounded-lg text-[9px] font-bold flex items-center gap-2">${r}<button onclick="deleteRoadName('${r}')" class="text-red-400 font-black">×</button></div>`).join(''); }
-        async function addRoadName() { const i = document.getElementById('new-road-name'), r = i.value.trim().toUpperCase(); if(!r || currentRoads.includes(r)) return; currentRoads.push(r); await db.collection("settings").doc("taman_config").set({ roads: currentRoads }, {merge: true}); i.value = ""; }
-        async function deleteRoadName(r) { if(confirm(`Delete "${r}"?`)) { const f = currentRoads.filter(x => x !== r); await db.collection("settings").doc("taman_config").set({ roads: f }, {merge: true}); } }
+      <!-- Settings -->
+      <div id="tab-settings" class="tab-pane hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="glass rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-home text-blue-400"></i>Taman Configuration</h3>
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-slate-400 mb-1 uppercase">Taman Name</label>
+              <input type="text" id="tamanNameInput" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="mb-4">
+              <label class="block text-xs font-medium text-slate-400 mb-1 uppercase">Road / Block Names</label>
+              <div class="flex gap-2 mb-2">
+                <input type="text" id="newRoadName" placeholder="e.g. Jalan Merak" class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
+                <button id="addRoadBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2.5 transition-all"><i class="fas fa-plus"></i></button>
+              </div>
+              <div id="roadList" class="flex flex-wrap gap-2"></div>
+            </div>
+            <button id="saveSettingsBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-2.5 font-medium transition-all">Save Settings</button>
+          </div>
+          <div class="glass rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-user-shield text-amber-400"></i>Admin Accounts</h3>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-sm">
+                <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
+                  <tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Email</th><th class="px-4 py-3">Role</th><th class="px-4 py-3 text-right">Actions</th></tr>
+                </thead>
+                <tbody id="adminTableBody" class="divide-y divide-slate-700/50"></tbody>
+              </table>
+            </div>
+            <button id="createAdminShowBtn" class="mt-4 w-full bg-amber-600 hover:bg-amber-500 text-white rounded-lg py-2.5 font-medium transition-all flex items-center justify-center gap-2"><i class="fas fa-user-plus"></i>Create Admin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
 
-        // RESIDENTS
-        async function addResident() {
-            const h = prompt("House Number (e.g. 10):"); if(!h || currentRoads.length === 0) return alert("Add road names in Users tab first.");
-            const choice = prompt("Select Road Number:\n" + currentRoads.map((r, i) => `${i+1}. ${r}`).join("\n"));
-            const road = currentRoads[parseInt(choice)-1]; const n = prompt("Full Name:"), p = prompt("Set Login PIN:");
-            
-            if(h && road && n && p) await db.collection("residents").add({ unit_number: `${h.trim().toUpperCase()},${road}`, full_name: n, pin: p.trim() });
-        }
-        db.collection("residents").orderBy("unit_number").onSnapshot(s => {
-            const tb = document.getElementById('resident-table-body'); let rs = "";
-            s.forEach(d => { const r = d.data(); rs += `<tr><td class="p-4 font-bold text-slate-800">${r.unit_number}</td><td class="p-4 text-slate-500 font-bold">${r.full_name}</td><td class="p-4 font-mono text-blue-600 text-center font-bold">${r.pin}</td><td class="p-4 text-right"><button onclick="deleteDoc('residents','${d.id}')" class="text-red-400">Delete</button></td></tr>`; });
-            tb.innerHTML = rs;
-        });
+  <!-- Modals -->
+  <!-- Resident -->
+  <div id="residentModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 id="residentModalTitle" class="text-xl font-bold">Add Resident</h3>
+        <button data-close-modal="residentModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form id="residentForm" class="space-y-4">
+        <input type="hidden" id="residentId">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Unit Number</label>
+            <input type="text" id="resUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Road / Block</label>
+            <select id="resRoad" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-white"></select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Full Name</label>
+          <input type="text" id="resName" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Phone</label>
+            <input type="tel" id="resPhone" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="01XXXXXXXX">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Email</label>
+            <input type="email" id="resEmail" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">PIN Code</label>
+            <input type="text" id="resPin" required maxlength="6" pattern="\d*" inputmode="numeric" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="4-6 digits">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Vehicle Plate</label>
+            <input type="text" id="resVehicle" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="ABC 1234">
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="residentModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-all">Cancel</button>
+          <button type="submit" id="residentSubmitBtn" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium transition-all">Save Resident</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-        // BILLING ENGINE (WITH SORTING)
-        async function execBulkBill() {
-            const m = document.getElementById('bulk-month').value, a = document.getElementById('bulk-amount').value, r = document.getElementById('bulk-remark').value;
-            if(!m || !a) return alert("Select Month & Amount");
-            const resSnap = await db.collection("residents").get();
-            const batch = db.batch();
-            resSnap.forEach(doc => { batch.set(db.collection("invoices").doc(), { unit_number: doc.data().unit_number, month: m, amount: a, remark: r, status: "unpaid", timestamp: firebase.firestore.FieldValue.serverTimestamp() }); });
-            await batch.commit(); alert("Bulk Billing Complete");
-        }
-        async function execIndividualBill() {
-            const u = document.getElementById('ind-unit').value.toUpperCase().trim(), m = document.getElementById('ind-month').value, a = document.getElementById('ind-amount').value, r = document.getElementById('ind-remark').value;
-            if(!u || !m || !a) return alert("Unit, Month and RM are required");
-            await db.collection("invoices").add({ unit_number: u, month: m, amount: a, remark: r, status: "unpaid", timestamp: firebase.firestore.FieldValue.serverTimestamp() });
-            alert("Bill created for " + u);
-        }
-        db.collection("invoices").orderBy("timestamp", "desc").limit(100).onSnapshot(s => {
-            allInvoicesCache = []; s.forEach(doc => { let d = doc.data(); d.id = doc.id; allInvoicesCache.push(d); });
-            renderInvoiceTable();
-        });
-        function renderInvoiceTable() {
-            const sortBy = document.getElementById('bill-sort-opt').value, filterVal = document.getElementById('bill-filter').value.toUpperCase(), tb = document.getElementById('bill-table-body');
-            let data = [...allInvoicesCache];
-            if (sortBy === 'unit') data.sort((a, b) => a.unit_number.localeCompare(b.unit_number, undefined, {numeric: true, sensitivity: 'base'}));
-            else if (sortBy === 'month') data.sort((a, b) => b.month.localeCompare(a.month));
-            let h = "";
-            data.forEach(b => {
-                if(filterVal && !b.unit_number.includes(filterVal)) return;
-                const isP = b.status === "paid";
-                h += `<tr class="hover:bg-slate-50"><td class="p-3 font-bold">${b.unit_number}</td><td class="p-3 font-mono text-slate-400 text-[9px]">${b.month}</td><td class="p-3 italic text-slate-500">${b.remark || '-'}</td><td class="p-3 font-bold text-slate-800 font-mono">RM${b.amount}</td><td class="p-3 text-center"><span class="px-2 py-0.5 rounded font-black text-[9px] ${isP ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${(b.status || 'unpaid').toUpperCase()}</span></td><td class="p-3 text-right flex gap-2 justify-end">${!isP ? `<button onclick="markPaid('${b.id}')" class="bg-slate-800 text-white px-2 py-1 rounded text-[9px]">Paid</button>` : '✅'}<button onclick="deleteDoc('invoices','${b.id}')" class="text-slate-300">🗑️</button></td></tr>`;
-            });
-            tb.innerHTML = h || '<tr><td colspan="6" class="p-10 text-center">No records</td></tr>';
-        }
-        async function markPaid(id) { 
-            if(confirm("Confirm payment received? Official receipt will be generated.")) {
-                const rcp = "RCP-" + new Date().getFullYear() + "-" + Math.floor(100000 + Math.random() * 900000);
-                await db.collection("invoices").doc(id).update({ status: "paid", receipt_no: rcp, payment_date: firebase.firestore.FieldValue.serverTimestamp() });
-            }
-        }
+  <!-- Visitor -->
+  <div id="visitorModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">New Visitor Entry</h3>
+        <button data-close-modal="visitorModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form id="visitorForm" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Car Plate</label>
+            <input type="text" id="visPlate" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="ABC 1234">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Visiting Unit</label>
+            <input type="text" id="visUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Visitor Name</label>
+            <input type="text" id="visName" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Phone</label>
+            <input type="tel" id="visPhone" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" placeholder="01XXXXXXXX">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Purpose / Notes</label>
+          <input type="text" id="visPurpose" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="visitorModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-all">Cancel</button>
+          <button type="submit" id="visitorSubmitBtn" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition-all">Check In</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-        // VISITORS, NEWS & HELPERS
-        db.collection("visits").orderBy("timestamp", "desc").onSnapshot(s => {
-            const tb = document.getElementById('visitor-log-body'); let h = "";
-            s.forEach(doc => {
-                const v = doc.data(); const isE = v.status === 'entered'; let dt = "Just now";
-                if(v.timestamp) { const d = v.timestamp.toDate(); dt = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
-                h += `<tr data-search="${v.car_plate} ${v.unit_number}" class="hover:bg-slate-50"><td class="p-4 text-slate-400 font-mono">${dt}</td><td class="p-4 uppercase font-bold text-slate-800"><strong>${v.car_plate}</strong><div class="text-[10px] text-slate-500 font-normal">${v.visitor_name}</div></td><td class="p-4 text-center font-black text-indigo-700">${v.unit_number}</td><td class="p-4 font-mono text-slate-600 text-xs">${v.phone_number || '-'}</td><td class="p-4 text-center"><span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span></td><td class="p-4 text-right"><button onclick="deleteDoc('visits','${doc.id}')" class="text-slate-300 hover:text-red-500 text-lg">🗑️</button></td></tr>`;
-            });
-            tb.innerHTML = h || '<tr><td colspan="6" class="p-10 text-center">No visitor records</td></tr>';
-        });
+  <!-- Invoice -->
+  <div id="invoiceModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-lg p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">Create Custom Bill</h3>
+        <button data-close-modal="invoiceModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form id="invoiceForm" class="space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Unit Number</label>
+            <input type="text" id="invUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Amount (RM)</label>
+            <input type="number" id="invAmount" required min="0" step="0.01" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Month</label>
+            <select id="invMonth" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-white">
+              <option value="">Select</option>
+              <option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option>
+              <option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-400 mb-1">Year</label>
+            <input type="number" id="invYear" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Description</label>
+          <input type="text" id="invDesc" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="invoiceModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-all">Cancel</button>
+          <button type="submit" id="invoiceSubmitBtn" class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-all">Create Bill</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-        async function postNews() { const t = prompt("Title:"), m = prompt("Msg:"); if(t && m) await db.collection("announcements").add({ title: t, message: m, timestamp: firebase.firestore.FieldValue.serverTimestamp(), date: new Date().toLocaleDateString() }); }
-        db.collection("announcements").orderBy("timestamp", "desc").onSnapshot(s => { let h = ""; s.forEach(d => { const n = d.data(); h += `<div class="bg-white p-4 rounded-xl border-l-4 border-emerald-500 flex justify-between items-center"><div class="flex-1"><h3 class="font-bold text-slate-800 tracking-tight">${n.title}</h3><p class="text-xs text-slate-500">${n.message}</p></div><button onclick="deleteDoc('announcements','${d.id}')" class="text-slate-300">🗑️</button></div>`; }); document.getElementById('news-feed').innerHTML = h; });
-        async function addAdminUser() { const n = prompt("Name:"), u = prompt("User:"), p = prompt("Pass:"), r = prompt("Role (super_admin, treasurer, manager):"); if(n && u && p && r) await db.collection("admin_accounts").add({ name: n, username: u, password: p, role: r }); }
-        db.collection("admin_accounts").onSnapshot(s => { const l = document.getElementById('admin-user-list'); let h = ""; s.forEach(d => { const u = d.data(); h += `<tr><td class="p-4 font-bold">${u.name}</td><td class="p-4">${u.username}</td><td class="p-4 uppercase text-[10px] font-black">${u.role}</td><td class="p-4 text-right"><button onclick="deleteDoc('admin_accounts','${d.id}')" class="text-red-400">Remove</button></td></tr>`; }); l.innerHTML = h; });
-        
-        async function deleteDoc(col, id) { if(confirm("Permanently delete this?")) await db.collection(col).doc(id).delete(); }
-        function logoutAdmin() { sessionStorage.clear(); location.reload(); }
-        function filterVisitorTable() { const v = document.getElementById('vis-search-input').value.toUpperCase(); document.querySelectorAll('#visitor-log-body tr').forEach(tr => { const s = tr.getAttribute('data-search'); if(s) tr.style.display = s.includes(v) ? '' : 'none'; }); }
+  <!-- Admin -->
+  <div id="adminModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">Create Admin</h3>
+        <button data-close-modal="adminModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+      </div>
+      <form id="adminForm" class="space-y-4">
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Full Name</label>
+          <input type="text" id="admName" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Email</label>
+          <input type="email" id="admEmail" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Password</label>
+          <input type="password" id="admPassword" required minlength="6" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs text-slate-400 mb-1">Role</label>
+          <select id="admRole" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 text-white">
+            <option value="manager">Manager</option>
+            <option value="treasurer">Treasurer</option>
+            <option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="adminModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-all">Cancel</button>
+          <button type="submit" id="adminSubmitBtn" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium transition-all">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-        window.onload = () => {
-            if (sessionStorage.getItem('adminAuth') === 'true') {
-                applyRolePermissions(sessionStorage.getItem('adminRole'));
-                document.getElementById('admin-login-overlay').classList.add('hidden');
-                document.getElementById('main-dashboard-content').classList.remove('hidden');
-                document.getElementById('user-display-name').innerText = `${sessionStorage.getItem('adminName')} (${sessionStorage.getItem('adminRole')})`;
-                showTab('news'); syncTamanSettings();
-            }
-        };
-    </script>
+  <!-- QR Modal -->
+  <div id="qrModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-sm p-6 text-center">
+      <h3 class="text-lg font-bold mb-4">Visitor Pass</h3>
+      <div id="qrCodeContainer" class="bg-white p-4 rounded-lg inline-block mb-4"></div>
+      <div id="qrDetails" class="text-sm text-slate-300 mb-4 space-y-1 text-left"></div>
+      <button data-close-modal="qrModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm font-medium transition-all">Close</button>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
