@@ -3,12 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TamanGuard - Guard</title>
+    <title>TamanGuard - Guard Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <!-- QR Scanner Library -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        .spinner { border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #reader__scan_region { background: white !important; }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans overflow-x-hidden">
 
@@ -16,139 +20,213 @@
     <nav class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center sticky top-0 z-50">
         <div class="flex items-center gap-2">
             <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-            <span class="font-bold tracking-wider">GUARD TERMINAL</span>
+            <span class="font-bold tracking-wider uppercase text-xs">Guard Terminal</span>
         </div>
         <div id="clock" class="text-sm font-mono text-slate-400">00:00:00</div>
     </nav>
 
     <main class="p-4 max-w-2xl mx-auto space-y-6">
         
-        <!-- Emergency Button -->
-        <button onclick="triggerSOS()" class="w-full bg-red-600 active:bg-red-800 py-6 rounded-2xl shadow-lg shadow-red-900/20 flex items-center justify-center gap-4 border-b-4 border-red-900">
-            <span class="text-3xl">🚨</span>
-            <span class="text-xl font-black uppercase tracking-widest">Emergency SOS</span>
+        <!-- SOS Button -->
+        <button onclick="triggerSOS()" class="w-full bg-red-600 active:scale-95 transition-transform py-5 rounded-2xl shadow-lg shadow-red-900/20 flex items-center justify-center gap-4 border-b-4 border-red-900">
+            <span class="text-2xl">🚨</span>
+            <span class="text-lg font-black uppercase tracking-widest">Emergency SOS</span>
         </button>
 
-        <!-- Main Scanner UI -->
-        <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700">
-            <h2 class="text-center text-slate-400 uppercase text-xs font-bold mb-4 tracking-widest">Entry Control</h2>
+        <!-- Entry Control -->
+        <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
+            <h2 class="text-center text-slate-500 uppercase text-[10px] font-bold mb-4 tracking-widest">Scanner Interface</h2>
             
-            <div id="reader" class="overflow-hidden rounded-xl bg-black mb-4"></div>
+            <div id="reader" class="overflow-hidden rounded-2xl bg-black mb-6 border-2 border-slate-700"></div>
             
             <div class="grid grid-cols-2 gap-4">
-                <button onclick="startScanner()" class="bg-indigo-600 py-4 rounded-xl font-bold">Start Scanner</button>
-                <button onclick="manualSearch()" class="bg-slate-700 py-4 rounded-xl font-bold">Manual Search</button>
+                <button id="scan-btn" onclick="startScanner()" class="bg-indigo-600 py-4 rounded-xl font-bold active:bg-indigo-700 shadow-lg">Start Scanner</button>
+                <button onclick="manualSearch()" class="bg-slate-700 py-4 rounded-xl font-bold active:bg-slate-600">Plate Search</button>
             </div>
         </div>
 
-        <!-- Real-time Visitor Feed -->
+        <!-- Recent Activity Feed -->
         <section>
-            <h2 class="text-sm font-bold text-slate-500 uppercase mb-3 px-2">Inside Taman / Recent</h2>
-            <div id="guard-log" class="space-y-3">
-                <!-- Log entries will appear here -->
-                <p class="text-center text-slate-600 py-10">Waiting for activity...</p>
+            <div class="flex justify-between items-center mb-3 px-2">
+                <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Recent Logs</h2>
+                <span id="log-count" class="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-indigo-400 font-bold">0 Active</span>
+            </div>
+            <div id="guard-log" class="space-y-3 pb-20">
+                <p class="text-center text-slate-600 py-10 text-xs italic uppercase tracking-widest">Syncing with Main Gate...</p>
             </div>
         </section>
 
     </main>
 
     <script>
-        // 1. FIREBASE CONFIG (Use your same keys)
         const firebaseConfig = {
             apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
             authDomain: "mytaman-1db3a.firebaseapp.com",
             projectId: "mytaman-1db3a",
-            storageBucket: "mytaman-1db3a.firebasestorage.app",
+            storageBucket: "mytaman-1db3a.appspot.com",
             messagingSenderId: "112467759191",
             appId: "1:112467759191:web:0785a5e578741f01891312"
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        // 2. CLOCK
+        // --- CLOCK ---
         setInterval(() => {
-            document.getElementById('clock').innerText = new Date().toLocaleTimeString();
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-MY', { hour12: false });
         }, 1000);
 
-        // 3. SCANNER LOGIC
+        // --- SCANNER ---
         const html5QrCode = new Html5Qrcode("reader");
+        const scanConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
 
         function startScanner() {
+            document.getElementById('scan-btn').disabled = true;
             html5QrCode.start(
                 { facingMode: "environment" }, 
-                { fps: 10, qrbox: { width: 250, height: 250 } },
+                scanConfig,
                 (decodedText) => {
-                    // Success! The decodedText is the Document ID from Firebase
-                    verifyGuest(decodedText);
+                    verifyGuest(decodedText.trim());
                     html5QrCode.stop();
+                    document.getElementById('scan-btn').disabled = false;
                 }
-            ).catch(err => alert("Camera Error: " + err));
+            ).catch(err => {
+                console.error(err);
+                document.getElementById('scan-btn').disabled = false;
+            });
         }
 
         async function verifyGuest(guestId) {
             try {
                 const doc = await db.collection("visits").doc(guestId).get();
-                if (doc.exists) {
-                    const data = doc.data();
-                    if(confirm(`GRANT ENTRY?\nName: ${data.visitor_name}\nUnit: ${data.unit_number}\nPlate: ${data.car_plate}`)) {
-                        await db.collection("visits").doc(guestId).update({
-                            status: "entered",
-                            entry_time: firebase.firestore.FieldValue.serverTimestamp()
-                        });
-                    }
-                } else {
-                    alert("INVALID PASS: Record not found.");
+                if (!doc.exists) return alert("❌ INVALID PASS: Pass ID not found in system.");
+
+                const data = doc.data();
+                if (data.status === 'cancelled') return alert("⚠️ REJECTED: Pass has been cancelled by the resident.");
+                if (data.status === 'exited') return alert("⚠️ REJECTED: This pass has already been used for entry and exit.");
+
+                const msg = `GRANT ENTRY?\n\n🚗 Plate: ${data.carPlate}\n👤 Name: ${data.visitorName}\n🏠 Unit: ${data.unitNumber}\n🛣️ Road: ${data.road}`;
+                
+                if (confirm(msg)) {
+                    await db.collection("visits").doc(guestId).update({
+                        status: "entered",
+                        entryTime: firebase.firestore.FieldValue.serverTimestamp()
+                    });
                 }
             } catch (e) {
-                alert("Error verifying: " + e.message);
+                alert("Verifying Error: " + e.message);
             }
         }
 
-        // 4. LOG LOGIC
-        db.collection("visits").orderBy("timestamp", "desc").limit(10).onSnapshot(snapshot => {
-            const log = document.getElementById('guard-log');
-            log.innerHTML = "";
-            
-            snapshot.forEach(doc => {
-                const v = doc.data();
-                const isInside = v.status === "entered";
+        async function checkoutGuest(guestId) {
+            if(confirm("Confirm Vehicle Exit?")) {
+                await db.collection("visits").doc(guestId).update({
+                    status: "exited",
+                    exitTime: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+        }
+
+        // --- REAL-TIME LOG FEED ---
+        db.collection("visits")
+            .orderBy("entryTime", "desc")
+            .limit(15)
+            .onSnapshot(snapshot => {
+                const log = document.getElementById('guard-log');
+                const countBadge = document.getElementById('log-count');
+                log.innerHTML = "";
                 
-                log.innerHTML += `
-                    <div class="p-4 rounded-2xl flex justify-between items-center ${isInside ? 'bg-emerald-900/30 border border-emerald-500/50' : 'bg-slate-800 border border-slate-700'}">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-black text-lg">${v.car_plate}</span>
-                                <span class="text-xs bg-slate-700 px-2 py-0.5 rounded text-slate-400">${v.unit_number}</span>
+                let activeCount = 0;
+
+                snapshot.forEach(doc => {
+                    const v = doc.data();
+                    const id = doc.id;
+                    const isInside = v.status === "entered";
+                    if(isInside) activeCount++;
+
+                    log.innerHTML += `
+                        <div class="p-4 rounded-2xl flex justify-between items-center ${isInside ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-slate-800 border border-slate-700'}">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-black text-lg text-white">${v.carPlate || '---'}</span>
+                                    <span class="text-[9px] bg-indigo-500/20 px-2 py-0.5 rounded text-indigo-400 font-bold uppercase tracking-tighter">${v.unitNumber} (${v.road || '-'})</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">${v.visitorName}</p>
                             </div>
-                            <p class="text-sm text-slate-400">${v.visitor_name}</p>
+                            <div class="text-right">
+                                <span class="text-[9px] block font-black ${isInside ? 'text-emerald-400' : 'text-slate-500'}">
+                                    ${isInside ? '● INSIDE' : v.status.toUpperCase()}
+                                </span>
+                                ${isInside ? 
+                                    `<button onclick="checkoutGuest('${id}')" class="mt-2 bg-rose-600/20 text-rose-400 text-[10px] px-3 py-1.5 rounded-lg font-bold border border-rose-500/30">CHECKOUT</button>` 
+                                    : 
+                                    `<button onclick="verifyGuest('${id}')" class="mt-2 bg-indigo-600 text-[10px] px-3 py-1.5 rounded-lg font-bold">ENTRY</button>`
+                                }
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <span class="text-[10px] block uppercase font-bold ${isInside ? 'text-emerald-400' : 'text-amber-400'}">
-                                ${isInside ? '● INSIDE' : '○ EXPECTED'}
-                            </span>
-                            ${!isInside ? `<button onclick="verifyGuest('${doc.id}')" class="mt-2 bg-indigo-600 text-xs px-4 py-2 rounded-lg font-bold">ENTRY</button>` : ''}
-                        </div>
-                    </div>
-                `;
+                    `;
+                });
+                countBadge.innerText = `${activeCount} ACTIVE`;
             });
-        });
 
         function manualSearch() {
-            const plate = prompt("Enter Car Plate Number:");
-            // We would normally add a search function here
-            alert("Searching for: " + plate);
+            const plate = prompt("Enter Car Plate Number:").toUpperCase();
+            if (!plate) return;
+            
+            db.collection("visits")
+                .where("carPlate", "==", plate)
+                .where("status", "==", "pending")
+                .get()
+                .then(snap => {
+                    if (snap.empty) alert("No pending pass found for: " + plate);
+                    else verifyGuest(snap.docs[0].id);
+                });
         }
 
         function triggerSOS() {
-            if(confirm("SEND EMERGENCY ALERT TO ALL ADMINS?")) {
+            if(confirm("SEND EMERGENCY SOS TO ALL ADMINS?")) {
                 db.collection("alerts").add({
                     type: "SOS",
-                    guard_id: "Main Gate",
+                    location: "Main Gate",
+                    status: "active",
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                alert("SOS Sent!");
+                alert("SOS ALARM SENT");
             }
         }
+
+        // --- AUTO-CLEANUP LOGIC (24 HOUR TIMEOUT) ---
+async function autoExitOverdueVisitors() {
+    const twentyFourHoursAgo = new Date(Date.now() - (24 * 60 * 60 * 1000));
+    
+    try {
+        const overdueVisits = await db.collection("visits")
+            .where("status", "==", "entered")
+            .where("entryTime", "<=", twentyFourHoursAgo)
+            .get();
+
+        if (!overdueVisits.empty) {
+            const batch = db.batch();
+            overdueVisits.forEach(doc => {
+                batch.update(doc.ref, { 
+                    status: "exited", 
+                    exitTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    remarks: "Auto-checkout after 24h"
+                });
+            });
+            await batch.commit();
+            console.log(`Auto-exited ${overdueVisits.size} overdue visitors.`);
+        }
+    } catch (err) {
+        console.error("Auto-exit error:", err);
+    }
+}
+
+// Run this check every 30 minutes while the Guard Terminal is open
+setInterval(autoExitOverdueVisitors, 30 * 60 * 1000);
+
+// Also run it once immediately when the page loads
+autoExitOverdueVisitors();
+        
     </script>
 </body>
 </html>
