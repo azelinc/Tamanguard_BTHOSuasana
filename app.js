@@ -93,29 +93,34 @@ function applyRoleVisibility() {
 
 async function initAuth() {
   onAuthStateChanged(auth, async (user) => {
-    if (!user) {
-      currentUser = null; userProfile = null; userRole = null; unsubAll();
-      qs("#adminOverlay").classList.remove("hidden");
-      qs("#userBadge").classList.add("hidden");
-      qs("#logoutBtn").classList.add("hidden");
-      return;
+    try {
+      if (!user) {
+        currentUser = null; userProfile = null; userRole = null; unsubAll();
+        qs("#adminOverlay").classList.remove("hidden");
+        qs("#userBadge").classList.add("hidden");
+        qs("#logoutBtn").classList.add("hidden");
+        return;
+      }
+      const snap = await getDoc(doc(db, "admin_accounts", user.uid));
+      if (!snap.exists()) {
+        await signOut(auth);
+        toast("Account not authorized.", "error");
+        return;
+      }
+      userProfile = snap.data();
+      userRole = userProfile.role;
+      currentUser = user;
+      qs("#adminOverlay").classList.add("hidden");
+      qs("#userBadge").classList.remove("hidden");
+      qs("#logoutBtn").classList.remove("hidden");
+      qs("#userName").textContent = userProfile.name || user.email;
+      qs("#userRole").textContent = userRole.replace("_", " ");
+      applyRoleVisibility();
+      showTab("news");
+    } catch (err) {
+      console.error("Auth callback error:", err);
+      toast("Login error. Check console.", "error");
     }
-    const snap = await getDoc(doc(db, "admin_accounts", user.uid));
-    if (!snap.exists()) {
-      await signOut(auth);
-      toast("Account not authorized.", "error");
-      return;
-    }
-    userProfile = snap.data();
-    userRole = userProfile.role;
-    currentUser = user;
-    qs("#adminOverlay").classList.add("hidden");
-    qs("#userBadge").classList.remove("hidden");
-    qs("#logoutBtn").classList.remove("hidden");
-    qs("#userName").textContent = userProfile.name || user.email;
-    qs("#userRole").textContent = userRole.replace("_", " ");
-    applyRoleVisibility();
-    showTab("news");
   });
 }
 
