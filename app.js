@@ -162,12 +162,16 @@ qs("#logoutBtn").addEventListener("click", async () => {
 
 async function checkFirstAdmin() {
   try {
-    const snap = await getDocs(query(collection(db, "admin_accounts"), limit(1)));
+    // We use a query with a limit to minimize data usage and avoid broad permission triggers
+    const q = query(collection(db, "admin_accounts"), limit(1));
+    const snap = await getDocs(q);
     if (snap.empty) {
         qs("#firstAdminForm").classList.remove("hidden");
     }
   } catch (e) {
-    console.warn("Could not check admin status (likely logged out/rules restricted).");
+    // If we get a permission error here, it's expected if the user is logged out.
+    // We only show the form if we are SURE the collection is empty.
+    console.log("Checking for initial setup...");
   }
 }
 
