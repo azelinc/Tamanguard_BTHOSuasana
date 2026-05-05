@@ -21,6 +21,9 @@
 </head>
 <body class="bg-slate-50 text-slate-900 pb-20">
 
+    <!-- In-App Notification Toast -->
+<div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
+    
     <!-- PAYMENT INFO MODAL -->
     <div id="payment-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
         <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
@@ -147,359 +150,386 @@
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
-            authDomain: "mytaman-1db3a.firebaseapp.com",
-            projectId: "mytaman-1db3a",
-            storageBucket: "mytaman-1db3a.appspot.com",
-            messagingSenderId: "112467759191",
-            appId: "1:112467759191:web:0785a5e578741f01891312"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
 
-        let invoiceCache = {};
-        let myBillsRaw = []; 
-        let currentBillFilter = 'all';
-        let myUnit = localStorage.getItem('myUnit');
-        let unsubBills, unsubNews, unsubVisits;
+   // --- NOTIFICATION SYSTEM ---
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
+    
+    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 animate-bounce text-center transition-opacity duration-500`;
+    toast.innerText = msg;
+    
+    container.appendChild(toast);
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        setTimeout(() => toast.remove(), 500); 
+    }, 3000);
+}
 
-        function fetchRoads() {
-            db.collection("settings").doc("taman_config").get().then(doc => {
-                const s = document.getElementById('login-road');
-                const t = document.getElementById('taman-display');
-                if(doc.exists && s) {
-                    const data = doc.data();
-                    const r = data.roads || [];
-                    s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
-                    if (data.name) t.innerText = data.name;
-                }
+// --- FIREBASE CONFIG ---
+const firebaseConfig = {
+    apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+    authDomain: "mytaman-1db3a.firebaseapp.com",
+    projectId: "mytaman-1db3a",
+    storageBucket: "mytaman-1db3a.appspot.com",
+    messagingSenderId: "112467759191",
+    appId: "1:112467759191:web:0785a5e578741f01891312"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// --- STATE VARIABLES ---
+let invoiceCache = {};
+let myBillsRaw = []; 
+let currentBillFilter = 'all';
+let myUnit = localStorage.getItem('myUnit');
+let unsubBills, unsubNews, unsubVisits;
+let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+
+// --- AUTH & IDENTITY ---
+function fetchRoads() {
+    db.collection("settings").doc("taman_config").get().then(doc => {
+        const s = document.getElementById('login-road');
+        const t = document.getElementById('taman-display');
+        if(doc.exists && s) {
+            const data = doc.data();
+            const r = data.roads || [];
+            s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+            if (data.name) t.innerText = data.name;
+        }
+    });
+}
+
+async function setIdentity() {
+    const h = document.getElementById('login-house').value.trim().toUpperCase();
+    const r = document.getElementById('login-road').value;
+    const p = document.getElementById('login-pin').value.trim();
+    const btn = document.getElementById('login-btn');
+    
+    if(!h || !r || !p) {
+        showToast("Fill all fields", "error");
+        return;
+    }
+    
+    btn.innerHTML = `<span class="spinner"></span> Verifying...`;
+    btn.disabled = true;
+
+    const snap = await db.collection("residents")
+                        .where("unitNumber", "==", h)
+                        .where("road", "==", r)
+                        .where("pin", "==", p)
+                        .get();
+    
+    if(!snap.empty) {
+        localStorage.setItem('myUnit', h);
+        localStorage.setItem('myRoad', r);
+        location.reload();
+    } else {
+        btn.innerHTML = "Verify & Enter";
+        btn.disabled = false;
+        showToast("Invalid Unit or PIN", "error");
+    }
+}
+
+function logout() {
+    if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
+    localStorage.clear(); 
+    location.reload();
+}
+
+// --- APP INITIALIZATION ---
+function initApp() {
+    const road = localStorage.getItem('myRoad');
+    document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
+    loadNews(); loadBills(); loadMyVisitors(); 
+    db.collection("settings").doc("taman_config").get().then(doc => {
+        if(doc.exists) document.getElementById('taman-display').innerText = doc.data().name || "Resident of";
+    });
+}
+
+function switchTab(t) {
+    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+    document.getElementById('view-' + t).classList.remove('hidden');
+    document.getElementById('paymaster-card-container').classList.remove('hidden');
+    
+    ['news', 'invite', 'bills'].forEach(tab => {
+        const btn = document.getElementById('nav-' + tab);
+        btn.classList.toggle('text-indigo-600', tab === t);
+        btn.classList.toggle('text-slate-400', tab !== t);
+    });
+}
+
+// --- DATA LOADERS ---
+function loadNews() {
+    unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
+        const list = document.getElementById('news-list'); list.innerHTML = "";
+        if(s.empty) list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>`;
+        s.forEach(doc => { 
+            const n = doc.data(); 
+            const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
+            list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${date}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.content}</p></div>`; 
+        });
+    });
+}
+
+function loadBills() {
+    const myRoad = localStorage.getItem('myRoad'); 
+    unsubBills = db.collection("invoices")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad)
+        .onSnapshot(snapshot => {
+            myBillsRaw = [];
+            let uC = 0, uT = 0, hasI = !snapshot.empty;
+            snapshot.forEach(doc => {
+                const b = doc.data();
+                b.id = doc.id;
+                myBillsRaw.push(b);
+                if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
             });
-        }
-
-        async function setIdentity() {
-            const h = document.getElementById('login-house').value.trim().toUpperCase();
-            const r = document.getElementById('login-road').value;
-            const p = document.getElementById('login-pin').value.trim();
-            const btn = document.getElementById('login-btn');
-            
-            if(!h || !r || !p) return alert("Fill all fields");
-            
-            btn.innerHTML = `<span class="spinner"></span> Verifying...`;
-            btn.disabled = true;
-
-            const snap = await db.collection("residents")
-                                .where("unitNumber", "==", h)
-                                .where("road", "==", r)
-                                .where("pin", "==", p)
-                                .get();
-            
-            if(!snap.empty) {
-                localStorage.setItem('myUnit', h);
-                localStorage.setItem('myRoad', r);
-                location.reload();
-            } else {
-                btn.innerHTML = "Verify & Enter";
-                btn.disabled = false;
-                document.getElementById('login-error').classList.remove('hidden');
-            }
-        }
-
-        function initApp() {
-            const road = localStorage.getItem('myRoad');
-            document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
-            loadNews(); loadBills(); loadMyVisitors(); 
-            db.collection("settings").doc("taman_config").get().then(doc => {
-                if(doc.exists) document.getElementById('taman-display').innerText = doc.data().name || "Resident of";
-            });
-        }
-
-        function switchTab(t) {
-            document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-            document.getElementById('view-' + t).classList.remove('hidden');
-            document.getElementById('paymaster-card-container').classList.remove('hidden');
-            
-            ['news', 'invite', 'bills'].forEach(tab => {
-                const btn = document.getElementById('nav-' + tab);
-                btn.classList.toggle('text-indigo-600', tab === t);
-                btn.classList.toggle('text-slate-400', tab !== t);
-            });
-        }
-
-        function loadNews() {
-            unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
-                const list = document.getElementById('news-list'); list.innerHTML = "";
-                if(s.empty) list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>`;
-                s.forEach(doc => { 
-                    const n = doc.data(); 
-                    const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
-                    list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${date}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.content}</p></div>`; 
-                });
-            });
-        }
-
-        function loadBills() {
-            const myRoad = localStorage.getItem('myRoad'); 
-            unsubBills = db.collection("invoices")
-                .where("unitNumber", "==", myUnit)
-                .where("road", "==", myRoad)
-                .onSnapshot(snapshot => {
-                    myBillsRaw = [];
-                    let uC = 0, uT = 0, hasI = !snapshot.empty;
-                    snapshot.forEach(doc => {
-                        const b = doc.data();
-                        b.id = doc.id;
-                        myBillsRaw.push(b);
-                        if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
-                    });
-                    myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
-                    updatePaymasterUI(uC, uT, hasI);
-                    renderBillList();
-                });
-        }
-
-        function setBillFilter(filter) {
-            currentBillFilter = filter;
-            ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
-                document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
-            });
-            document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
+            myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
+            updatePaymasterUI(uC, uT, hasI);
             renderBillList();
-        }
+        });
+}
 
-        function renderBillList() {
-            const list = document.getElementById('bill-list');
-            list.innerHTML = "";
-            invoiceCache = {};
-            const filtered = myBillsRaw.filter(b => {
-                if(currentBillFilter === 'paid') return b.status === 'paid';
-                if(currentBillFilter === 'unpaid') return b.status !== 'paid';
-                return true;
-            });
-            if(filtered.length === 0) {
-                list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
-                return;
-            }
-            filtered.forEach(b => {
-                invoiceCache[b.id] = b;
-                const isP = b.status === 'paid';
-                list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
+// --- BILLING LOGIC ---
+function setBillFilter(filter) {
+    currentBillFilter = filter;
+    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
+        document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
+    });
+    document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
+    renderBillList();
+}
+
+function renderBillList() {
+    const list = document.getElementById('bill-list');
+    list.innerHTML = "";
+    invoiceCache = {};
+    const filtered = myBillsRaw.filter(b => {
+        if(currentBillFilter === 'paid') return b.status === 'paid';
+        if(currentBillFilter === 'unpaid') return b.status !== 'paid';
+        return true;
+    });
+    if(filtered.length === 0) {
+        list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
+        return;
+    }
+    filtered.forEach(b => {
+        invoiceCache[b.id] = b;
+        const isP = b.status === 'paid';
+        list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
+            <div>
+                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month} ${b.year}</p>
+                <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
+                <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
+            </div>
+            <div class="text-right">
+                <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
+                ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
+            </div>
+        </div>`;
+    });
+}
+
+function updatePaymasterUI(count, total, hasI) {
+    const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
+    card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
+    if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
+    if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date!"; } 
+    else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${total.toFixed(2)}`; } 
+    else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)}`; }
+}
+
+function openReceipt(id) {
+    const d = invoiceCache[id]; if(!d) return;
+    document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
+    document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); 
+    document.getElementById('rcp-unit').innerText = d.unitNumber; 
+    document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`;
+    document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
+    document.getElementById('receipt-modal').classList.remove('hidden');
+}
+function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
+function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
+function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
+
+// --- VISITOR MANAGEMENT ---
+function loadMyVisitors() {
+    const myRoad = localStorage.getItem('myRoad'); 
+    unsubVisits = db.collection("visits")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad)
+        .onSnapshot(snapshot => {
+            const pendingList = document.getElementById('visitor-pending-list');
+            const historyList = document.getElementById('visitor-history-list');
+            let data = []; 
+            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
+            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+
+            let pendingH = "", historyH = "";
+            const now = new Date().getTime();
+            const limit = 48 * 60 * 60 * 1000; 
+
+            data.forEach(v => {
+                const isE = v.status === 'entered';
+                const isC = v.status === 'cancelled';
+                const isPending = v.status === 'pending' || !v.status; 
+                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                const isWithin48 = (now - timeMs) < limit;
+
+                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
+
+                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
                     <div>
-                        <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month} ${b.year}</p>
-                        <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
-                        <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
+                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
                     </div>
                     <div class="text-right">
-                        <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
-                        ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
+                        <div class="flex gap-2 justify-end mb-1">
+                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                        </div>
+                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
                     </div>
                 </div>`;
+
+                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
+                else historyH += cardHtml;
             });
-        }
+            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
+            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+        });
+}
 
-        function updatePaymasterUI(count, total, hasI) {
-            const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
-            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
-            if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date!"; } 
-            else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${total.toFixed(2)}`; } 
-            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)}`; }
-        }
-
-        function openReceipt(id) {
-            const d = invoiceCache[id]; if(!d) return;
-            document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
-            document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); 
-            document.getElementById('rcp-unit').innerText = d.unitNumber; 
-            document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`;
-            document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
-            document.getElementById('receipt-modal').classList.remove('hidden');
-        }
-        function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
-        function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
-        function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
-
-        function loadMyVisitors() {
-            const myRoad = localStorage.getItem('myRoad'); 
-            unsubVisits = db.collection("visits")
-                .where("unitNumber", "==", myUnit)
-                .where("road", "==", myRoad)
-                .onSnapshot(snapshot => {
-                    const pendingList = document.getElementById('visitor-pending-list');
-                    const historyList = document.getElementById('visitor-history-list');
-                    let data = []; 
-                    snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-                    data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
-
-                    let pendingH = "", historyH = "";
-                    const now = new Date().getTime();
-                    const limit = 48 * 60 * 60 * 1000; 
-
-                    data.forEach(v => {
-                        const isE = v.status === 'entered';
-                        const isC = v.status === 'cancelled';
-                        const isPending = v.status === 'pending' || !v.status; 
-                        const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                        const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                        const isWithin48 = (now - timeMs) < limit;
-
-                        const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
-
-                        const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-                            <div>
-                                <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="flex gap-2 justify-end mb-1">
-                                    ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                                    <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                                </div>
-                                <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                            </div>
-                        </div>`;
-
-                        if (isPending && isWithin48 && !isC) pendingH += cardHtml;
-                        else historyH += cardHtml;
-                    });
-                    pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-                    historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
-                });
-        }
-        
-// Function 1: Opens the modal
 function cancelVisit(id) {
-    console.log("Opening cancel modal for:", id); // Debugging line
     document.getElementById('cancel-target-id').value = id;
     document.getElementById('cancel-confirm-modal').classList.remove('hidden');
 }
 
-// Function 2: The actual Firestore update
+function closeCancelModal() {
+    document.getElementById('cancel-confirm-modal').classList.add('hidden');
+}
+
 async function confirmCancelAction() {
     const id = document.getElementById('cancel-target-id').value;
     if(!id) return;
     
     const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
-    const originalText = confirmBtn.innerText;
-    
-    // UI Feedback: Start loading
-    confirmBtn.innerHTML = `<span class="spinner"></span>`;
     confirmBtn.disabled = true;
+    confirmBtn.innerHTML = `<span class="spinner"></span>`;
 
     try {
-        // Attempt the update
         await db.collection("visits").doc(id).update({ 
             status: "cancelled",
             cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        console.log("Success: Pass cancelled");
+        showToast("Pass Cancelled");
     } catch (err) {
-        console.error("Firestore Error:", err);
-        alert("Error: Could not cancel pass. Please check your connection or permissions.");
+        console.error(err);
+        showToast("System Error: Permissions", "error");
     } finally {
-        // CRITICAL: Always reset the UI regardless of success or failure
-        confirmBtn.innerText = originalText;
         confirmBtn.disabled = false;
-        closeCancelModal(); 
+        confirmBtn.innerText = "Confirm";
+        closeCancelModal();
     }
 }
 
-        let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+async function generateGuestPass() {
+    const n = document.getElementById('guest-name').value;
+    const ph = document.getElementById('guest-phone').value;
+    const pl = document.getElementById('guest-plate').value;
+    const btn = document.getElementById('guest-btn');
+    const myRoad = localStorage.getItem('myRoad');
+
+    if(!n || !ph || !pl) {
+        showToast("Fill all details", "error");
+        return;
+    }
+    
+    btn.innerHTML = `<span class="spinner"></span>`;
+    btn.disabled = true;
+
+    try {
+        const docRef = await db.collection("visits").add({ 
+            visitorName: n, 
+            visitorPhone: ph, 
+            carPlate: pl.toUpperCase(), 
+            unitNumber: myUnit, 
+            road: myRoad,
+            status: "pending", 
+            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+        });
         
-        async function generateGuestPass() {
-            const n = document.getElementById('guest-name').value;
-            const ph = document.getElementById('guest-phone').value;
-            const pl = document.getElementById('guest-plate').value;
-            const btn = document.getElementById('guest-btn');
-            const myRoad = localStorage.getItem('myRoad'); 
-
-            if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
-            
-            btn.innerHTML = `<span class="spinner"></span> Generating...`;
-            btn.disabled = true;
-
-            try {
-                const docRef = await db.collection("visits").add({ 
-                    visitorName: n, 
-                    visitorPhone: ph, 
-                    carPlate: pl.toUpperCase(), 
-                    unitNumber: myUnit, 
-                    road: myRoad,
-                    status: "pending", 
-                    entryTime: firebase.firestore.FieldValue.serverTimestamp() 
-                });
-                
-                document.getElementById('qr-result').classList.remove('hidden'); 
-                qrObj.clear(); 
-                qrObj.makeCode(docRef.id);
-                
-                document.getElementById('guest-name').value = ""; 
-                document.getElementById('guest-phone').value = ""; 
-                document.getElementById('guest-plate').value = "";
-            } catch (err) {
-                console.error("Error creating pass:", err);
-                alert("Failed to create pass.");
-            } finally {
-                btn.innerHTML = "Create QR";
-                btn.disabled = false;
-            }
-        }
-
-        async function shareQRCode() {
-            const qrCanvas = document.querySelector('#qrcode canvas');
-            if (!qrCanvas) return;
-            try {
-                const dataUrl = qrCanvas.toDataURL("image/png");
-                const blob = await (await fetch(dataUrl)).blob();
-                const file = new File([blob], "VisitorQR.png", { type: "image/png" });
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: 'TamanGuard Visitor Pass',
-                        text: `Visitor Pass for Unit ${myUnit}. Scan at Guard House.`
-                    });
-                } else {
-                    const link = document.createElement('a');
-                    link.download = 'VisitorQR.png'; link.href = dataUrl; link.click();
-                }
-            } catch (err) { console.error("Sharing failed", err); }
-        }
-
-        function logout() {
-            if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
-            localStorage.clear(); 
-            location.reload();
-        }
-
-        function reShowQR(visitId) {
-            document.getElementById('qr-result').classList.remove('hidden');
-            qrObj.clear();
-            qrObj.makeCode(visitId);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        document.getElementById('qr-result').classList.remove('hidden'); 
+        qrObj.clear(); 
+        qrObj.makeCode(docRef.id);
         
-        window.onload = () => {
-            const savedUnit = localStorage.getItem('myUnit');
-            const loginScreen = document.getElementById('login-screen');
-            const appHeader = document.getElementById('app-header');
-            const appMain = document.getElementById('app-main');
-            const appNav = document.getElementById('app-nav');
+        document.getElementById('guest-name').value = ""; 
+        document.getElementById('guest-phone').value = ""; 
+        document.getElementById('guest-plate').value = "";
+        
+        showToast("QR Generated Successfully");
+    } catch (err) {
+        showToast("Generation Failed", "error");
+    } finally {
+        btn.innerHTML = "Create QR";
+        btn.disabled = false;
+    }
+}
 
-            if (!savedUnit) {
-                loginScreen.classList.remove('hidden');
-                if(appHeader) appHeader.style.display = 'none';
-                if(appMain) appMain.style.display = 'none';
-                if(appNav) appNav.style.display = 'none';
-                fetchRoads(); 
-            } else {
-                myUnit = savedUnit;
-                loginScreen.classList.add('hidden');
-                if(appHeader) appHeader.style.display = 'flex';
-                if(appMain) appMain.style.display = 'block';
-                if(appNav) appNav.style.display = 'flex';
-                initApp();
-            }
-        };
+async function shareQRCode() {
+    const qrCanvas = document.querySelector('#qrcode canvas');
+    if (!qrCanvas) return;
+    try {
+        const dataUrl = qrCanvas.toDataURL("image/png");
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], "VisitorQR.png", { type: "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: 'TamanGuard Visitor Pass',
+                text: `Visitor Pass for Unit ${myUnit}. Scan at Guard House.`
+            });
+        } else {
+            const link = document.createElement('a');
+            link.download = 'VisitorQR.png'; link.href = dataUrl; link.click();
+        }
+    } catch (err) { console.error("Sharing failed", err); }
+}
+
+function reShowQR(visitId) {
+    document.getElementById('qr-result').classList.remove('hidden');
+    qrObj.clear();
+    qrObj.makeCode(visitId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- ONLOAD GATEKEEPER ---
+window.onload = () => {
+    const savedUnit = localStorage.getItem('myUnit');
+    const loginScreen = document.getElementById('login-screen');
+    const appHeader = document.getElementById('app-header');
+    const appMain = document.getElementById('app-main');
+    const appNav = document.getElementById('app-nav');
+
+    if (!savedUnit) {
+        loginScreen.classList.remove('hidden');
+        if(appHeader) appHeader.style.display = 'none';
+        if(appMain) appMain.style.display = 'none';
+        if(appNav) appNav.style.display = 'none';
+        fetchRoads(); 
+    } else {
+        myUnit = savedUnit;
+        loginScreen.classList.add('hidden');
+        if(appHeader) appHeader.style.display = 'flex';
+        if(appMain) appMain.style.display = 'block';
+        if(appNav) appNav.style.display = 'flex';
+        initApp();
+    }
+};
     </script>
 </body>
 </html>
