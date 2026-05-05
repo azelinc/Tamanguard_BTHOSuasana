@@ -770,11 +770,6 @@ qs("#addInvoiceBtn").addEventListener("click", () => qs("#invoiceModal").classLi
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 
 async function init() {
-  try {
-    await checkFirstAdmin();
-  } catch (e) {
-    console.warn("First admin check failed (expected before login):", e);
-  }
   initAuth();
 }
 
