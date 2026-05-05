@@ -379,9 +379,10 @@ async function confirmCancelAction() {
     const id = document.getElementById('cancel-target-id').value;
     if(!id) return;
     
-    // Add visual feedback on the button
-    const confirmBtn = event.target;
-    const ogText = confirmBtn.innerText;
+    // Get the confirm button and event context
+    const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
+    const originalText = confirmBtn.innerText;
+    
     confirmBtn.innerHTML = `<span class="spinner"></span>`;
     confirmBtn.disabled = true;
 
@@ -390,15 +391,15 @@ async function confirmCancelAction() {
             status: "cancelled",
             cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        console.log("Firestore updated: Cancelled");
-        // The onSnapshot listener will automatically move the card to History
+        console.log("Pass cancelled successfully");
+        closeCancelModal(); // Close on success
     } catch (err) {
-        console.error("Cancel failed:", err);
-        alert("Error: Could not cancel pass.");
+        console.error("Cancellation failed:", err);
+        alert("Error: Could not cancel pass. Please check your connection or permissions.");
+        closeCancelModal(); // Also close on error so the UI resets
     } finally {
-        confirmBtn.innerText = ogText;
+        confirmBtn.innerText = originalText;
         confirmBtn.disabled = false;
-        closeCancelModal();
     }
 }
 
