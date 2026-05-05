@@ -663,29 +663,48 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
   const due = qs("#bulkDue").value;
   const remark = qs("#bulkRemark").value.trim() || "Security Fee";
 
-  if (!month || isNaN(amount)) { toast("Check Month/Amount", "error"); return; }
+  if (!month || isNaN(amount)) { 
+    toast("Check Month/Amount", "error"); 
+    return; 
+  }
   
   const resSnap = await getDocs(collection(db, "residents"));
+  if (resSnap.empty) {
+    toast("No residents found to bill.", "error");
+    return;
+  }
+
   const btn = qs("#generateBulkBtn");
   setLoading(btn, true);
 
   try {
     const batch = writeBatch(db);
+    let count = 0;
+
     resSnap.forEach(d => {
       const r = d.data();
       
-      // CRITICAL FIX: Sanitize the road name to remove "/" to prevent segmented path error
-      const cleanRoad = (r.road || "UNK").replace(/\//g, '-').replace(/\s+/g, '');
-      const cleanUnit = (r.unitNumber || "UNK").replace(/\s+/g, '');
+      // FIX: Check for BOTH camelCase and underscore naming to prevent 'undefined'
+      const unit = r.unitNumber || r.unit_number;
+      const road = r.road;
+
+      // Skip this resident if the critical data is missing
+      if (!unit || !road) {
+        console.warn(`Skipping invalid resident document: ${d.id}`);
+        return; 
+      }
+
+      // Sanitize for the document ID path
+      const cleanRoad = road.replace(/\//g, '-').replace(/\s+/g, '');
+      const cleanUnit = unit.replace(/\s+/g, '');
       
-      // Generate ID with sanitized segments
       const invId = `INV-${cleanUnit}-${cleanRoad}-${month}-${year}`;
       const ref = doc(db, "invoices", invId);
       
       batch.set(ref, {
         invoiceId: invId,
-        unitNumber: r.unitNumber,
-        road: r.road,
+        unitNumber: unit, // Use the detected unit value
+        road: road,
         month,
         year: parseInt(year),
         amount,
@@ -695,10 +714,16 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
         createdAt: serverTimestamp(),
         createdBy: userProfile?.name || currentUser?.email
       });
+      count++;
     });
-    await batch.commit();
-    toast("Bulk bills generated!", "success");
-    loadBilling(true);
+    
+    if (count === 0) {
+      toast("No valid residents found to bill (check for missing unit/road).", "error");
+    } else {
+      await batch.commit();
+      toast(`Successfully generated ${count} bills!`, "success");
+      loadBilling(true);
+    }
   } catch (err) {
     console.error(err);
     toast("Error: " + err.message, "error");
