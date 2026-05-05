@@ -323,51 +323,63 @@
         function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
 
         function loadMyVisitors() {
-            unsubVisits = db.collection("visits").where("unitNumber", "==", myUnit).onSnapshot(snapshot => {
-                const pendingList = document.getElementById('visitor-pending-list');
-                const historyList = document.getElementById('visitor-history-list');
-                let data = []; 
-                snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-                
-                data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+    const myRoad = localStorage.getItem('myRoad'); //
+    unsubVisits = db.collection("visits")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad) // Fixed: Filter by road
+        .onSnapshot(snapshot => {
+            const pendingList = document.getElementById('visitor-pending-list');
+            const historyList = document.getElementById('visitor-history-list');
+            let data = []; 
+            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
+            
+            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
 
-                let pendingH = "", historyH = "";
-                const now = new Date().getTime();
-                const limit = 48 * 60 * 60 * 1000; 
+            let pendingH = "", historyH = "";
+            const now = new Date().getTime();
+            const limit = 48 * 60 * 60 * 1000; 
 
-                data.forEach(v => {
-                    const isE = v.status === 'entered';
-                    const isPending = v.status === 'pending' || !v.status; 
-                    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                    const isWithin48 = (now - timeMs) < limit;
+            data.forEach(v => {
+                const isE = v.status === 'entered';
+                const isC = v.status === 'cancelled'; //
+                const isPending = v.status === 'pending' || !v.status; 
+                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                const isWithin48 = (now - timeMs) < limit;
 
-                    const clickHandler = (isPending && isWithin48) ? `onclick="reShowQR('${v.id}')"` : '';
+                // Only allow QR re-show if status is pending (not cancelled)
+                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
 
-                    const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-                        <div>
-                            <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-                            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
+                    <div>
+                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+                    </div>
+                    <div class="text-right">
+                        <div class="flex gap-2 justify-end mb-1">
+                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
                         </div>
-                        <div class="text-right">
-                            <div class="flex gap-2 justify-end mb-1">
-                                ${(!isE && isWithin48) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                            </div>
-                            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                        </div>
-                    </div>`;
+                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
+                    </div>
+                </div>`;
 
-                    if (isWithin48 && !v.exitTime) pendingH += cardHtml;
-                    else historyH += cardHtml;
-                });
-
-                pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-                historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+                // If cancelled or expired/exited, move to history
+                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
+                else historyH += cardHtml;
             });
-        }
-        
-        async function cancelVisit(id) { if(confirm("Cancel visitor pass?")) await db.collection("visits").doc(id).delete(); }
+
+            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
+            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+        });
+}
+
+// Fixed: Update status instead of deleting
+async function cancelVisit(id) { 
+    if(confirm("Cancel visitor pass?")) {
+        await db.collection("visits").doc(id).update({ status: "cancelled" }); 
+    }
+}
 
         let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
         
