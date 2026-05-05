@@ -1,6 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import {
-  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
+  getAuth, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  createUserWithEmailAndPassword // Added this to replace the manual fetch
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -99,14 +103,21 @@ async function initAuth() {
         qs("#adminOverlay").classList.remove("hidden");
         qs("#userBadge").classList.add("hidden");
         qs("#logoutBtn").classList.add("hidden");
+        // Check if DB is empty to show first admin setup
+        checkFirstAdmin(); 
         return;
       }
+      
+      // Fixed: Adding a small delay or ensuring the auth token is ready isn't needed 
+      // if your Firestore rules allow the user to read their own UID.
       const snap = await getDoc(doc(db, "admin_accounts", user.uid));
+      
       if (!snap.exists()) {
         await signOut(auth);
-        toast("Account not authorized.", "error");
+        toast("Account not authorized in Database.", "error");
         return;
       }
+      
       userProfile = snap.data();
       userRole = userProfile.role;
       currentUser = user;
@@ -119,7 +130,9 @@ async function initAuth() {
       showTab("news");
     } catch (err) {
       console.error("Auth callback error:", err);
-      toast("Login error. Check console.", "error");
+      // If it's a permission error, it's usually because the user document 
+      // hasn't been created yet or rules are blocking it.
+      toast("Authentication Error. Check console.", "error");
     }
   });
 }
@@ -132,9 +145,10 @@ qs("#loginForm").addEventListener("submit", async (e) => {
   setLoading(btn, true);
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    toast("Welcome back!", "success");
+    toast("Verifying credentials...", "info");
   } catch (err) {
-    toast(err.message || "Login failed", "error");
+    console.error(err);
+    toast("Login failed: " + err.message, "error");
   } finally {
     setLoading(btn, false);
   }
@@ -147,46 +161,55 @@ qs("#logoutBtn").addEventListener("click", async () => {
 });
 
 async function checkFirstAdmin() {
-  const snap = await getDocs(collection(db, "admin_accounts"));
-  if (snap.empty) qs("#firstAdminForm").classList.remove("hidden");
+  try {
+    const snap = await getDocs(query(collection(db, "admin_accounts"), limit(1)));
+    if (snap.empty) {
+        qs("#firstAdminForm").classList.remove("hidden");
+    }
+  } catch (e) {
+    console.warn("Could not check admin status (likely logged out/rules restricted).");
+  }
+}
+
+// Fixed: Using SDK method instead of manual fetch
+async function createUserAccount(email, password) {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    return userCredential.user;
 }
 
 qs("#createFirstAdminBtn").addEventListener("click", async () => {
   const name = qs("#faName").value.trim();
   const email = qs("#faEmail").value.trim();
   const password = qs("#faPassword").value;
+  
   if (!name || !email || !password || password.length < 6) {
     toast("Please fill all fields (password min 6 chars).", "error"); return;
   }
+  
   const btn = qs("#createFirstAdminBtn");
   setLoading(btn, true);
   try {
-    const cred = await createUser(email, password);
-    await setDoc(doc(db, "admin_accounts", cred.localId), {
-      name, email, role: "super_admin", createdAt: serverTimestamp()
+    // 1. Create the Auth user using SDK
+    const user = await createUserAccount(email, password);
+    
+    // 2. Create the Firestore document
+    await setDoc(doc(db, "admin_accounts", user.uid), {
+      name, 
+      email, 
+      role: "super_admin", 
+      createdAt: serverTimestamp()
     });
-    toast("First admin created.", "success");
+    
+    toast("First admin created successfully.", "success");
     qs("#firstAdminForm").classList.add("hidden");
     qs("#loginEmail").value = email;
   } catch (err) {
+    console.error(err);
     toast(err.message, "error");
   } finally {
     setLoading(btn, false);
   }
 });
-
-async function createUser(email, password) {
-  const resp = await fetch(
-    `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, returnSecureToken: true })
-    }
-  );
-  if (!resp.ok) throw new Error("Failed to create auth account.");
-  return resp.json();
-}
 
 /* Tabs */
 function showTab(name) {
@@ -245,6 +268,7 @@ qs("#addRoadBtn").addEventListener("click", async () => {
     await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, roads: [...roads, v], updatedAt: serverTimestamp() });
     qs("#newRoadName").value = "";
     toast("Road added.", "success");
+    loadSettings();
   } catch (err) { toast(err.message, "error"); }
 });
 
@@ -254,6 +278,7 @@ async function removeRoad(r) {
   try {
     await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, roads, updatedAt: serverTimestamp() });
     toast("Road removed.", "success");
+    loadSettings();
   } catch (err) { toast(err.message, "error"); }
 }
 
@@ -279,7 +304,10 @@ function loadNews() {
       return;
     }
     snap.forEach(d => box.appendChild(buildNewsCard(d.id, d.data())));
-  }, err => toast(err.message, "error"));
+  }, err => {
+      console.error(err);
+      toast("Error loading news: " + err.message, "error");
+  });
 }
 
 function buildNewsCard(id, d) {
@@ -750,8 +778,8 @@ qs("#adminForm").addEventListener("submit", async (e) => {
   const btn = qs("#adminSubmitBtn");
   setLoading(btn, true);
   try {
-    const cred = await createUser(email, password);
-    await setDoc(doc(db, "admin_accounts", cred.localId), {
+    const user = await createUserAccount(email, password);
+    await setDoc(doc(db, "admin_accounts", user.uid), {
       name, email, role, createdAt: serverTimestamp()
     });
     toast("Admin created.", "success");
