@@ -384,30 +384,46 @@ async function cancelVisit(id) {
         let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
         
         async function generateGuestPass() {
-            const n = document.getElementById('guest-name').value, ph = document.getElementById('guest-phone').value, pl = document.getElementById('guest-plate').value;
-            const btn = document.getElementById('guest-btn');
-            if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
-            
-            btn.innerHTML = `<span class="spinner"></span> Generating...`;
-            btn.disabled = true;
+    const n = document.getElementById('guest-name').value;
+    const ph = document.getElementById('guest-phone').value;
+    const pl = document.getElementById('guest-plate').value;
+    const btn = document.getElementById('guest-btn');
+    
+    // Retrieve the road from localStorage to link the visit to the specific street
+    const myRoad = localStorage.getItem('myRoad'); 
 
-            const doc = await db.collection("visits").add({ 
-                visitorName: n, 
-                visitorPhone: ph, 
-                carPlate: pl.toUpperCase(), 
-                unitNumber: myUnit, 
-                status: "pending", 
-                entryTime: firebase.firestore.FieldValue.serverTimestamp() 
-            });
-            
-            document.getElementById('qr-result').classList.remove('hidden'); 
-            qrObj.clear(); 
-            qrObj.makeCode(doc.id);
-            
-            btn.innerHTML = "Create QR";
-            btn.disabled = false;
-            document.getElementById('guest-name').value = ""; document.getElementById('guest-phone').value = ""; document.getElementById('guest-plate').value = "";
-        }
+    if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
+    
+    btn.innerHTML = `<span class="spinner"></span> Generating...`;
+    btn.disabled = true;
+
+    try {
+        const doc = await db.collection("visits").add({ 
+            visitorName: n, 
+            visitorPhone: ph, 
+            carPlate: pl.toUpperCase(), 
+            unitNumber: myUnit, 
+            road: myRoad, // CRITICAL: This allows the record to show in filtered lists
+            status: "pending", 
+            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+        });
+        
+        document.getElementById('qr-result').classList.remove('hidden'); 
+        qrObj.clear(); 
+        qrObj.makeCode(doc.id);
+        
+        // Reset form
+        document.getElementById('guest-name').value = ""; 
+        document.getElementById('guest-phone').value = ""; 
+        document.getElementById('guest-plate').value = "";
+    } catch (err) {
+        console.error("Error creating pass:", err);
+        alert("Failed to create pass. Please try again.");
+    } finally {
+        btn.innerHTML = "Create QR";
+        btn.disabled = false;
+    }
+}
 
         async function shareQRCode() {
             const qrCanvas = document.querySelector('#qrcode canvas');
