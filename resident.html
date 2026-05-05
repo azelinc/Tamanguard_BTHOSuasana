@@ -197,20 +197,20 @@
         }
 
         // Updated for persistence
-        function switchTab(t) {
-            // Hide only tab content sections
-            document.querySelectorAll('main > section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-            document.getElementById('view-' + t).classList.remove('hidden');
-            
-            // Keep card visible
-            document.getElementById('paymaster-card-container').classList.remove('hidden');
-            
-            ['news', 'invite', 'bills'].forEach(tab => {
-                const btn = document.getElementById('nav-' + tab);
-                btn.classList.toggle('text-indigo-600', tab === t);
-                btn.classList.toggle('text-slate-400', tab !== t);
-            });
-        }
+function switchTab(t) {
+    // Hide ONLY the view sections, leave the paymaster container alone
+    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+    
+    // Show the selected tab
+    document.getElementById('view-' + t).classList.remove('hidden');
+    
+    // Update Nav UI colors
+    ['news', 'invite', 'bills'].forEach(tab => {
+        const btn = document.getElementById('nav-' + tab);
+        btn.classList.toggle('text-indigo-600', tab === t);
+        btn.classList.toggle('text-slate-400', tab !== t);
+    });
+}
 
         function loadNews() {
             unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
@@ -422,19 +422,17 @@
             location.reload();
         }
 
-        function reShowQR(visitId) {
-    // 1. Show the QR container
+function reShowQR(visitId) {
     document.getElementById('qr-result').classList.remove('hidden');
-    
-    // 2. Clear and regenerate the QR code using the existing ID
     qrObj.clear();
     qrObj.makeCode(visitId);
     
-    // 3. Smooth scroll back up to the QR code so the resident sees it
-    document.getElementById('view-invite').scrollTo({
+    // Scroll the entire window to the top so the QR is visible on small screens
+    window.scrollTo({
         top: 0,
         behavior: 'smooth'
     });
+}
     
     // Optional: Visual feedback
     console.log("Re-showing QR for visit:", visitId);
