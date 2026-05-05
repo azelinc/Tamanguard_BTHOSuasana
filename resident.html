@@ -334,25 +334,32 @@
                 const limit = 48 * 60 * 60 * 1000; 
 
                 data.forEach(v => {
-                    const isE = v.status === 'entered';
-                    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                    const isWithin48 = (now - timeMs) < limit;
+    const isE = v.status === 'entered';
+    const isPending = v.status === 'pending' || !v.status; // Check if still pending
+    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+    const isWithin48 = (now - timeMs) < limit;
 
-                    const cardHtml = `<div class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm">
-                        <div><p class="text-sm font-bold text-slate-800">${v.visitorName}</p><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p></div>
-                        <div class="text-right">
-                            <div class="flex gap-2 justify-end mb-1">
-                                ${(!isE && isWithin48) ? `<button onclick="cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                            </div>
-                            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                        </div>
-                    </div>`;
+    // Add onclick only if it is pending and within 48h
+    const clickHandler = (isPending && isWithin48) ? `onclick="reShowQR('${v.id}')"` : '';
 
-                    if (isWithin48 && !v.exitTime) pendingH += cardHtml;
-                    else historyH += cardHtml;
-                });
+    const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
+        <div>
+            <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+        </div>
+        <div class="text-right">
+            <div class="flex gap-2 justify-end mb-1">
+                ${(!isE && isWithin48) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+            </div>
+            <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
+        </div>
+    </div>`;
+
+    if (isWithin48 && !v.exitTime) pendingH += cardHtml;
+    else historyH += cardHtml;
+});
 
                 pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
                 historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
@@ -415,6 +422,24 @@
             location.reload();
         }
 
+        function reShowQR(visitId) {
+    // 1. Show the QR container
+    document.getElementById('qr-result').classList.remove('hidden');
+    
+    // 2. Clear and regenerate the QR code using the existing ID
+    qrObj.clear();
+    qrObj.makeCode(visitId);
+    
+    // 3. Smooth scroll back up to the QR code so the resident sees it
+    document.getElementById('view-invite').scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+    
+    // Optional: Visual feedback
+    console.log("Re-showing QR for visit:", visitId);
+}
+        
         window.onload = () => {
             if(!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); }
             else initApp();
