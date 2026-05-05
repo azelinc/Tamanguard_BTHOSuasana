@@ -1,5 +1,5 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyA2W9t2MoGdW3N3l1Yk5N_tN0INfEae9I",
+  apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
   authDomain: "tamanguard-btho-suasana.firebaseapp.com",
   projectId: "tamanguard-btho-suasana",
   storageBucket: "tamanguard-btho-suasana.appspot.com",
