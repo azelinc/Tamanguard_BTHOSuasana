@@ -379,36 +379,28 @@ async function confirmCancelAction() {
     const id = document.getElementById('cancel-target-id').value;
     if(!id) return;
     
-    // Select the confirm button to show loading state
     const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
     const originalText = confirmBtn.innerText;
     
-    // 1. Immediate UI Feedback
+    // UI Feedback: Start loading
     confirmBtn.innerHTML = `<span class="spinner"></span>`;
     confirmBtn.disabled = true;
 
     try {
-        // 2. Perform the Update
+        // Attempt the update
         await db.collection("visits").doc(id).update({ 
             status: "cancelled",
             cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
         });
-        
-        console.log("Pass cancelled successfully");
-        
-        // 3. Force the modal to hide immediately after success
-        closeCancelModal(); 
-        
+        console.log("Success: Pass cancelled");
     } catch (err) {
-        console.error("Cancellation failed:", err);
-        alert("Error: Could not cancel pass. Please try again.");
-        
-        // Still close it so the user isn't stuck on a loading screen
-        closeCancelModal(); 
+        console.error("Firestore Error:", err);
+        alert("Error: Could not cancel pass. Please check your connection or permissions.");
     } finally {
-        // 4. Reset button state for the next time it's opened
+        // CRITICAL: Always reset the UI regardless of success or failure
         confirmBtn.innerText = originalText;
         confirmBtn.disabled = false;
+        closeCancelModal(); 
     }
 }
 
