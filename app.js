@@ -486,25 +486,40 @@ function buildVisitorRow(id, d) {
   const tr = document.createElement("tr");
   tr.className = "hover:bg-slate-800/30 transition-colors";
   const dt = d.entryTime?.toDate ? d.entryTime.toDate().toLocaleString("en-MY") : "-";
+  
+  // Status Color Logic
+  let statusClass = "bg-slate-700 text-slate-300";
+  let statusText = d.status || "Pending";
+
+  if (d.status === "entered") {
+    statusClass = "bg-emerald-500/20 text-emerald-400";
+    statusText = "Active";
+  } else if (d.status === "pending") {
+    statusClass = "bg-amber-500/20 text-amber-400";
+    statusText = "Pending";
+  } else if (d.status === "cancelled") {
+    statusClass = "bg-red-500/20 text-red-400";
+    statusText = "Cancelled";
+  }
+
   tr.innerHTML = `
     <td class="px-4 py-3 text-slate-300">${dt}</td>
     <td class="px-4 py-3 font-medium text-white v-plate"></td>
     <td class="px-4 py-3 text-slate-300 v-unit"></td>
     <td class="px-4 py-3 text-slate-300 v-name"></td>
     <td class="px-4 py-3 text-slate-300 v-phone"></td>
-    <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium v-status"></span></td>
+    <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusClass}">${statusText.toUpperCase()}</span></td>
     <td class="px-4 py-3 text-right">
       <button class="qr-btn text-blue-400 hover:text-blue-300 mr-2"><i class="fas fa-qrcode"></i></button>
-      <button class="checkout-btn text-amber-400 hover:text-amber-300"><i class="fas fa-sign-out-alt"></i></button>
+      <button class="checkout-btn text-amber-400 hover:text-amber-300 ${d.status !== 'entered' ? 'opacity-20 pointer-events-none' : ''}"><i class="fas fa-sign-out-alt"></i></button>
     </td>
   `;
   tr.querySelector(".v-plate").textContent = d.carPlate || "-";
-  tr.querySelector(".v-unit").textContent = d.unitNumber || "-";
+  // Fixed: Show Unit and Road
+  tr.querySelector(".v-unit").textContent = `${d.unitNumber || "-"} (${d.road || "-"})`;
   tr.querySelector(".v-name").textContent = d.visitorName || "-";
   tr.querySelector(".v-phone").textContent = d.visitorPhone || "-";
-  const st = tr.querySelector(".v-status");
-  if (d.status === "entered") { st.className += " bg-emerald-500/20 text-emerald-400"; st.textContent = "Active"; }
-  else { st.className += " bg-slate-700 text-slate-300"; st.textContent = "Exited"; }
+  
   tr.querySelector(".qr-btn").onclick = () => showVisitorQR(id, d);
   tr.querySelector(".checkout-btn").onclick = () => checkoutVisitor(id);
   return tr;
