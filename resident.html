@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TamanGuard - Resident App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Using version 9.22.1 to match your Admin App -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -72,7 +71,7 @@
     </header>
 
     <main class="p-4 space-y-6">
-        <!-- PAYMASTER STATUS CARD -->
+        <!-- PAYMASTER STATUS CARD (Moved outside tab views for persistence) -->
         <section id="paymaster-card-container">
             <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
                <div class="text-3xl" id="paymaster-emoji">🧐</div>
@@ -83,7 +82,11 @@
             </div>
         </section>
 
-        <section id="view-news"><h3 class="font-bold text-lg mb-3">Taman News</h3><div id="news-list" class="space-y-4"></div></section>
+        <!-- Tab Views -->
+        <section id="view-news">
+            <h3 class="font-bold text-lg mb-3">Taman News</h3>
+            <div id="news-list" class="space-y-4"></div>
+        </section>
         
         <section id="view-bills" class="hidden">
             <div class="flex justify-between items-end mb-4">
@@ -126,7 +129,6 @@
     </nav>
 
     <script>
-        // Use the validated mytaman-1db3a config
         const firebaseConfig = {
             apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
             authDomain: "mytaman-1db3a.firebaseapp.com",
@@ -168,7 +170,6 @@
             btn.innerHTML = `<span class="spinner"></span> Verifying...`;
             btn.disabled = true;
 
-            // Updated to match Admin App field 'unitNumber'
             const snap = await db.collection("residents")
                                 .where("unitNumber", "==", h)
                                 .where("road", "==", r)
@@ -190,17 +191,20 @@
             const road = localStorage.getItem('myRoad');
             document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
             loadNews(); loadBills(); loadMyVisitors(); 
-            // Load Taman Name
             db.collection("settings").doc("taman_config").get().then(doc => {
                 if(doc.exists) document.getElementById('taman-display').innerText = doc.data().name || "Resident of";
             });
         }
 
+        // Updated for persistence
         function switchTab(t) {
-            document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+            // Hide only tab content sections
+            document.querySelectorAll('main > section[id^="view-"]').forEach(s => s.classList.add('hidden'));
             document.getElementById('view-' + t).classList.remove('hidden');
             
-            // UI Feedback for Nav
+            // Keep card visible
+            document.getElementById('paymaster-card-container').classList.remove('hidden');
+            
             ['news', 'invite', 'bills'].forEach(tab => {
                 const btn = document.getElementById('nav-' + tab);
                 btn.classList.toggle('text-indigo-600', tab === t);
@@ -232,7 +236,6 @@
                     if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
                 });
 
-                // Sorting by year then month
                 myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
                 updatePaymasterUI(uC, uT, hasI);
                 renderBillList();
