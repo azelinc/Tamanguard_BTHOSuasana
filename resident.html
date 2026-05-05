@@ -367,26 +367,40 @@
                 });
         }
         
-        function cancelVisit(id) {
-            document.getElementById('cancel-target-id').value = id;
-            document.getElementById('cancel-confirm-modal').classList.remove('hidden');
-        }
+// Function 1: Opens the modal
+function cancelVisit(id) {
+    console.log("Opening cancel modal for:", id); // Debugging line
+    document.getElementById('cancel-target-id').value = id;
+    document.getElementById('cancel-confirm-modal').classList.remove('hidden');
+}
 
-        function closeCancelModal() {
-            document.getElementById('cancel-confirm-modal').classList.add('hidden');
-        }
+// Function 2: The actual Firestore update
+async function confirmCancelAction() {
+    const id = document.getElementById('cancel-target-id').value;
+    if(!id) return;
+    
+    // Add visual feedback on the button
+    const confirmBtn = event.target;
+    const ogText = confirmBtn.innerText;
+    confirmBtn.innerHTML = `<span class="spinner"></span>`;
+    confirmBtn.disabled = true;
 
-        async function confirmCancelAction() {
-            const id = document.getElementById('cancel-target-id').value;
-            if(!id) return;
-            try {
-                await db.collection("visits").doc(id).update({ 
-                    status: "cancelled",
-                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (err) { console.error("Cancel failed:", err); }
-            finally { closeCancelModal(); }
-        }
+    try {
+        await db.collection("visits").doc(id).update({ 
+            status: "cancelled",
+            cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        console.log("Firestore updated: Cancelled");
+        // The onSnapshot listener will automatically move the card to History
+    } catch (err) {
+        console.error("Cancel failed:", err);
+        alert("Error: Could not cancel pass.");
+    } finally {
+        confirmBtn.innerText = ogText;
+        confirmBtn.disabled = false;
+        closeCancelModal();
+    }
+}
 
         let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
         
