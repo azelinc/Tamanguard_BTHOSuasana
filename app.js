@@ -1,10 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import {
-  getAuth, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  createUserWithEmailAndPassword // Added this to replace the manual fetch
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc,
@@ -78,7 +74,7 @@ function unsubAll() {
   Object.keys(listeners).forEach(k => unsub(k));
 }
 
-/* Auth */
+/* Auth Logic */
 function applyRoleVisibility() {
   const map = {
     news: ["super_admin", "treasurer", "manager"],
@@ -103,21 +99,15 @@ async function initAuth() {
         qs("#adminOverlay").classList.remove("hidden");
         qs("#userBadge").classList.add("hidden");
         qs("#logoutBtn").classList.add("hidden");
-        // Check if DB is empty to show first admin setup
-        checkFirstAdmin(); 
+        checkFirstAdmin();
         return;
       }
-      
-      // Fixed: Adding a small delay or ensuring the auth token is ready isn't needed 
-      // if your Firestore rules allow the user to read their own UID.
       const snap = await getDoc(doc(db, "admin_accounts", user.uid));
-      
       if (!snap.exists()) {
         await signOut(auth);
-        toast("Account not authorized in Database.", "error");
+        toast("Account not authorized in database.", "error");
         return;
       }
-      
       userProfile = snap.data();
       userRole = userProfile.role;
       currentUser = user;
@@ -130,9 +120,7 @@ async function initAuth() {
       showTab("news");
     } catch (err) {
       console.error("Auth callback error:", err);
-      // If it's a permission error, it's usually because the user document 
-      // hasn't been created yet or rules are blocking it.
-      toast("Authentication Error. Check console.", "error");
+      toast("Auth Error. Check console.", "error");
     }
   });
 }
@@ -145,10 +133,9 @@ qs("#loginForm").addEventListener("submit", async (e) => {
   setLoading(btn, true);
   try {
     await signInWithEmailAndPassword(auth, email, password);
-    toast("Verifying credentials...", "info");
+    toast("Welcome back!", "success");
   } catch (err) {
-    console.error(err);
-    toast("Login failed: " + err.message, "error");
+    toast(err.message || "Login failed", "error");
   } finally {
     setLoading(btn, false);
   }
@@ -162,60 +149,38 @@ qs("#logoutBtn").addEventListener("click", async () => {
 
 async function checkFirstAdmin() {
   try {
-    // We use a query with a limit to minimize data usage and avoid broad permission triggers
-    const q = query(collection(db, "admin_accounts"), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) {
-        qs("#firstAdminForm").classList.remove("hidden");
-    }
+    const snap = await getDocs(query(collection(db, "admin_accounts"), limit(1)));
+    if (snap.empty) qs("#firstAdminForm").classList.remove("hidden");
   } catch (e) {
-    // If we get a permission error here, it's expected if the user is logged out.
-    // We only show the form if we are SURE the collection is empty.
-    console.log("Checking for initial setup...");
+    console.log("Checking initial setup...");
   }
-}
-
-// Fixed: Using SDK method instead of manual fetch
-async function createUserAccount(email, password) {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    return userCredential.user;
 }
 
 qs("#createFirstAdminBtn").addEventListener("click", async () => {
   const name = qs("#faName").value.trim();
   const email = qs("#faEmail").value.trim();
   const password = qs("#faPassword").value;
-  
   if (!name || !email || !password || password.length < 6) {
     toast("Please fill all fields (password min 6 chars).", "error"); return;
   }
-  
   const btn = qs("#createFirstAdminBtn");
   setLoading(btn, true);
   try {
-    // 1. Create the Auth user using SDK
-    const user = await createUserAccount(email, password);
-    
-    // 2. Create the Firestore document
-    await setDoc(doc(db, "admin_accounts", user.uid), {
-      name, 
-      email, 
-      role: "super_admin", 
-      createdAt: serverTimestamp()
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, "admin_accounts", cred.user.uid), {
+      name, email, role: "super_admin", createdAt: serverTimestamp()
     });
-    
-    toast("First admin created successfully.", "success");
+    toast("First admin created.", "success");
     qs("#firstAdminForm").classList.add("hidden");
     qs("#loginEmail").value = email;
   } catch (err) {
-    console.error(err);
     toast(err.message, "error");
   } finally {
     setLoading(btn, false);
   }
 });
 
-/* Tabs */
+/* Tabs Management */
 function showTab(name) {
   qsa(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   qsa(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== `tab-${name}`));
@@ -223,7 +188,7 @@ function showTab(name) {
   if (name === "news") loadNews();
   if (name === "residents") loadResidents();
   if (name === "visitors") loadVisitors(true);
-  if (name === "billing") loadBilling(true);
+  if (name === "billing") { loadBilling(true); updateInvoiceResidentList(); }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
 
@@ -296,7 +261,7 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
   } catch (err) { toast(err.message, "error"); }
 });
 
-/* News */
+/* News Management */
 function loadNews() {
   unsub("currentTab");
   const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(PAGE_SIZE));
@@ -308,10 +273,7 @@ function loadNews() {
       return;
     }
     snap.forEach(d => box.appendChild(buildNewsCard(d.id, d.data())));
-  }, err => {
-      console.error(err);
-      toast("Error loading news: " + err.message, "error");
-  });
+  }, err => toast(err.message, "error"));
 }
 
 function buildNewsCard(id, d) {
@@ -356,7 +318,7 @@ qs("#postNewsBtn").addEventListener("click", async () => {
   finally { setLoading(btn, false); }
 });
 
-/* Residents */
+/* Residents Management */
 function loadResidents() {
   unsub("currentTab");
   const q = query(collection(db, "residents"), orderBy("unitNumber"));
@@ -366,6 +328,7 @@ function loadResidents() {
     qs("#statResidents").textContent = allResidents.length;
     buildRoadFilters();
     renderResidents();
+    updateInvoiceResidentList();
   }, err => toast(err.message, "error"));
 }
 
@@ -496,7 +459,7 @@ async function deleteResident(id) {
   catch (err) { toast(err.message, "error"); }
 }
 
-/* Visitors */
+/* Visitors Management */
 async function loadVisitors(reset = true) {
   if (reset) { visitorCursor.last = null; visitorCursor.hasMore = true; qs("#visitorsTableBody").innerHTML = ""; }
   if (!visitorCursor.hasMore) return;
@@ -522,7 +485,7 @@ qs("#loadMoreVisitors").addEventListener("click", () => loadVisitors(false));
 function buildVisitorRow(id, d) {
   const tr = document.createElement("tr");
   tr.className = "hover:bg-slate-800/30 transition-colors";
-  const dt = d.entryTime?.toDate ? d.entryTime.toDate().toLocaleString("en-MY", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "-";
+  const dt = d.entryTime?.toDate ? d.entryTime.toDate().toLocaleString("en-MY") : "-";
   tr.innerHTML = `
     <td class="px-4 py-3 text-slate-300">${dt}</td>
     <td class="px-4 py-3 font-medium text-white v-plate"></td>
@@ -562,7 +525,6 @@ qs("#visitorForm").addEventListener("submit", async (e) => {
   if (!plate || !unit || !name || !phone) { toast("Fill required fields.", "error"); return; }
   if (!validators.plate(plate)) { toast("Invalid car plate format.", "error"); return; }
   if (!validators.phone(phone)) { toast("Invalid phone number.", "error"); return; }
-
   const btn = qs("#visitorSubmitBtn");
   setLoading(btn, true);
   try {
@@ -608,7 +570,28 @@ function showVisitorQR(id, d) {
   add("Phone", d.visitorPhone);
 }
 
-/* Billing */
+/* Billing Management */
+function updateInvoiceResidentList() {
+    const sel = qs("#invResidentSelect");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Click to Search Resident --</option>';
+    allResidents.sort((a, b) => a.unitNumber.localeCompare(b.unitNumber, undefined, {numeric: true})).forEach(res => {
+        const opt = document.createElement("option");
+        opt.value = JSON.stringify({ unit: res.unitNumber, road: res.road });
+        opt.textContent = `Unit ${res.unitNumber} (${res.road}) - ${res.name}`;
+        sel.appendChild(opt);
+    });
+}
+
+if (qs("#invResidentSelect")) {
+  qs("#invResidentSelect").addEventListener("change", (e) => {
+      if (!e.target.value) return;
+      const data = JSON.parse(e.target.value);
+      qs("#invUnit").value = data.unit;
+      qs("#invRoad").value = data.road;
+  });
+}
+
 async function loadBilling(reset = true) {
   if (reset) { invoiceCursor.last = null; invoiceCursor.hasMore = true; qs("#invoicesTableBody").innerHTML = ""; }
   if (!invoiceCursor.hasMore) return;
@@ -649,7 +632,7 @@ function buildInvoiceRow(id, d) {
     </td>
   `;
   tr.querySelector(".inv-id").textContent = d.invoiceId || id;
-  tr.querySelector(".inv-unit").textContent = d.unitNumber || "-";
+  tr.querySelector(".inv-unit").textContent = `${d.unitNumber || "-"} (${d.road || "-"})`;
   tr.querySelector(".inv-period").textContent = `${d.month || "-"} ${d.year || ""}`;
   tr.querySelector(".inv-amount").textContent = `RM ${parseFloat(d.amount || 0).toFixed(2)}`;
   tr.querySelector(".inv-due").textContent = d.dueDate || "-";
@@ -660,11 +643,6 @@ function buildInvoiceRow(id, d) {
   tr.querySelector(".del-inv").onclick = () => deleteInvoice(id);
   return tr;
 }
-
-qs("#invoiceSearch").addEventListener("input", debounce(() => {
-  const t = qs("#invoiceSearch").value.toLowerCase();
-  qsa("#invoicesTableBody tr").forEach(tr => { tr.style.display = tr.textContent.toLowerCase().includes(t) ? "" : "none"; });
-}, 300));
 
 qs("#generateBulkBtn").addEventListener("click", async () => {
   const month = qs("#bulkMonth").value;
@@ -682,10 +660,10 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
     let count = 0;
     resSnap.forEach(d => {
       const r = d.data();
-      const invId = `INV-${(r.unitNumber || "UNK").replace(/[^a-zA-Z0-9]/g, "")}-${month}-${year}`;
+      const invId = `INV-${(r.unitNumber || "UNK").replace(/\s+/g, '')}-${(r.road || "UNK").replace(/\s+/g, '')}-${month}-${year}`;
       const ref = doc(db, "invoices", invId);
       batch.set(ref, {
-        invoiceId: invId, unitNumber: r.unitNumber, month, year: parseInt(year),
+        invoiceId: invId, unitNumber: r.unitNumber, road: r.road, month, year: parseInt(year),
         amount, dueDate: due, status: "pending",
         description: `Maintenance fee for ${month} ${year}`,
         createdAt: serverTimestamp(), createdBy: userProfile?.name || currentUser?.email
@@ -701,27 +679,28 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
 
 qs("#invoiceForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const unit = qs("#invUnit").value.trim();
+  const unit = qs("#invUnit").value;
+  const road = qs("#invRoad").value;
   const amount = parseFloat(qs("#invAmount").value);
   const month = qs("#invMonth").value;
   const year = qs("#invYear").value;
-  const desc = qs("#invDesc").value.trim();
-  if (!unit || isNaN(amount) || amount <= 0 || !month || !year) { toast("Fill all required fields.", "error"); return; }
-  const invId = `INV-${unit.replace(/[^a-zA-Z0-9]/g, "")}-${month}-${year}-${Date.now()}`;
-  const btn = qs("#invoiceSubmitBtn");
-  setLoading(btn, true);
+  const due = qs("#invDue").value || "-";
+  if (!unit || !road || isNaN(amount)) { toast("Select a resident and enter amount.", "error"); return; }
+  const invId = `INV-${unit.replace(/\s+/g, '')}-${road.replace(/\s+/g, '')}-${month}-${year}-${Date.now()}`;
+  setLoading(qs("#invoiceSubmitBtn"), true);
   try {
     await setDoc(doc(db, "invoices", invId), {
-      invoiceId: invId, unitNumber: unit, amount, month, year: parseInt(year),
-      dueDate: "-", description: desc || "Custom bill", status: "pending",
+      invoiceId: invId, unitNumber: unit, road: road, amount: amount, month, year: parseInt(year),
+      dueDate: due, description: qs("#invDesc").value.trim() || "Custom Bill", status: "pending",
       createdAt: serverTimestamp(), createdBy: userProfile?.name || currentUser?.email
     });
-    toast("Custom bill created.", "success");
+    toast("Bill created successfully.", "success");
     closeModal("invoiceModal");
     qs("#invoiceForm").reset();
+    qs("#invResidentSelect").value = "";
     loadBilling(true);
   } catch (err) { toast(err.message, "error"); }
-  finally { setLoading(btn, false); }
+  finally { setLoading(qs("#invoiceSubmitBtn"), false); }
 });
 
 async function payInvoice(id) {
@@ -743,7 +722,7 @@ async function deleteInvoice(id) {
   catch (err) { toast(err.message, "error"); }
 }
 
-/* Admins */
+/* Admins Management */
 async function loadAdmins() {
   const snap = await getDocs(collection(db, "admin_accounts"));
   const tbody = qs("#adminTableBody");
@@ -767,7 +746,7 @@ async function loadAdmins() {
 }
 
 async function deleteAdmin(uid) {
-  if (!confirm("Remove this admin profile? (Auth account must be deleted separately in Firebase Console.)")) return;
+  if (!confirm("Remove this admin profile?")) return;
   try { await deleteDoc(doc(db, "admin_accounts", uid)); toast("Admin profile removed.", "success"); loadAdmins(); }
   catch (err) { toast(err.message, "error"); }
 }
@@ -778,12 +757,12 @@ qs("#adminForm").addEventListener("submit", async (e) => {
   const email = qs("#admEmail").value.trim();
   const password = qs("#admPassword").value;
   const role = qs("#admRole").value;
-  if (!name || !email || !password || password.length < 6) { toast("Fill all fields correctly (password min 6).", "error"); return; }
+  if (!name || !email || !password || password.length < 6) { toast("Fill all fields correctly.", "error"); return; }
   const btn = qs("#adminSubmitBtn");
   setLoading(btn, true);
   try {
-    const user = await createUserAccount(email, password);
-    await setDoc(doc(db, "admin_accounts", user.uid), {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await setDoc(doc(db, "admin_accounts", cred.user.uid), {
       name, email, role, createdAt: serverTimestamp()
     });
     toast("Admin created.", "success");
@@ -794,7 +773,7 @@ qs("#adminForm").addEventListener("submit", async (e) => {
   finally { setLoading(btn, false); }
 });
 
-/* Modal & Init */
+/* Modal & Init Lifecycle */
 qsa("[data-close-modal]").forEach(btn => {
   btn.addEventListener("click", () => closeModal(btn.dataset.closeModal));
 });
