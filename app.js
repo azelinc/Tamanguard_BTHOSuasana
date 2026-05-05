@@ -644,37 +644,67 @@ function buildInvoiceRow(id, d) {
   return tr;
 }
 
+function setupYearDropdowns() {
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear - 1, currentYear, currentYear + 1];
+    const targets = ["#bulkYear", "#invYear"];
+    
+    targets.forEach(selector => {
+        const el = qs(selector);
+        if(!el) return;
+        el.innerHTML = years.map(y => `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`).join('');
+    });
+}
+
 qs("#generateBulkBtn").addEventListener("click", async () => {
   const month = qs("#bulkMonth").value;
   const year = qs("#bulkYear").value;
   const amount = parseFloat(qs("#bulkAmount").value);
   const due = qs("#bulkDue").value;
-  if (!month || !year || isNaN(amount) || amount <= 0 || !due) { toast("Fill all bulk billing fields correctly.", "error"); return; }
+  const remark = qs("#bulkRemark").value.trim() || "Security Fee";
+
+  if (!month || isNaN(amount)) { toast("Check Month/Amount", "error"); return; }
+  
   const resSnap = await getDocs(collection(db, "residents"));
-  if (resSnap.empty) { toast("No residents to bill.", "error"); return; }
-  if (resSnap.size > 400) { toast("Too many residents for a single batch.", "error"); return; }
   const btn = qs("#generateBulkBtn");
   setLoading(btn, true);
+
   try {
     const batch = writeBatch(db);
-    let count = 0;
     resSnap.forEach(d => {
       const r = d.data();
-      const invId = `INV-${(r.unitNumber || "UNK").replace(/\s+/g, '')}-${(r.road || "UNK").replace(/\s+/g, '')}-${month}-${year}`;
+      
+      // CRITICAL FIX: Sanitize the road name to remove "/" to prevent segmented path error
+      const cleanRoad = (r.road || "UNK").replace(/\//g, '-').replace(/\s+/g, '');
+      const cleanUnit = (r.unitNumber || "UNK").replace(/\s+/g, '');
+      
+      // Generate ID with sanitized segments
+      const invId = `INV-${cleanUnit}-${cleanRoad}-${month}-${year}`;
       const ref = doc(db, "invoices", invId);
+      
       batch.set(ref, {
-        invoiceId: invId, unitNumber: r.unitNumber, road: r.road, month, year: parseInt(year),
-        amount, dueDate: due, status: "pending",
-        description: `Maintenance fee for ${month} ${year}`,
-        createdAt: serverTimestamp(), createdBy: userProfile?.name || currentUser?.email
+        invoiceId: invId,
+        unitNumber: r.unitNumber,
+        road: r.road,
+        month,
+        year: parseInt(year),
+        amount,
+        dueDate: due,
+        description: remark,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        createdBy: userProfile?.name || currentUser?.email
       });
-      count++;
     });
     await batch.commit();
-    toast(`Generated ${count} invoices.`, "success");
+    toast("Bulk bills generated!", "success");
     loadBilling(true);
-  } catch (err) { toast(err.message, "error"); }
-  finally { setLoading(btn, false); }
+  } catch (err) {
+    console.error(err);
+    toast("Error: " + err.message, "error");
+  } finally {
+    setLoading(btn, false);
+  }
 });
 
 qs("#invoiceForm").addEventListener("submit", async (e) => {
@@ -685,8 +715,14 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
   const month = qs("#invMonth").value;
   const year = qs("#invYear").value;
   const due = qs("#invDue").value || "-";
+
   if (!unit || !road || isNaN(amount)) { toast("Select a resident and enter amount.", "error"); return; }
-  const invId = `INV-${unit.replace(/\s+/g, '')}-${road.replace(/\s+/g, '')}-${month}-${year}-${Date.now()}`;
+  
+  // Also sanitize road/unit for custom bills to prevent path errors
+  const cleanRoad = road.replace(/\//g, '-').replace(/\s+/g, '');
+  const cleanUnit = unit.replace(/\s+/g, '');
+  const invId = `INV-${cleanUnit}-${cleanRoad}-${month}-${year}-${Date.now()}`;
+  
   setLoading(qs("#invoiceSubmitBtn"), true);
   try {
     await setDoc(doc(db, "invoices", invId), {
@@ -787,6 +823,7 @@ qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").clas
 
 async function init() {
   initAuth();
+  setupYearDropdowns();
 }
 
 init();
