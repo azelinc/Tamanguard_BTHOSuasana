@@ -486,7 +486,7 @@ function buildVisitorRow(id, d) {
   const tr = document.createElement("tr");
   tr.className = "hover:bg-slate-800/30 transition-colors";
   
-  // Logic to determine status badge color
+  // Status Color Logic
   let statusClass = "bg-slate-700 text-slate-300";
   let statusText = d.status || "Pending";
 
@@ -503,7 +503,11 @@ function buildVisitorRow(id, d) {
   tr.innerHTML = `
     <td class="px-4 py-3 text-slate-300">${d.entryTime?.toDate ? d.entryTime.toDate().toLocaleString("en-MY") : "-"}</td>
     <td class="px-4 py-3 font-medium text-white">${d.carPlate || "-"}</td>
-    <td class="px-4 py-3 text-slate-300 v-unit-display"></td> <!-- Targeted display -->
+    <!-- Updated this cell to show both Unit and Road -->
+    <td class="px-4 py-3 text-slate-300">
+        <span class="font-bold text-white">${d.unitNumber || "-"}</span> 
+        <span class="text-[10px] block opacity-60">${d.road || "Unknown Road"}</span>
+    </td>
     <td class="px-4 py-3 text-slate-300">${d.visitorName || "-"}</td>
     <td class="px-4 py-3 text-slate-300">${d.visitorPhone || "-"}</td>
     <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${statusClass}">${statusText.toUpperCase()}</span></td>
@@ -512,9 +516,6 @@ function buildVisitorRow(id, d) {
       <button class="checkout-btn text-amber-400 hover:text-amber-300 ${d.status !== 'entered' ? 'opacity-20 pointer-events-none' : ''}"><i class="fas fa-sign-out-alt"></i></button>
     </td>
   `;
-
-  // Combine Unit and Road for the display
-  tr.querySelector(".v-unit-display").textContent = `${d.unitNumber || "-"} (${d.road || "-"})`;
   
   tr.querySelector(".qr-btn").onclick = () => showVisitorQR(id, d);
   tr.querySelector(".checkout-btn").onclick = () => checkoutVisitor(id);
