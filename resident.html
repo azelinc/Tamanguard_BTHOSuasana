@@ -224,23 +224,34 @@
             });
         }
 
-        function loadBills() {
-            unsubBills = db.collection("invoices").where("unitNumber", "==", myUnit).onSnapshot(snapshot => {
-                myBillsRaw = [];
-                let uC = 0, uT = 0, hasI = !snapshot.empty;
-                
-                snapshot.forEach(doc => {
-                    const b = doc.data();
-                    b.id = doc.id;
-                    myBillsRaw.push(b);
-                    if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
-                });
-
-                myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
-                updatePaymasterUI(uC, uT, hasI);
-                renderBillList();
+       function loadBills() {
+    const myRoad = localStorage.getItem('myRoad'); // Retrieve the road from login
+    
+    // Updated query to filter by both Unit AND Road
+    unsubBills = db.collection("invoices")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad) 
+        .onSnapshot(snapshot => {
+            myBillsRaw = [];
+            let uC = 0, uT = 0, hasI = !snapshot.empty;
+            
+            snapshot.forEach(doc => {
+                const b = doc.data();
+                b.id = doc.id;
+                myBillsRaw.push(b);
+                if(b.status !== 'paid') { 
+                    uC++; 
+                    uT += (parseFloat(b.amount) || 0); 
+                }
             });
-        }
+
+            myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
+            updatePaymasterUI(uC, uT, hasI);
+            renderBillList();
+        }, err => {
+            console.error("Billing Sync Error:", err);
+        });
+}
 
         function setBillFilter(filter) {
             currentBillFilter = filter;
