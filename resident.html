@@ -416,11 +416,24 @@ function switchTab(t) {
             } catch (err) { console.error("Sharing failed", err); }
         }
 
-        function logout() {
-            if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
-            localStorage.clear(); 
-            location.reload();
-        }
+function logout() {
+    // 1. Kill all active listeners to stop "Syncing data" loops
+    if(unsubBills) unsubBills(); 
+    if(unsubNews) unsubNews(); 
+    if(unsubVisits) unsubVisits();
+    
+    // 2. Clear all resident data
+    localStorage.clear(); 
+    
+    // 3. Force UI reset immediately
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.querySelector('main').classList.add('hidden');
+    document.querySelector('nav').classList.add('hidden');
+    document.querySelector('header').classList.add('hidden');
+    
+    // 4. Reload to a clean state
+    location.reload();
+}
 
 function reShowQR(visitId) {
     document.getElementById('qr-result').classList.remove('hidden');
@@ -438,10 +451,23 @@ function reShowQR(visitId) {
     console.log("Re-showing QR for visit:", visitId);
 }
         
-        window.onload = () => {
-            if(!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); }
-            else initApp();
-        };
+window.onload = () => {
+    // Re-verify myUnit from storage
+    myUnit = localStorage.getItem('myUnit');
+    
+    if(!myUnit) { 
+        // Force login overlay and hide app content
+        document.getElementById('login-screen').classList.remove('hidden'); 
+        document.querySelector('main').style.display = 'none';
+        document.querySelector('nav').style.display = 'none';
+        fetchRoads(); 
+    } else {
+        // Safe to initialize
+        document.querySelector('main').style.display = 'block';
+        document.querySelector('nav').style.display = 'flex';
+        initApp();
+    }
+};
     </script>
 </body>
 </html>
