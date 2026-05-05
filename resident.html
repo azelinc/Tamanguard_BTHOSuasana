@@ -14,7 +14,6 @@
         .spinner { border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* CRITICAL: Hide app elements by default to prevent stuck screens on new devices */
         #app-header, #app-main, #app-nav { 
             display: none; 
         }
@@ -133,6 +132,20 @@
         <button onclick="switchTab('bills')" id="nav-bills" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
     </nav>
 
+    <!-- Custom Cancel Confirmation Modal -->
+    <div id="cancel-confirm-modal" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-white w-full max-w-xs rounded-3xl p-6 text-center shadow-2xl">
+            <div class="text-3xl mb-2">🗑️</div>
+            <h3 class="font-black text-slate-800 uppercase tracking-tight">Cancel Pass?</h3>
+            <p class="text-xs text-slate-400 mt-2 mb-6">This visitor will no longer be able to enter the Taman with this QR code.</p>
+            <input type="hidden" id="cancel-target-id">
+            <div class="flex gap-3">
+                <button onclick="closeCancelModal()" class="flex-1 py-3 text-xs font-bold text-slate-400 uppercase">Back</button>
+                <button onclick="confirmCancelAction()" class="flex-1 bg-red-500 text-white py-3 rounded-xl text-xs font-bold uppercase shadow-lg shadow-red-200">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const firebaseConfig = {
             apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
@@ -202,11 +215,8 @@
         }
 
         function switchTab(t) {
-            // Hide only tab content sections
             document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
             document.getElementById('view-' + t).classList.remove('hidden');
-            
-            // Keep paymaster container visible
             document.getElementById('paymaster-card-container').classList.remove('hidden');
             
             ['news', 'invite', 'bills'].forEach(tab => {
@@ -236,22 +246,15 @@
                 .onSnapshot(snapshot => {
                     myBillsRaw = [];
                     let uC = 0, uT = 0, hasI = !snapshot.empty;
-                    
                     snapshot.forEach(doc => {
                         const b = doc.data();
                         b.id = doc.id;
                         myBillsRaw.push(b);
-                        if(b.status !== 'paid') { 
-                            uC++; 
-                            uT += (parseFloat(b.amount) || 0); 
-                        }
+                        if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
                     });
-
                     myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
                     updatePaymasterUI(uC, uT, hasI);
                     renderBillList();
-                }, err => {
-                    console.error("Billing Sync Error:", err);
                 });
         }
 
@@ -268,26 +271,22 @@
             const list = document.getElementById('bill-list');
             list.innerHTML = "";
             invoiceCache = {};
-
             const filtered = myBillsRaw.filter(b => {
                 if(currentBillFilter === 'paid') return b.status === 'paid';
                 if(currentBillFilter === 'unpaid') return b.status !== 'paid';
                 return true;
             });
-
             if(filtered.length === 0) {
-                list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No ${currentBillFilter === 'all' ? '' : currentBillFilter} records found.</p>`;
+                list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
                 return;
             }
-
             filtered.forEach(b => {
                 invoiceCache[b.id] = b;
                 const isP = b.status === 'paid';
-                const amt = parseFloat(b.amount) || 0;
                 list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
                     <div>
                         <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month} ${b.year}</p>
-                        <p class="font-black text-lg">RM${amt.toFixed(2)}</p>
+                        <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
                         <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
                     </div>
                     <div class="text-right">
@@ -301,10 +300,10 @@
         function updatePaymasterUI(count, total, hasI) {
             const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found. New resident? Please contact Admin."; return; }
-            if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Excellent! Your security fees are up to date. Thanks for keeping our Taman safe!"; } 
-            else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${total.toFixed(2)} for ${count} month(s). Please help us keep the security active.`; } 
-            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)} outstanding. Non-payment may affect your visitor registration features.`; }
+            if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
+            if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date!"; } 
+            else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${total.toFixed(2)}`; } 
+            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)}`; }
         }
 
         function openReceipt(id) {
@@ -312,10 +311,8 @@
             document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
             document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); 
             document.getElementById('rcp-unit').innerText = d.unitNumber; 
-            document.getElementById('rcp-remark').innerText = `${d.month} ${d.year} - Maintenance Fee`;
-            let dt = "N/A"; 
-            if(d.paidAt && d.paidAt.toDate) dt = d.paidAt.toDate().toLocaleDateString('en-GB'); 
-            document.getElementById('rcp-date').innerText = dt; 
+            document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`;
+            document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
             document.getElementById('receipt-modal').classList.remove('hidden');
         }
         function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
@@ -323,107 +320,114 @@
         function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
 
         function loadMyVisitors() {
-    const myRoad = localStorage.getItem('myRoad'); //
-    unsubVisits = db.collection("visits")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad) // Fixed: Filter by road
-        .onSnapshot(snapshot => {
-            const pendingList = document.getElementById('visitor-pending-list');
-            const historyList = document.getElementById('visitor-history-list');
-            let data = []; 
-            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-            
-            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+            const myRoad = localStorage.getItem('myRoad'); 
+            unsubVisits = db.collection("visits")
+                .where("unitNumber", "==", myUnit)
+                .where("road", "==", myRoad)
+                .onSnapshot(snapshot => {
+                    const pendingList = document.getElementById('visitor-pending-list');
+                    const historyList = document.getElementById('visitor-history-list');
+                    let data = []; 
+                    snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
+                    data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
 
-            let pendingH = "", historyH = "";
-            const now = new Date().getTime();
-            const limit = 48 * 60 * 60 * 1000; 
+                    let pendingH = "", historyH = "";
+                    const now = new Date().getTime();
+                    const limit = 48 * 60 * 60 * 1000; 
 
-            data.forEach(v => {
-                const isE = v.status === 'entered';
-                const isC = v.status === 'cancelled'; //
-                const isPending = v.status === 'pending' || !v.status; 
-                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                const isWithin48 = (now - timeMs) < limit;
+                    data.forEach(v => {
+                        const isE = v.status === 'entered';
+                        const isC = v.status === 'cancelled';
+                        const isPending = v.status === 'pending' || !v.status; 
+                        const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+                        const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                        const isWithin48 = (now - timeMs) < limit;
 
-                // Only allow QR re-show if status is pending (not cancelled)
-                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
+                        const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
 
-                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-                    <div>
-                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
-                    </div>
-                    <div class="text-right">
-                        <div class="flex gap-2 justify-end mb-1">
-                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                        </div>
-                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                    </div>
-                </div>`;
+                        const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
+                            <div>
+                                <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+                            </div>
+                            <div class="text-right">
+                                <div class="flex gap-2 justify-end mb-1">
+                                    ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                                    <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                                </div>
+                                <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
+                            </div>
+                        </div>`;
 
-                // If cancelled or expired/exited, move to history
-                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
-                else historyH += cardHtml;
-            });
+                        if (isPending && isWithin48 && !isC) pendingH += cardHtml;
+                        else historyH += cardHtml;
+                    });
+                    pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
+                    historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+                });
+        }
+        
+        function cancelVisit(id) {
+            document.getElementById('cancel-target-id').value = id;
+            document.getElementById('cancel-confirm-modal').classList.remove('hidden');
+        }
 
-            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
-        });
-}
+        function closeCancelModal() {
+            document.getElementById('cancel-confirm-modal').classList.add('hidden');
+        }
 
-// Fixed: Update status instead of deleting
-async function cancelVisit(id) { 
-    if(confirm("Cancel visitor pass?")) {
-        await db.collection("visits").doc(id).update({ status: "cancelled" }); 
-    }
-}
+        async function confirmCancelAction() {
+            const id = document.getElementById('cancel-target-id').value;
+            if(!id) return;
+            try {
+                await db.collection("visits").doc(id).update({ 
+                    status: "cancelled",
+                    cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            } catch (err) { console.error("Cancel failed:", err); }
+            finally { closeCancelModal(); }
+        }
 
         let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
         
         async function generateGuestPass() {
-    const n = document.getElementById('guest-name').value;
-    const ph = document.getElementById('guest-phone').value;
-    const pl = document.getElementById('guest-plate').value;
-    const btn = document.getElementById('guest-btn');
-    
-    // Retrieve the road from localStorage to link the visit to the specific street
-    const myRoad = localStorage.getItem('myRoad'); 
+            const n = document.getElementById('guest-name').value;
+            const ph = document.getElementById('guest-phone').value;
+            const pl = document.getElementById('guest-plate').value;
+            const btn = document.getElementById('guest-btn');
+            const myRoad = localStorage.getItem('myRoad'); 
 
-    if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
-    
-    btn.innerHTML = `<span class="spinner"></span> Generating...`;
-    btn.disabled = true;
+            if(!n || !ph || !pl) return alert("Fill Name, Phone & Plate");
+            
+            btn.innerHTML = `<span class="spinner"></span> Generating...`;
+            btn.disabled = true;
 
-    try {
-        const doc = await db.collection("visits").add({ 
-            visitorName: n, 
-            visitorPhone: ph, 
-            carPlate: pl.toUpperCase(), 
-            unitNumber: myUnit, 
-            road: myRoad, // CRITICAL: This allows the record to show in filtered lists
-            status: "pending", 
-            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
-        });
-        
-        document.getElementById('qr-result').classList.remove('hidden'); 
-        qrObj.clear(); 
-        qrObj.makeCode(doc.id);
-        
-        // Reset form
-        document.getElementById('guest-name').value = ""; 
-        document.getElementById('guest-phone').value = ""; 
-        document.getElementById('guest-plate').value = "";
-    } catch (err) {
-        console.error("Error creating pass:", err);
-        alert("Failed to create pass. Please try again.");
-    } finally {
-        btn.innerHTML = "Create QR";
-        btn.disabled = false;
-    }
-}
+            try {
+                const docRef = await db.collection("visits").add({ 
+                    visitorName: n, 
+                    visitorPhone: ph, 
+                    carPlate: pl.toUpperCase(), 
+                    unitNumber: myUnit, 
+                    road: myRoad,
+                    status: "pending", 
+                    entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+                });
+                
+                document.getElementById('qr-result').classList.remove('hidden'); 
+                qrObj.clear(); 
+                qrObj.makeCode(docRef.id);
+                
+                document.getElementById('guest-name').value = ""; 
+                document.getElementById('guest-phone').value = ""; 
+                document.getElementById('guest-plate').value = "";
+            } catch (err) {
+                console.error("Error creating pass:", err);
+                alert("Failed to create pass.");
+            } finally {
+                btn.innerHTML = "Create QR";
+                btn.disabled = false;
+            }
+        }
 
         async function shareQRCode() {
             const qrCanvas = document.querySelector('#qrcode canvas');
@@ -448,12 +452,6 @@ async function cancelVisit(id) {
         function logout() {
             if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
             localStorage.clear(); 
-            
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('app-main').style.display = 'none';
-            document.getElementById('app-nav').style.display = 'none';
-            document.getElementById('app-header').style.display = 'none';
-            
             location.reload();
         }
 
@@ -461,11 +459,7 @@ async function cancelVisit(id) {
             document.getElementById('qr-result').classList.remove('hidden');
             qrObj.clear();
             qrObj.makeCode(visitId);
-            
-            window.scrollTo({
-                top: 0,
-                behavior: 'smooth'
-            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
         window.onload = () => {
