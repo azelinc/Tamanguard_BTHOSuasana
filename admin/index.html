@@ -14,6 +14,7 @@
     .tab-btn.active{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#60a5fa;}
     .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:14px;height:14px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;}
     @keyframes spin{to{transform:rotate(360deg);}}
+    @media print { .no-print { display: none; } }
   </style>
 </head>
 <body class="bg-slate-900 min-h-screen text-white font-sans">
@@ -121,15 +122,16 @@
       <div id="tab-billing" class="tab-pane hidden">
         <div class="glass rounded-xl p-6 mb-6">
           <h3 class="font-bold mb-4 flex items-center gap-2"><i class="fas fa-file-invoice text-purple-400"></i>Monthly Billing Tool</h3>
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
             <select id="bulkMonth" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
                 <option value="">Month</option><option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
             </select>
             <select id="bulkYear" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></select>
             <input type="number" id="bulkAmount" placeholder="RM Amount" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
             <input type="date" id="bulkDue" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-            <button id="generateBulkBtn" class="bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">Generate All</button>
+            <input type="text" id="bulkRemarks" placeholder="Remarks" class="md:col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
           </div>
+          <button id="generateBulkBtn" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold">GENERATE ALL BILLS</button>
         </div>
 
         <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
@@ -148,7 +150,15 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead class="bg-slate-800 text-slate-400 uppercase text-[10px] tracking-widest">
-                <tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Month</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
+                <tr>
+                    <th class="px-4 py-3">ID</th>
+                    <th class="px-4 py-3">Unit</th>
+                    <th class="px-4 py-3">Month</th>
+                    <th class="px-4 py-3">Remarks</th>
+                    <th class="px-4 py-3">Amount</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3 text-right">Action</th>
+                </tr>
               </thead>
               <tbody id="invoicesTableBody" class="divide-y divide-slate-700/50"></tbody>
             </table>
@@ -171,6 +181,9 @@
             <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Management Name</label>
             <input type="text" id="tamanNameInput" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white outline-none">
             
+            <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Monthly Fee (RM)</label>
+            <input type="number" id="defaultMonthlyFee" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white outline-none" placeholder="e.g. 80">
+
             <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Road / Block Management</label>
             <div class="flex gap-2 mb-4">
               <input type="text" id="newRoadName" placeholder="e.g. Jalan Suasana 5/3" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 text-white outline-none">
@@ -197,6 +210,31 @@
 
   <!-- MODALS SECTION -->
   
+  <div id="receiptViewModal" class="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="bg-white text-slate-900 rounded-2xl w-full max-w-sm p-8 relative shadow-2xl">
+        <div class="text-center border-b border-dashed border-slate-200 pb-4 mb-4">
+            <h2 class="text-xl font-black text-blue-600 uppercase">Official Receipt</h2>
+            <p class="text-[10px] text-slate-400 font-bold uppercase" id="rcptTamanName">TAMANGUARD</p>
+        </div>
+        <div class="space-y-3 text-sm">
+            <div class="flex justify-between text-slate-500 text-xs"><span>Receipt No:</span><span id="rcptNo" class="font-bold text-slate-900"></span></div>
+            <div class="flex justify-between text-slate-500 text-xs"><span>Date:</span><span id="rcptDate" class="font-bold text-slate-900"></span></div>
+            <div class="flex justify-between text-slate-500 text-xs"><span>Unit:</span><span id="rcptUnit" class="font-bold text-slate-900"></span></div>
+            <hr class="border-slate-100">
+            <div class="py-4 text-center">
+                <p id="rcptRemarks" class="text-[10px] text-slate-400 uppercase font-bold mb-1"></p>
+                <h3 class="text-3xl font-black">RM <span id="rcptAmount"></span></h3>
+            </div>
+            <hr class="border-slate-100">
+            <p class="text-[10px] text-center text-slate-400 italic">This is a computer-generated receipt.</p>
+        </div>
+        <div class="flex gap-2 mt-6 no-print">
+            <button data-close-modal="receiptViewModal" class="flex-1 py-3 bg-slate-200 text-slate-600 font-bold rounded-xl text-xs uppercase">Close</button>
+            <button onclick="window.print()" class="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl text-xs uppercase">Print</button>
+        </div>
+    </div>
+  </div>
+
   <div id="residentProfileModal" class="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col p-8 relative shadow-2xl">
         <div class="flex justify-between items-start mb-6">
