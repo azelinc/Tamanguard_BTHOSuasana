@@ -194,13 +194,20 @@
           </div>
           <button id="generateBulkBtn" class="mt-4 bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-6 py-2.5 font-medium transition-all">Generate Bills</button>
         </div>
-        <div class="flex flex-col md:flex-row gap-4 mb-4">
-          <div class="relative flex-1">
+
+        <!-- Smart Filter Bar -->
+        <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
+          <div class="relative flex-1 w-full">
             <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
-            <input type="text" id="invoiceSearch" placeholder="Search invoices..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
+            <input type="text" id="invoiceSearch" placeholder="Search Unit, Name or Phone..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-purple-500">
           </div>
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 border border-slate-700 px-4 py-2.5 rounded-lg hover:bg-slate-700 transition-all">
+            <input type="checkbox" id="hidePaidToggle" class="w-4 h-4 accent-purple-500" checked>
+            <span class="text-sm text-slate-300 whitespace-nowrap">Show Pending Only</span>
+          </label>
           <button id="addInvoiceBtn" class="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i></button>
         </div>
+
         <div class="glass rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
@@ -407,6 +414,32 @@
     </div>
   </div>
 
+  <!-- History Modal (New) -->
+  <div id="historyModal" class="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col p-6 relative">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h3 class="text-xl font-bold">House Billing History</h3>
+                <p id="historyUnitTitle" class="text-purple-400 text-sm font-medium uppercase tracking-wider mt-1"></p>
+            </div>
+            <button data-close-modal="historyModal" class="text-slate-400 hover:text-white transition-colors"><i class="fas fa-times text-xl"></i></button>
+        </div>
+        <div class="overflow-y-auto flex-1 pr-2">
+            <table class="w-full text-left text-sm">
+                <thead class="sticky top-0 bg-slate-800/95 text-slate-400 uppercase text-[10px] tracking-widest z-10">
+                    <tr>
+                        <th class="px-4 py-3">Period</th>
+                        <th class="px-4 py-3">Amount</th>
+                        <th class="px-4 py-3">Status</th>
+                        <th class="px-4 py-3 text-right">Receipt #</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTableBody" class="divide-y divide-slate-700/50"></tbody>
+            </table>
+        </div>
+    </div>
+  </div>
+
   <!-- QR Modal -->
   <div id="qrModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-sm p-6 text-center">
@@ -418,6 +451,6 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script type="module" src="../app.js?v=4"></script>
+  <script type="module" src="../app.js?v=5"></script>
 </body>
 </html>
