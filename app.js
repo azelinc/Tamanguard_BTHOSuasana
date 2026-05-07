@@ -397,31 +397,40 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
     e.preventDefault(); 
     const unit = qs("#invUnit").value; 
     const amount = parseFloat(qs("#invAmount").value);
-    const remarks = qs("#invRemarks").value.trim(); // Capture remarks
-    const dueDate = qs("#invDue").value;
+    const remarks = qs("#invRemarks").value.trim(); 
+    const dueDateValue = qs("#invDue").value; // Get the date string (YYYY-MM-DD)
 
     if(!unit || isNaN(amount)) return toast("Select resident and amount", "error");
-    
+    if(!dueDateValue) return toast("Please select a due date", "error");
+
     setLoading(qs("#invoiceSubmitBtn"), true);
+
     try {
+        // Parse the month and year from the selected Due Date
+        const dateObj = new Date(dueDateValue);
+        // Using 'en-US' to ensure it matches the "January", "February" format used in bulk generation
+        const monthName = dateObj.toLocaleString('en-US', { month: 'long' });
+        const yearValue = dateObj.getFullYear();
+
         await addDoc(collection(db, "invoices"), { 
             unitNumber: unit, 
             road: qs("#invRoad").value, 
             amount: amount, 
-            month: 'Custom', 
-            year: new Date().getFullYear(),
-            remarks: remarks || 'Custom Bill', // Use input or default
-            dueDate: dueDate,
+            month: monthName,      // Now follows the Due Date (e.g., "June")
+            year: yearValue,       // Now follows the Due Date (e.g., 2026)
+            remarks: remarks || 'Custom Bill', 
+            dueDate: dueDateValue,
             status: "pending", 
             createdAt: serverTimestamp() 
         });
         
         toast("Custom bill created", "success"); 
         closeModal("invoiceModal"); 
-        qs("#invoiceForm").reset(); // Clear form for next time
+        qs("#invoiceForm").reset(); 
         loadBilling(true);
     } catch(e) { 
-        toast(e.message, "error"); 
+        console.error(e);
+        toast("Failed to create bill", "error"); 
     } finally { 
         setLoading(qs("#invoiceSubmitBtn"), false); 
     }
