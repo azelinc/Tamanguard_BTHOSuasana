@@ -66,6 +66,21 @@ function debounce(fn, ms = 300) {
   return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
+async function loadStats() {
+  try {
+    const resSnap = await getDocs(collection(db, "residents"));
+    qs("#statResidents").textContent = resSnap.size;
+
+    const visitSnap = await getDocs(query(collection(db, "visits"), where("status", "==", "entered")));
+    qs("#statVisits").textContent = visitSnap.size;
+
+    const billSnap = await getDocs(query(collection(db, "invoices"), where("status", "==", "pending")));
+    qs("#statBills").textContent = billSnap.size;
+  } catch (e) {
+    console.error("Stats error:", e);
+  }
+}
+
 /* Listener lifecycle */
 function unsub(key) {
   if (listeners[key]) { listeners[key](); delete listeners[key]; }
@@ -118,6 +133,7 @@ async function initAuth() {
       qs("#userRole").textContent = userRole.replace("_", " ");
       applyRoleVisibility();
       showTab("news");
+      loadStats(); 
     } catch (err) {
       console.error("Auth callback error:", err);
       toast("Auth Error. Check console.", "error");
