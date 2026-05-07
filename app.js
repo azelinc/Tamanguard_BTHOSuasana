@@ -10,7 +10,7 @@ const auth = getAuth(app);
 const PAGE_SIZE = 250;
 let userProfile = null;
 let userRole = null;
-let tamanConfig = { name: "", roads: [] };
+let tamanConfig = { name: "", roads: [], monthlyFee: 80 };
 const allResidents = [];
 let allInvoices = []; 
 
@@ -96,7 +96,10 @@ async function preloadResidentData() {
 /* SETTINGS */
 async function loadSettings() {
   const snap = await getDoc(doc(db, "settings", "taman_config"));
-  if (snap.exists()) tamanConfig = snap.data();
+  if (snap.exists()) {
+    tamanConfig = snap.data();
+    if(qs("#defaultMonthlyFee")) qs("#defaultMonthlyFee").value = tamanConfig.monthlyFee || 80;
+  }
   qs("#tamanNameDisplay").textContent = tamanConfig.name || "TamanGuard";
   if(qs("#tamanNameInput")) qs("#tamanNameInput").value = tamanConfig.name || "";
   renderRoads();
@@ -134,8 +137,10 @@ async function removeRoad(r) {
 }
 
 qs("#saveSettingsBtn").addEventListener("click", async () => {
-    const name = qs("#tamanNameInput").value.trim(); if(!name) return;
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, updatedAt: serverTimestamp() });
+    const name = qs("#tamanNameInput").value.trim();
+    const fee = parseFloat(qs("#defaultMonthlyFee").value) || 80;
+    if(!name) return;
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, updatedAt: serverTimestamp() });
     toast("Config updated!", "success"); loadSettings();
 });
 
@@ -248,33 +253,86 @@ async function loadBilling(reset = true) {
   renderInvoices(); loadStats();
 }
 
+function updateBillingDefaults() {
+    const month = qs("#bulkMonth").value;
+    const year = parseInt(qs("#bulkYear").value);
+    if(!month || !year) return;
+    qs("#bulkAmount").value = tamanConfig.monthlyFee || 80;
+    qs("#bulkRemarks").value = `Security Payment for ${month.substring(0,3)} ${year}`;
+    const monthIndex = ["January","February","March","April","May","June","July","August","September","October","November","December"].indexOf(month);
+    const lastDay = new Date(year, monthIndex + 1, 0);
+    const yyyy = lastDay.getFullYear();
+    const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(lastDay.getDate()).padStart(2, '0');
+    qs("#bulkDue").value = `${yyyy}-${mm}-${dd}`;
+}
+
+qs("#bulkMonth")?.addEventListener("change", updateBillingDefaults);
+qs("#bulkYear")?.addEventListener("change", updateBillingDefaults);
+
 function renderInvoices() {
   const tbody = qs("#invoicesTableBody"); if(!tbody) return;
   const rawTerm = qs("#invoiceSearch").value.toLowerCase().trim();
   const hidePaid = qs("#hidePaidToggle").checked;
-  const cleanPhoneTerm = rawTerm.replace(/[^0-9]/g, "");
 
   tbody.innerHTML = "";
   const filtered = allInvoices.filter(inv => {
     if (hidePaid && inv.status === "paid") return false;
     if (!rawTerm) return true;
     const res = allResidents.find(r => r.unitNumber === inv.unitNumber && r.road === inv.road);
-    const matchUnit = inv.unitNumber.toLowerCase().startsWith(rawTerm);
-    const matchName = (res?.name || "").toLowerCase().includes(rawTerm);
-    const matchPhone = cleanPhoneTerm !== "" && (res?.phone || "").replace(/[^0-9]/g, "").includes(cleanPhoneTerm);
-    return matchUnit || matchName || matchPhone;
+    return inv.unitNumber.toLowerCase().startsWith(rawTerm) || (res?.name || "").toLowerCase().includes(rawTerm);
   });
 
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="6" class="py-12 text-center text-slate-500 text-xs">No matching bills.</td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-slate-500 text-xs">No matching bills.</td></tr>'; return; }
 
   filtered.forEach(inv => {
+    const isPaid = inv.status === 'paid';
     const tr = document.createElement("tr"); tr.className = "hover:bg-slate-800/30 group border-b border-slate-700/30 transition-colors";
-    const sClass = inv.status==='paid'?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400';
-    tr.innerHTML = `<td class="px-4 py-4 font-mono text-[10px] text-slate-500">${inv.id.substring(0,8)}</td><td class="px-4 py-4"><button class="view-h text-left hover:text-purple-400 transition-colors"><span class="block font-bold text-white">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></button></td><td class="px-4 py-4 text-slate-300 text-sm">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 font-bold text-white">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${sClass}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right"><button class="pay-b bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition-all ${inv.status==='paid'?'hidden':''}">PAY</button></td>`;
+    const sClass = isPaid?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400';
+    
+    tr.innerHTML = `
+        <td class="px-4 py-4 font-mono text-[10px] text-slate-500">${inv.id.substring(0,8)}</td>
+        <td class="px-4 py-4"><button class="view-h text-left hover:text-purple-400 transition-colors"><span class="block font-bold text-white">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></button></td>
+        <td class="px-4 py-4 text-slate-300 text-xs">${inv.month || ''} ${inv.year || ''}</td>
+        <td class="px-4 py-4 text-slate-500 text-[10px] italic max-w-[150px] truncate">${inv.remarks || '-'}</td>
+        <td class="px-4 py-4 font-bold text-white">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>
+        <td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${sClass}">${(inv.status||'').toUpperCase()}</span></td>
+        <td class="px-4 py-4 text-right">
+            <div class="flex justify-end gap-2 items-center">
+                ${isPaid ? 
+                    `<button class="view-rcpt text-blue-400 font-mono text-[10px] hover:underline">${inv.receiptNumber}</button>` : 
+                    `<button class="pay-b bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-[10px] font-bold">PAY</button>`
+                }
+                <button class="del-b text-slate-600 hover:text-red-500 p-1"><i class="fas fa-trash-alt text-xs"></i></button>
+            </div>
+        </td>`;
+
     tr.querySelector(".view-h").onclick = () => showHouseHistoryModal(inv.unitNumber, inv.road);
+    if(tr.querySelector(".view-rcpt")) tr.querySelector(".view-rcpt").onclick = () => showReceipt(inv);
     if(tr.querySelector(".pay-b")) tr.querySelector(".pay-b").onclick = () => payInvoice(inv.id);
+    tr.querySelector(".del-b").onclick = () => deleteInvoice(inv.id);
     tbody.appendChild(tr);
   });
+}
+
+function showReceipt(inv) {
+    qs("#rcptTamanName").textContent = tamanConfig.name || "TAMANGUARD";
+    qs("#rcptNo").textContent = inv.receiptNumber;
+    qs("#rcptDate").textContent = inv.paidAt?.toDate().toLocaleDateString('en-GB') || '-';
+    qs("#rcptUnit").textContent = `${inv.unitNumber} (${inv.road})`;
+    qs("#rcptRemarks").textContent = inv.remarks || `${inv.month} ${inv.year} Maintenance`;
+    qs("#rcptAmount").textContent = parseFloat(inv.amount).toFixed(2);
+    qs("#receiptViewModal").classList.remove("hidden");
+}
+
+async function deleteInvoice(id) {
+    if(!confirm("Are you sure you want to delete this bill?")) return;
+    try {
+        await deleteDoc(doc(db, "invoices", id));
+        allInvoices = allInvoices.filter(i => i.id !== id);
+        renderInvoices(); loadStats();
+        toast("Bill deleted", "info");
+    } catch(e) { toast("Error deleting", "error"); }
 }
 
 qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50));
@@ -304,27 +362,33 @@ async function payInvoice(id, fullRefresh = true) {
     const rcpt = `RCP-${Date.now()}`;
     await updateDoc(doc(db, "invoices", id), { status: "paid", receiptNumber: rcpt, paidAt: serverTimestamp() });
     const local = allInvoices.find(i => i.id === id);
-    if(local) { local.status = "paid"; local.receiptNumber = rcpt; }
+    if(local) { local.status = "paid"; local.receiptNumber = rcpt; local.paidAt = new Date(); }
     toast("Payment recorded!", "success"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats();
 }
 
 /* GENERATE ALL (FIXED ID SANITIZATION) */
 qs("#generateBulkBtn").addEventListener("click", async () => {
-    const m = qs("#bulkMonth").value; const y = qs("#bulkYear").value; const a = parseFloat(qs("#bulkAmount").value);
-    const due = qs("#bulkDue") ? qs("#bulkDue").value : ""; 
+    const m = qs("#bulkMonth").value; 
+    const y = qs("#bulkYear").value; 
+    const a = parseFloat(qs("#bulkAmount").value);
+    const rem = qs("#bulkRemarks").value.trim();
+    const due = qs("#bulkDue").value; 
     if(!m || isNaN(a)) return toast("Month and Amount required", "error");
     setLoading(qs("#generateBulkBtn"), true);
     try {
         const batch = writeBatch(db);
         allResidents.forEach(r => {
-            // CRITICAL FIX: Replace slashes with dashes to avoid path segment errors
             const safeRoad = r.road.replace(/[\s/]+/g, '-');
             const safeUnit = r.unitNumber.replace(/[\s/]+/g, '-');
             const id = `INV-${safeUnit}-${safeRoad}-${m}-${y}`;
-            batch.set(doc(db, "invoices", id), { invoiceId: id, unitNumber: r.unitNumber, road: r.road, month: m, year: parseInt(y), amount: a, dueDate: due, status: "pending", createdAt: serverTimestamp() });
+            batch.set(doc(db, "invoices", id), { 
+                invoiceId: id, unitNumber: r.unitNumber, road: r.road, 
+                month: m, year: parseInt(y), amount: a, remarks: rem,
+                dueDate: due, status: "pending", createdAt: serverTimestamp() 
+            });
         });
         await batch.commit(); toast("Bills generated!", "success"); loadBilling(true);
-    } catch(e) { toast("Generation failed. Check characters.", "error"); }
+    } catch(e) { toast("Generation failed.", "error"); }
     finally { setLoading(qs("#generateBulkBtn"), false); }
 });
 
@@ -333,7 +397,7 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
     if(!unit || isNaN(amount)) return toast("Select resident and amount", "error");
     setLoading(qs("#invoiceSubmitBtn"), true);
     try {
-        await addDoc(collection(db, "invoices"), { unitNumber: unit, road: qs("#invRoad").value, amount, month: 'Custom', status: "pending", createdAt: serverTimestamp() });
+        await addDoc(collection(db, "invoices"), { unitNumber: unit, road: qs("#invRoad").value, amount, month: 'Custom', remarks: 'Custom Bill', status: "pending", createdAt: serverTimestamp() });
         toast("Custom bill created", "success"); closeModal("invoiceModal"); loadBilling(true);
     } catch(e) { toast(e.message, "error"); }
     finally { setLoading(qs("#invoiceSubmitBtn"), false); }
