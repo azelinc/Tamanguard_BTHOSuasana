@@ -485,15 +485,23 @@ qs("#residentForm").addEventListener("submit", async (e) => {
 });
 
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
+// This button opens the Custom Bill modal
 qs("#addInvoiceBtn").addEventListener("click", () => {
+    // 1. Show the modal
     qs("#invoiceModal").classList.remove("hidden");
-    
-    // Set default date to today's local date
+
+    // 2. Calculate Today's Date in YYYY-MM-DD format
     const now = new Date();
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
-    qs("#invDue").value = `${yyyy}-${mm}-${dd}`;
+    const today = `${yyyy}-${mm}-${dd}`;
+
+    // 3. Set the input value
+    const dateInput = qs("#invDue");
+    if (dateInput) {
+        dateInput.value = today;
+    }
 });
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
