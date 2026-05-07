@@ -12,53 +12,35 @@
     ::-webkit-scrollbar-thumb{background:#3b82f6;border-radius:4px;}
     .glass{background:rgba(30,41,59,.7);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);}
     .tab-btn.active{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#60a5fa;}
-    .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:18px;height:18px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
+    .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:14px;height:14px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;}
     @keyframes spin{to{transform:rotate(360deg);}}
   </style>
 </head>
 <body class="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen font-sans text-white">
 
-  <!-- Toast -->
-  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none bg-slate-800 border border-slate-700 text-white"></div>
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[110] px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none bg-slate-800 border border-slate-700 text-white"></div>
 
-  <!-- Admin Overlay -->
-  <div id="adminOverlay" class="absolute inset-0 z-50 bg-slate-900/95 backdrop-blur flex items-center justify-center">
+  <!-- Auth Overlay -->
+  <div id="adminOverlay" class="fixed inset-0 z-[90] bg-slate-900/95 backdrop-blur flex items-center justify-center hidden">
     <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 relative overflow-hidden">
       <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400"></div>
       <div class="text-center mb-8">
-        <div class="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-400 text-2xl"><i class="fas fa-shield-halved"></i></div>
         <h2 class="text-2xl font-bold">Admin Login</h2>
-        <p class="text-slate-400 text-sm mt-2">TamanGuard Management System</p>
       </div>
       <form id="loginForm" class="space-y-5">
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Email</label>
-          <div class="relative">
-            <i class="fas fa-envelope absolute left-3 top-3 text-slate-500"></i>
-            <input type="email" id="loginEmail" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 transition-all" placeholder="admin@example.com" required>
-          </div>
-        </div>
-        <div>
-          <label class="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">Password</label>
-          <div class="relative">
-            <i class="fas fa-lock absolute left-3 top-3 text-slate-500"></i>
-            <input type="password" id="loginPassword" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500 transition-all" placeholder="••••••••" required>
-          </div>
-        </div>
-        <button type="submit" id="loginBtn" class="w-full bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white font-medium py-2.5 rounded-lg transition-all flex items-center justify-center gap-2">
-          <span>Login</span><i class="fas fa-arrow-right"></i>
-        </button>
+        <input type="email" id="loginEmail" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:border-blue-500 text-white" placeholder="Email" required>
+        <input type="password" id="loginPassword" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 px-4 focus:outline-none focus:border-blue-500 text-white" placeholder="Password" required>
+        <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-all">Login</button>
       </form>
     </div>
   </div>
 
-  <!-- Header -->
   <nav class="fixed top-0 w-full z-40 bg-slate-900/80 backdrop-blur border-b border-slate-700/50 px-4 py-3">
     <div class="max-w-7xl mx-auto flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-400 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">TG</div>
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-bold">TG</div>
         <div>
-          <h1 class="text-lg font-bold tracking-tight">TamanGuard</h1>
+          <h1 class="text-lg font-bold">TamanGuard</h1>
           <div class="flex items-center gap-2 text-xs text-slate-400">
             <span class="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
             <span id="tamanNameDisplay">Loading...</span>
@@ -67,141 +49,100 @@
       </div>
       <div class="flex items-center gap-4">
         <div id="userBadge" class="hidden flex items-center gap-2 glass px-3 py-1.5 rounded-full">
-          <div class="w-6 h-6 bg-blue-500/20 rounded-full flex items-center justify-center text-xs text-blue-400"><i class="fas fa-user"></i></div>
           <span id="userName" class="text-sm font-medium">Admin</span>
           <span id="userRole" class="text-[10px] uppercase tracking-wider bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Role</span>
         </div>
-        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all"><i class="fas fa-sign-out-alt"></i></button>
+        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 transition-all"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </div>
   </nav>
 
-  <!-- Main Content -->
-  <main class="pt-20 pb-6 px-4 max-w-7xl mx-auto">
-    <!-- Stats Row -->
+  <main class="pt-24 pb-6 px-4 max-w-7xl mx-auto">
+    <!-- Stats -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div class="glass rounded-xl p-4 border-l-4 border-blue-500">
-        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Total Residents</div>
+        <div class="text-slate-400 text-xs uppercase mb-1 tracking-widest">Total Residents</div>
         <div id="statResidents" class="text-2xl font-bold">0</div>
       </div>
       <div class="glass rounded-xl p-4 border-l-4 border-emerald-500">
-        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Active Visits</div>
+        <div class="text-slate-400 text-xs uppercase mb-1 tracking-widest">Active Visits</div>
         <div id="statVisits" class="text-2xl font-bold">0</div>
       </div>
       <div class="glass rounded-xl p-4 border-l-4 border-amber-500">
-        <div class="text-slate-400 text-xs uppercase tracking-wider mb-1">Unpaid Bills</div>
+        <div class="text-slate-400 text-xs uppercase mb-1 tracking-widest">Unpaid Bills</div>
         <div id="statBills" class="text-2xl font-bold">0</div>
       </div>
     </div>
 
-    <!-- Tabs Container -->
+    <!-- Tabs -->
     <div class="glass rounded-xl p-1 mb-6 flex flex-wrap gap-1 sticky top-16 z-30">
-      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="news"><i class="fas fa-bullhorn text-blue-400"></i>News</button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="residents"><i class="fas fa-users text-emerald-400"></i>Residents</button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="visitors"><i class="fas fa-car text-amber-400"></i>Visitors</button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="billing"><i class="fas fa-file-invoice-dollar text-purple-400"></i>Billing</button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="analytics"><i class="fas fa-chart-line text-rose-400"></i>Analytics</button>
-      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2" data-tab="settings"><i class="fas fa-cog text-slate-400"></i>Settings</button>
+      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="news"><i class="fas fa-bullhorn mr-2 text-blue-400"></i>News</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="residents"><i class="fas fa-users mr-2 text-emerald-400"></i>Residents</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="visitors"><i class="fas fa-car mr-2 text-amber-400"></i>Visitors</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="billing"><i class="fas fa-file-invoice-dollar mr-2 text-purple-400"></i>Billing</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="settings"><i class="fas fa-cog mr-2 text-slate-400"></i>Settings</button>
     </div>
 
     <div id="tabContents">
-      <!-- Tab: News -->
+      <!-- News -->
       <div id="tab-news" class="tab-pane">
-        <div class="glass rounded-xl p-6 mb-6">
-          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-blue-400"></i>Post Announcement</h3>
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <input type="text" id="newsTitle" placeholder="Title" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
-            <input type="text" id="newsImage" placeholder="Image URL (optional)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
-            <button id="postNewsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center justify-center gap-2"><span>Post</span><i class="fas fa-paper-plane"></i></button>
-          </div>
-          <textarea id="newsContent" placeholder="Details..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 focus:outline-none focus:border-blue-500 h-24 resize-none"></textarea>
-        </div>
         <div id="newsList" class="space-y-4"></div>
       </div>
 
-      <!-- Tab: Residents -->
+      <!-- Residents -->
       <div id="tab-residents" class="tab-pane hidden">
-        <div class="flex flex-col md:flex-row gap-4 mb-4">
-          <div class="relative flex-1">
-            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
-            <input type="text" id="residentSearch" placeholder="Search residents..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
+        <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
+          <div class="relative flex-1 w-full">
+            <i class="fas fa-search absolute left-3 top-3.5 text-slate-500"></i>
+            <input type="text" id="residentSearch" placeholder="Search residents (Name, Unit or Phone)..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-emerald-500">
           </div>
-          <button id="addResidentBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i>Add Resident</button>
+          <button id="addResidentBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-6 py-3 font-medium flex items-center gap-2 transition-all"><i class="fas fa-plus"></i>Add Resident</button>
         </div>
-        <div id="roadFilters" class="flex flex-wrap gap-2 mb-4"></div>
-        <div id="residentsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        <div id="residentsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
       </div>
 
-      <!-- Tab: Visitors -->
+      <!-- Visitors -->
       <div id="tab-visitors" class="tab-pane hidden">
-        <div class="flex flex-col md:flex-row gap-4 mb-4">
-          <div class="relative flex-1">
-            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
-            <input type="text" id="visitorSearch" placeholder="Search visits..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-blue-500">
-          </div>
-        </div>
         <div class="glass rounded-xl overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-              <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
-                <tr>
-                  <th class="px-4 py-3">Date/Time</th>
-                  <th class="px-4 py-3">Car Plate</th>
-                  <th class="px-4 py-3">Unit</th>
-                  <th class="px-4 py-3">Visitor</th>
-                  <th class="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
-            </table>
-          </div>
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
+              <tr><th class="px-4 py-3">Date</th><th class="px-4 py-3">Plate</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Visitor</th><th class="px-4 py-3">Status</th></tr>
+            </thead>
+            <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
+          </table>
         </div>
       </div>
 
-      <!-- Tab: Billing -->
+      <!-- Billing -->
       <div id="tab-billing" class="tab-pane hidden">
-        <!-- Generate Section -->
         <div class="glass rounded-xl p-6 mb-6">
-          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-white"><i class="fas fa-file-invoice text-purple-400"></i>Generate Monthly Bills</h3>
-          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <h3 class="font-bold mb-4 flex items-center gap-2"><i class="fas fa-file-invoice text-purple-400"></i>Generate Bills</h3>
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <select id="bulkMonth" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-              <option value="">Month</option>
-              <option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option>
-              <option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
+                <option value="">Month</option><option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
             </select>
             <select id="bulkYear" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></select>
             <input type="number" id="bulkAmount" placeholder="Amount" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-            <input type="date" id="bulkDue" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-            <button id="generateBulkBtn" class="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-6 py-2.5 font-medium transition-all">Generate Bills</button>
+            <button id="generateBulkBtn" class="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-6 font-medium">Generate All</button>
           </div>
         </div>
 
-        <!-- Filter Bar -->
         <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
           <div class="relative flex-1 w-full">
-            <i class="fas fa-search absolute left-3 top-3 text-slate-500"></i>
-            <input type="text" id="invoiceSearch" placeholder="Search Unit, Name or Phone..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2.5 pl-10 pr-4 focus:outline-none focus:border-purple-500">
+            <i class="fas fa-search absolute left-3 top-3.5 text-slate-500"></i>
+            <input type="text" id="invoiceSearch" placeholder="Search Unit, Name or Phone..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-3 pl-10 pr-4 focus:outline-none focus:border-purple-500">
           </div>
-          <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 border border-slate-700 px-4 py-2.5 rounded-lg hover:bg-slate-700 transition-all">
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 border border-slate-700 px-4 py-3 rounded-lg hover:bg-slate-700 transition-all">
             <input type="checkbox" id="hidePaidToggle" class="w-4 h-4 accent-purple-500" checked>
             <span class="text-sm text-slate-300 whitespace-nowrap">Show Pending Only</span>
           </label>
-          <button id="addInvoiceBtn" class="bg-purple-600 hover:bg-purple-500 text-white rounded-lg px-4 py-2.5 font-medium transition-all flex items-center gap-2"><i class="fas fa-plus"></i></button>
         </div>
 
         <div class="glass rounded-xl overflow-hidden">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
-              <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
-                <tr>
-                  <th class="px-4 py-3">Invoice #</th>
-                  <th class="px-4 py-3">Unit</th>
-                  <th class="px-4 py-3">Month/Year</th>
-                  <th class="px-4 py-3">Amount</th>
-                  <th class="px-4 py-3">Due Date</th>
-                  <th class="px-4 py-3">Status</th>
-                  <th class="px-4 py-3 text-right">Actions</th>
-                </tr>
+              <thead class="bg-slate-800/50 text-slate-400 uppercase text-[10px] tracking-widest">
+                <tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
               </thead>
               <tbody id="invoicesTableBody" class="divide-y divide-slate-700/50"></tbody>
             </table>
@@ -209,141 +150,105 @@
         </div>
       </div>
 
-      <!-- Tab: Analytics -->
-      <div id="tab-analytics" class="tab-pane hidden">
-        <div class="glass rounded-xl p-1 h-[70vh]">
-          <iframe src="../report.html" class="w-full h-full rounded-lg border-0 bg-slate-900"></iframe>
-        </div>
-      </div>
-
-      <!-- Tab: Settings -->
+      <!-- Settings -->
       <div id="tab-settings" class="tab-pane hidden">
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="glass rounded-xl p-6">
-            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-white"><i class="fas fa-home text-blue-400"></i>Taman Configuration</h3>
-            <div class="mb-4">
-              <label class="block text-xs font-medium text-slate-400 mb-1 uppercase">Taman Name</label>
-              <input type="text" id="tamanNameInput" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
-            </div>
-            <div class="mb-4">
-              <label class="block text-xs font-medium text-slate-400 mb-1 uppercase">Road / Block Names</label>
-              <div class="flex gap-2 mb-2">
-                <input type="text" id="newRoadName" placeholder="e.g. Jalan Merak" class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-blue-500">
-                <button id="addRoadBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 py-2.5 transition-all"><i class="fas fa-plus"></i></button>
-              </div>
-              <div id="roadList" class="flex flex-wrap gap-2"></div>
-            </div>
-            <button id="saveSettingsBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white rounded-lg py-2.5 font-medium transition-all text-center">Save Settings</button>
-          </div>
-
-          <div class="glass rounded-xl p-6">
-            <h3 class="text-lg font-semibold mb-4 flex items-center gap-2 text-white"><i class="fas fa-user-shield text-amber-400"></i>Admin Accounts</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-sm">
-                <thead class="bg-slate-800/50 text-slate-400 uppercase text-xs">
-                  <tr><th class="px-4 py-3">Name</th><th class="px-4 py-3">Email</th><th class="px-4 py-3 text-right">Actions</th></tr>
-                </thead>
-                <tbody id="adminTableBody" class="divide-y divide-slate-700/50"></tbody>
-              </table>
-            </div>
-          </div>
+        <div class="glass rounded-xl p-6 max-w-lg">
+          <h3 class="font-bold mb-4">Taman Guard Configuration</h3>
+          <label class="block text-xs text-slate-400 mb-1">Taman Name</label>
+          <input type="text" id="tamanNameInput" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white">
+          <button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-6 py-2.5 w-full font-medium">Save Settings</button>
         </div>
       </div>
     </div>
   </main>
 
-  <!-- --- MODALS SECTION --- -->
-
-  <!-- House History Modal -->
-  <div id="historyModal" class="fixed inset-0 z-[60] bg-slate-900/90 backdrop-blur hidden flex items-center justify-center p-4">
-    <div class="glass rounded-2xl w-full max-w-2xl max-h-[80vh] flex flex-col p-6 relative">
-        <div class="flex justify-between items-center mb-4">
-            <div>
-                <h3 class="text-xl font-bold text-white">House Billing History</h3>
-                <p id="historyUnitTitle" class="text-purple-400 text-sm font-medium uppercase tracking-wider mt-1"></p>
+  <!-- MODALS SECTION -->
+  
+  <!-- Resident Profile Dashboard Modal (New) -->
+  <div id="residentProfileModal" class="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col p-8 relative">
+        <div class="flex justify-between items-start mb-6">
+            <div class="flex gap-4 items-center">
+                <div class="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 text-2xl font-bold" id="profInitial">?</div>
+                <div>
+                    <h2 class="text-2xl font-bold text-white" id="profName">Loading...</h2>
+                    <p class="text-slate-400 uppercase tracking-widest text-xs font-medium" id="profMeta"></p>
+                </div>
             </div>
-            <button data-close-modal="historyModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+            <button data-close-modal="residentProfileModal" class="text-slate-400 hover:text-white transition-colors"><i class="fas fa-times text-2xl"></i></button>
         </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div class="space-y-4">
+                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Contact Details</h4>
+                <div class="space-y-2.5">
+                    <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-phone w-8 text-slate-500"></i><span id="profPhone">-</span></p>
+                    <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-car w-8 text-slate-500"></i><span id="profVehicle">-</span></p>
+                </div>
+            </div>
+            <div class="space-y-4">
+                <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2">Security info</h4>
+                <div class="flex justify-between items-center bg-slate-800/40 p-4 rounded-xl border border-slate-700/50">
+                    <span class="text-xs text-slate-400">Door PIN Code</span>
+                    <span class="font-mono text-emerald-400 font-bold text-2xl tracking-widest" id="profPin">----</span>
+                </div>
+            </div>
+        </div>
+
+        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest border-b border-slate-800 pb-2 mb-4">House Billing Records</h4>
         <div class="overflow-y-auto flex-1 pr-2">
             <table class="w-full text-left text-sm">
-                <thead class="sticky top-0 bg-slate-800/95 text-slate-400 uppercase text-[10px] tracking-widest z-10">
-                    <tr>
-                        <th class="px-4 py-3">Period</th>
-                        <th class="px-4 py-3">Amount</th>
-                        <th class="px-4 py-3">Status</th>
-                        <th class="px-4 py-3 text-right">Action / Receipt</th>
-                    </tr>
+                <thead class="sticky top-0 bg-slate-900 text-slate-500 uppercase text-[10px] tracking-widest">
+                    <tr><th class="py-3">Month</th><th class="py-3">Amount</th><th class="py-3">Status</th><th class="py-3 text-right">Receipt #</th></tr>
                 </thead>
-                <tbody id="historyTableBody" class="divide-y divide-slate-700/50"></tbody>
+                <tbody id="profHistoryBody" class="divide-y divide-slate-700/20"></tbody>
             </table>
         </div>
     </div>
   </div>
 
-  <!-- Resident Modal -->
-  <div id="residentModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
-    <div class="glass rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 id="residentModalTitle" class="text-xl font-bold text-white">Resident Details</h3>
-        <button data-close-modal="residentModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
-      </div>
-      <form id="residentForm" class="space-y-4">
-        <input type="hidden" id="residentId">
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Unit Number</label>
-            <input type="text" id="resUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white">
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Road / Block</label>
-            <select id="resRoad" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white"></select>
-          </div>
+  <!-- House History Modal (Old billing modal) -->
+  <div id="historyModal" class="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 relative">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-xl font-bold text-white">House Billing History</h3>
+                <p id="historyUnitTitle" class="text-purple-400 text-sm font-medium uppercase mt-1"></p>
+            </div>
+            <button data-close-modal="historyModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-2xl"></i></button>
         </div>
-        <div>
-          <label class="block text-xs text-slate-400 mb-1">Full Name</label>
-          <input type="text" id="resName" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white">
+        <div class="overflow-y-auto flex-1 pr-2">
+            <table class="w-full text-left text-sm">
+                <thead class="sticky top-0 bg-slate-900 text-slate-500 uppercase text-[10px] tracking-widest border-b border-slate-700/50">
+                    <tr><th class="px-4 py-3">Period</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action / Receipt</th></tr>
+                </thead>
+                <tbody id="historyTableBody" class="divide-y divide-slate-700/30"></tbody>
+            </table>
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">Phone</label>
-            <input type="tel" id="resPhone" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white" placeholder="01XXXXXXXX">
-          </div>
-          <div>
-            <label class="block text-xs text-slate-400 mb-1">PIN Code</label>
-            <input type="text" id="resPin" required maxlength="6" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white">
-          </div>
-        </div>
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" data-close-modal="residentModal" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm">Cancel</button>
-          <button type="submit" id="residentSubmitBtn" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm">Save</button>
-        </div>
-      </form>
     </div>
   </div>
 
-  <!-- Invoice Modal -->
-  <div id="invoiceModal" class="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+  <!-- Resident Edit/Add Modal -->
+  <div id="residentModal" class="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-lg p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-xl font-bold text-white">Create Custom Bill</h3>
-        <button data-close-modal="invoiceModal" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
-      </div>
-      <form id="invoiceForm" class="space-y-4">
-        <select id="invResidentSelect" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-white"></select>
-        <input type="hidden" id="invUnit"><input type="hidden" id="invRoad">
-        <div class="grid grid-cols-2 gap-4">
-          <input type="number" id="invAmount" required placeholder="Amount (RM)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white">
-          <input type="date" id="invDue" class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-white">
-        </div>
-        <div class="flex justify-end gap-2">
-          <button type="button" data-close-modal="invoiceModal" class="px-4 py-2 rounded-lg bg-slate-700 text-sm">Cancel</button>
-          <button type="submit" id="invoiceSubmitBtn" class="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm">Create</button>
+      <h3 id="residentModalTitle" class="text-xl font-bold mb-4">Resident Details</h3>
+      <form id="residentForm" class="space-y-4">
+        <input type="hidden" id="residentId">
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">House Unit Number</label><input type="text" id="resUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></div>
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Road / Block Name</label><input type="text" id="resRoad" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></div>
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Resident Name</label><input type="text" id="resName" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></div>
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Phone Number</label><input type="tel" id="resPhone" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white" placeholder="01XXXXXXXX"></div>
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">PIN Code</label><input type="text" id="resPin" required maxlength="6" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></div>
+        <div><label class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Vehicle Plate</label><input type="text" id="resVehicle" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white" placeholder="ABC 1234"></div>
+        <div class="flex justify-end gap-2 pt-4">
+          <button type="button" data-close-modal="residentModal" class="px-6 py-2.5 rounded-lg bg-slate-700 text-sm font-bold">CANCEL</button>
+          <button type="submit" id="residentSubmitBtn" class="px-6 py-2.5 rounded-lg bg-emerald-600 text-white text-sm font-bold shadow-lg shadow-emerald-900/20">SAVE CHANGES</button>
         </div>
       </form>
     </div>
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <script type="module" src="../app.js?v=final"></script>
+  <script type="module" src="../app.js?v=200"></script>
 </body>
 </html>
