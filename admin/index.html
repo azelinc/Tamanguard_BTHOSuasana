@@ -12,22 +12,23 @@
     ::-webkit-scrollbar-thumb{background:#3b82f6;border-radius:4px;}
     .glass{background:rgba(30,41,59,.7);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);}
     .tab-btn.active{background:rgba(59,130,246,.2);border-color:#3b82f6;color:#60a5fa;}
-    .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:14px;height:14px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;margin-right:6px;}
+    .spinner{border:3px solid rgba(255,255,255,.1);border-left-color:#3b82f6;border-radius:50%;width:14px;height:14px;animation:spin 1s linear infinite;display:inline-block;vertical-align:middle;}
     @keyframes spin{to{transform:rotate(360deg);}}
   </style>
 </head>
 <body class="bg-gradient-to-br from-slate-900 to-slate-800 min-h-screen font-sans text-white">
 
-  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none bg-slate-800 border border-slate-700 text-white"></div>
+  <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-[500] px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none bg-slate-800 border border-slate-700 text-white"></div>
 
   <!-- Admin Login Overlay -->
-  <div id="adminOverlay" class="fixed inset-0 z-[200] bg-slate-900/95 backdrop-blur flex items-center justify-center hidden">
-    <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 relative overflow-hidden text-center">
-      <h2 class="text-2xl font-bold mb-6">Admin Login</h2>
+  <div id="adminOverlay" class="fixed inset-0 z-[400] bg-slate-900/95 backdrop-blur flex items-center justify-center hidden">
+    <div class="glass rounded-2xl p-8 w-full max-w-md mx-4 relative overflow-hidden">
+      <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-cyan-400"></div>
+      <h2 class="text-2xl font-bold mb-6 text-center">Admin Login</h2>
       <form id="loginForm" class="space-y-4">
-        <input type="email" id="loginEmail" placeholder="Email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
-        <input type="password" id="loginPassword" placeholder="Password" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
-        <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded-lg font-bold">LOGIN</button>
+        <input type="email" id="loginEmail" placeholder="Email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none focus:border-blue-500">
+        <input type="password" id="loginPassword" placeholder="Password" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none focus:border-blue-500">
+        <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-500 py-2.5 rounded-lg font-bold transition-all">LOGIN</button>
       </form>
     </div>
   </div>
@@ -50,13 +51,13 @@
           <span id="userName" class="text-sm font-medium">Admin</span>
           <span id="userRole" class="text-[10px] uppercase tracking-wider bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Role</span>
         </div>
-        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400"><i class="fas fa-sign-out-alt"></i></button>
+        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 transition-all"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </div>
   </nav>
 
   <main class="pt-24 pb-6 px-4 max-w-7xl mx-auto">
-    <!-- Stats -->
+    <!-- Stats Row -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div class="glass rounded-xl p-4 border-l-4 border-blue-500">
         <div class="text-slate-400 text-[10px] uppercase tracking-widest mb-1">Total Residents</div>
@@ -72,7 +73,7 @@
       </div>
     </div>
 
-    <!-- Tabs -->
+    <!-- Tabs Container -->
     <div class="glass rounded-xl p-1 mb-6 flex flex-wrap gap-1 sticky top-16 z-30">
       <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="news"><i class="fas fa-bullhorn mr-2"></i>News</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="residents"><i class="fas fa-users mr-2"></i>Residents</button>
@@ -85,6 +86,15 @@
     <div id="tabContents">
       <!-- Tab: News -->
       <div id="tab-news" class="tab-pane">
+        <div class="glass rounded-xl p-6 mb-6">
+          <h3 class="text-lg font-semibold mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-blue-400"></i>Post Announcement</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <input type="text" id="newsTitle" placeholder="Title" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none">
+            <input type="text" id="newsImage" placeholder="Image URL (optional)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none">
+            <button id="postNewsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-4 font-bold transition-all">POST NOW</button>
+          </div>
+          <textarea id="newsContent" placeholder="Announcement details..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-3 text-white h-24 focus:outline-none resize-none"></textarea>
+        </div>
         <div id="newsList" class="space-y-4"></div>
       </div>
 
@@ -102,7 +112,7 @@
         <div class="glass rounded-xl overflow-hidden">
           <table class="w-full text-left text-sm">
             <thead class="bg-slate-800/50 text-slate-400 uppercase text-[10px] tracking-widest">
-              <tr><th class="px-4 py-3">Date</th><th class="px-4 py-3">Plate</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Visitor</th><th class="px-4 py-3">Status</th></tr>
+              <tr><th class="px-4 py-3">Date/Time</th><th class="px-4 py-3">Car Plate</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Visitor</th><th class="px-4 py-3">Status</th></tr>
             </thead>
             <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
           </table>
@@ -111,28 +121,29 @@
 
       <!-- Tab: Billing -->
       <div id="tab-billing" class="tab-pane hidden">
-        <!-- Generate UI -->
+        <!-- Generate Section -->
         <div class="glass rounded-xl p-6 mb-6">
           <h3 class="font-bold mb-4 flex items-center gap-2"><i class="fas fa-file-invoice text-purple-400"></i>Monthly Billing Tool</h3>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
             <select id="bulkMonth" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
                 <option value="">Month</option><option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
             </select>
             <select id="bulkYear" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></select>
-            <input type="number" id="bulkAmount" placeholder="RM Amount" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+            <input type="number" id="bulkAmount" placeholder="Amount (RM)" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+            <input type="date" id="bulkDue" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
             <button id="generateBulkBtn" class="bg-purple-600 hover:bg-purple-500 rounded-lg font-bold">Generate All</button>
           </div>
         </div>
 
-        <!-- Billing Search -->
+        <!-- Filter & Search Bar -->
         <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
           <div class="relative flex-1 w-full">
             <i class="fas fa-search absolute left-3 top-3.5 text-slate-500"></i>
             <input type="text" id="invoiceSearch" placeholder="Search Unit, Name or Phone..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-3 pl-10 pr-4 outline-none focus:border-purple-500">
           </div>
-          <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 border border-slate-700 px-4 py-3 rounded-lg hover:bg-slate-700">
+          <label class="flex items-center gap-2 cursor-pointer bg-slate-800/50 border border-slate-700 px-4 py-3 rounded-lg hover:bg-slate-700 transition-all">
             <input type="checkbox" id="hidePaidToggle" class="w-4 h-4 accent-purple-500" checked>
-            <span class="text-sm text-slate-300">Unpaid Only</span>
+            <span class="text-sm text-slate-300 whitespace-nowrap">Unpaid Only</span>
           </label>
           <button id="addInvoiceBtn" class="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold shadow-lg">Custom Bill</button>
         </div>
@@ -141,7 +152,7 @@
           <div class="overflow-x-auto">
             <table class="w-full text-left text-sm">
               <thead class="bg-slate-800/50 text-slate-400 uppercase text-[10px] tracking-widest">
-                <tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
+                <tr><th class="px-4 py-3">ID</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Month</th><th class="px-4 py-3">Amount</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
               </thead>
               <tbody id="invoicesTableBody" class="divide-y divide-slate-700/50"></tbody>
             </table>
@@ -159,29 +170,32 @@
       <!-- Tab: Settings -->
       <div id="tab-settings" class="tab-pane hidden">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- Taman Settings -->
           <div class="glass rounded-xl p-6">
             <h3 class="font-bold mb-4 text-white">Taman Configuration</h3>
             <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-1 block">Management Name</label>
-            <input type="text" id="tamanNameInput" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white">
+            <input type="text" id="tamanNameInput" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 mb-4 text-white focus:outline-none">
             
-            <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-1 block">Road / Blocks</label>
+            <label class="text-[10px] text-slate-500 uppercase tracking-widest mb-1 block">Road / Block Management</label>
             <div class="flex gap-2 mb-4">
-              <input type="text" id="newRoadName" placeholder="e.g. Jalan 5/3" class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-4 text-white outline-none">
+              <input type="text" id="newRoadName" placeholder="e.g. Jalan Suasana 5/3" class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-4 text-white outline-none">
               <button id="addRoadBtn" class="bg-blue-600 px-4 py-2 rounded-lg font-bold">ADD</button>
             </div>
             <div id="roadList" class="flex flex-wrap gap-2 mb-6 min-h-[40px]"></div>
-            <button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg w-full py-2.5 font-bold transition-all">SAVE SETTINGS</button>
+            
+            <button id="saveSettingsBtn" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg w-full py-2.5 font-bold transition-all">SAVE TAMAN SETTINGS</button>
           </div>
 
+          <!-- Admin Settings -->
           <div class="glass rounded-xl p-6">
-            <h3 class="font-bold mb-4 text-white">System Administrators</h3>
+            <h3 class="font-bold mb-4 text-white">System Access</h3>
             <div class="overflow-x-auto mb-4 min-h-[100px]">
               <table class="w-full text-left text-xs">
                 <thead class="text-slate-500 uppercase"><tr><th class="py-2">Name</th><th class="py-2">Role</th><th class="py-2 text-right">Delete</th></tr></thead>
                 <tbody id="adminTableBody" class="divide-y divide-slate-800"></tbody>
               </table>
             </div>
-            <button id="createAdminShowBtn" class="bg-amber-600 hover:bg-amber-500 text-white rounded-lg w-full py-2.5 font-bold">ADD NEW ADMIN</button>
+            <button id="createAdminShowBtn" class="bg-amber-600 hover:bg-amber-500 text-white rounded-lg w-full py-2.5 font-bold transition-all">ADD NEW ADMIN</button>
           </div>
         </div>
       </div>
@@ -190,8 +204,8 @@
 
   <!-- MODALS SECTION -->
   
-  <!-- Profile Dashboard Modal -->
-  <div id="residentProfileModal" class="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+  <!-- Profile Dashboard -->
+  <div id="residentProfileModal" class="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col p-8 relative shadow-2xl">
         <div class="flex justify-between items-start mb-6">
             <div class="flex gap-4 items-center">
@@ -210,11 +224,11 @@
                 <span class="font-mono text-emerald-400 font-bold text-2xl tracking-widest" id="profPin">----</span>
             </div>
         </div>
-        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Resident Payment History</h4>
+        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Payment History</h4>
         <div class="overflow-y-auto flex-1 pr-2">
             <table class="w-full text-left text-sm">
                 <thead class="sticky top-0 bg-slate-900 text-slate-500 uppercase text-[10px] tracking-widest border-b border-slate-700/50">
-                    <tr><th class="py-3 px-4">Period</th><th class="py-3 px-4">Amount</th><th class="py-3 px-4">Status</th><th class="py-3 px-4 text-right">Receipt #</th></tr>
+                    <tr><th class="py-3 px-4">Month</th><th class="py-3 px-4">Amount</th><th class="py-3 px-4">Status</th><th class="py-3 px-4 text-right">Receipt #</th></tr>
                 </thead>
                 <tbody id="profHistoryBody" class="divide-y divide-slate-700/20"></tbody>
             </table>
@@ -223,7 +237,7 @@
   </div>
 
   <!-- Billing History Modal -->
-  <div id="historyModal" class="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+  <div id="historyModal" class="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col p-6 relative">
         <div class="flex justify-between items-center mb-6">
             <div><h3 class="text-xl font-bold text-white">House History</h3><p id="historyUnitTitle" class="text-purple-400 text-sm font-medium uppercase mt-1"></p></div>
@@ -241,33 +255,33 @@
   </div>
 
   <!-- Resident Edit Modal -->
-  <div id="residentModal" class="fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+  <div id="residentModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-lg p-6">
       <h3 id="residentModalTitle" class="text-xl font-bold mb-6">Resident Details</h3>
       <form id="residentForm" class="space-y-4">
         <input type="hidden" id="residentId">
         <div class="grid grid-cols-2 gap-4">
-            <input type="text" id="resUnit" placeholder="Unit Number" required class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-            <select id="resRoad" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none"></select>
+            <div><label class="text-[10px] font-bold text-slate-500 mb-1">Unit No</label><input type="text" id="resUnit" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></div>
+            <div><label class="text-[10px] font-bold text-slate-500 mb-1">Road/Block</label><select id="resRoad" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white"></select></div>
         </div>
         <input type="text" id="resName" placeholder="Full Name" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-        <input type="tel" id="resPhone" placeholder="Phone (01XXXXXXXX)" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <input type="tel" id="resPhone" placeholder="Phone" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         <div class="grid grid-cols-2 gap-4">
             <input type="text" id="resPin" placeholder="App PIN" required maxlength="6" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-            <input type="text" id="resVehicle" placeholder="Plate Number" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+            <input type="text" id="resVehicle" placeholder="Plate No" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         </div>
         <div class="flex justify-end gap-2 pt-4">
-          <button type="button" data-close-modal="residentModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold uppercase tracking-widest text-[10px]">CANCEL</button>
-          <button type="submit" id="residentSubmitBtn" class="px-6 py-2.5 rounded-lg bg-emerald-600 text-white font-bold uppercase tracking-widest text-[10px]">SAVE CHANGES</button>
+          <button type="button" data-close-modal="residentModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold text-[10px]">CANCEL</button>
+          <button type="submit" id="residentSubmitBtn" class="px-6 py-2.5 rounded-lg bg-emerald-600 text-white font-bold text-[10px]">SAVE CHANGES</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Custom Invoice Modal -->
-  <div id="invoiceModal" class="fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+  <div id="invoiceModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-lg p-6">
-      <h3 class="text-xl font-bold mb-6">Create Custom Bill</h3>
+      <h3 class="text-xl font-bold mb-6 text-white">Create Custom Bill</h3>
       <form id="invoiceForm" class="space-y-4">
         <select id="invResidentSelect" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none"></select>
         <input type="hidden" id="invUnit"><input type="hidden" id="invRoad">
@@ -276,32 +290,33 @@
             <input type="date" id="invDue" class="bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         </div>
         <div class="flex justify-end gap-2 pt-4">
-          <button type="button" data-close-modal="invoiceModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold uppercase tracking-widest text-[10px]">CANCEL</button>
-          <button type="submit" id="invoiceSubmitBtn" class="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-bold uppercase tracking-widest text-[10px]">CREATE BILL</button>
+          <button type="button" data-close-modal="invoiceModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold text-[10px]">CANCEL</button>
+          <button type="submit" id="invoiceSubmitBtn" class="px-6 py-2.5 rounded-lg bg-purple-600 text-white font-bold text-[10px]">CREATE BILL</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Admin Modal -->
-  <div id="adminModal" class="fixed inset-0 z-[130] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+  <div id="adminModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-md p-6">
-      <h3 class="text-xl font-bold mb-6">System Access</h3>
+      <h3 class="text-xl font-bold mb-6 text-white">Add System Administrator</h3>
       <form id="adminForm" class="space-y-4">
         <input type="text" id="admName" placeholder="Full Name" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
-        <input type="email" id="admEmail" placeholder="Email" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
+        <input type="email" id="admEmail" placeholder="Email Address" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         <input type="password" id="admPassword" placeholder="Password (min 6)" required minlength="6" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
         <select id="admRole" required class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
             <option value="manager">Manager</option><option value="treasurer">Treasurer</option><option value="super_admin">Super Admin</option>
         </select>
         <div class="flex justify-end gap-2 pt-4">
-          <button type="button" data-close-modal="adminModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold uppercase tracking-widest text-[10px]">CANCEL</button>
-          <button type="submit" id="adminSubmitBtn" class="px-6 py-2.5 rounded-lg bg-amber-600 text-white font-bold uppercase tracking-widest text-[10px]">CREATE</button>
+          <button type="button" data-close-modal="adminModal" class="px-6 py-2.5 rounded-lg bg-slate-700 font-bold text-[10px]">CANCEL</button>
+          <button type="submit" id="adminSubmitBtn" class="px-6 py-2.5 rounded-lg bg-amber-600 text-white font-bold text-[10px]">CREATE ACCOUNT</button>
         </div>
       </form>
     </div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script type="module" src="../app.js?v=9999"></script>
 </body>
 </html>
