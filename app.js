@@ -242,25 +242,45 @@ async function showResidentProfile(res) {
     qs("#profPin").textContent = res.pin;
     
     const tbody = qs("#profHistoryBody");
-    tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500">Loading history...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500"><span class="spinner"></span> Loading history...</td></tr>';
     modal.classList.remove("hidden");
     
     try {
-        const q = query(collection(db, "invoices"), where("unitNumber", "==", res.unitNumber), where("road", "==", res.road || ""), orderBy("createdAt", "desc"));
+        // We only filter by Unit Number in the query to avoid Firestore Index requirement errors
+        const q = query(collection(db, "invoices"), where("unitNumber", "==", res.unitNumber));
         const snap = await getDocs(q);
-        tbody.innerHTML = snap.empty ? '<tr><td colspan="4" class="py-8 text-center text-slate-500">No history found.</td></tr>' : "";
-        snap.forEach(d => {
-            const inv = d.data();
-            const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20";
+        
+        // Filter by Road and Sort by newest month/year in JavaScript instead
+        const history = snap.docs
+            .map(d => d.data())
+            .filter(inv => inv.road === res.road)
+            .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+
+        if (history.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500">No billing history found for this house.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = "";
+        history.forEach(inv => {
+            const tr = document.createElement("tr"); 
+            tr.className = "border-b border-slate-700/20 hover:bg-slate-800/10 transition-colors";
             const isPaid = inv.status === 'paid';
             tr.innerHTML = `
                 <td class="py-4 text-white">${inv.month} ${inv.year}</td>
                 <td class="py-4 text-slate-300">RM ${parseFloat(inv.amount).toFixed(2)}</td>
-                <td class="py-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${inv.status.toUpperCase()}</span></td>
+                <td class="py-4">
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
+                        ${inv.status.toUpperCase()}
+                    </span>
+                </td>
                 <td class="py-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || '-'}</td>`;
             tbody.appendChild(tr);
         });
-    } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400 text-xs">Error loading history. Verify unit/road names match.</td></tr>'; }
+    } catch(e) { 
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400 text-xs">Error loading history. Close and try again.</td></tr>'; 
+    }
 }
 
 qs("#residentSearch").addEventListener("input", debounce(() => renderResidents()));
