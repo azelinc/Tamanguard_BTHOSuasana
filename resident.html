@@ -1,20 +1,9 @@
-<script>
-// --- NOTIFICATION SYSTEM ---
-function showToast(msg, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if(!container) return;
-    const toast = document.createElement('div');
-    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
-    
-    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 text-center transition-opacity duration-500`;
-    toast.innerText = msg;
-    
-    container.appendChild(toast);
-    setTimeout(() => { 
-        toast.style.opacity = '0'; 
-        setTimeout(() => toast.remove(), 500); 
-    }, 3000);
-}
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+import { 
+    getFirestore, collection, doc, getDoc, getDocs, 
+    query, where, orderBy, limit, onSnapshot, 
+    addDoc, updateDoc, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
 // --- FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -25,8 +14,9 @@ const firebaseConfig = {
     messagingSenderId: "112467759191",
     appId: "1:112467759191:web:0785a5e578741f01891312"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 // --- STATE VARIABLES ---
 let invoiceCache = {};
@@ -34,100 +24,103 @@ let myBillsRaw = [];
 let currentBillFilter = 'all';
 let myUnit = localStorage.getItem('myUnit');
 let unsubBills, unsubNews, unsubVisits;
-let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+let qrObj = null;
+
+// Helper for UI
+const qs = (id) => document.getElementById(id);
+
+// --- NOTIFICATION SYSTEM ---
+function showToast(msg, type = 'info') {
+    const container = qs('toast-container');
+    if(!container) return;
+    const toast = document.createElement('div');
+    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
+    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 text-center transition-opacity duration-500`;
+    toast.innerText = msg;
+    container.appendChild(toast);
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        setTimeout(() => toast.remove(), 500); 
+    }, 3000);
+}
 
 // --- AUTH & IDENTITY ---
-function fetchRoads() {
-    db.collection("settings").doc("taman_config").get().then(doc => {
-        const s = document.getElementById('login-road');
-        const t = document.getElementById('taman-display');
-        if(doc.exists && s) {
-            const data = doc.data();
+async function fetchRoads() {
+    try {
+        const docSnap = await getDoc(doc(db, "settings", "taman_config"));
+        const s = qs('login-road');
+        const t = qs('taman-display');
+        if(docSnap.exists()) {
+            const data = docSnap.data();
             const r = data.roads || [];
-            s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
-            if (data.name && t) t.innerText = data.name;
+            if(s) s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+            if(data.name && t) t.innerText = data.name;
         }
-    });
+    } catch (e) { console.error("Error fetching roads", e); }
 }
 
 async function setIdentity() {
-    const h = document.getElementById('login-house').value.trim().toUpperCase();
-    const r = document.getElementById('login-road').value;
-    const p = document.getElementById('login-pin').value.trim();
-    const btn = document.getElementById('login-btn');
+    const h = qs('login-house').value.trim().toUpperCase();
+    const r = qs('login-road').value;
+    const p = qs('login-pin').value.trim();
+    const btn = qs('login-btn');
     
-    if(!h || !r || !p) {
-        showToast("Fill all fields", "error");
-        return;
-    }
+    if(!h || !r || !p) return showToast("Fill all fields", "error");
     
     btn.innerHTML = `<span class="spinner"></span> Verifying...`;
     btn.disabled = true;
 
-    const snap = await db.collection("residents")
-                        .where("unitNumber", "==", h)
-                        .where("road", "==", r)
-                        .where("pin", "==", p)
-                        .get();
-    
-    if(!snap.empty) {
-        localStorage.setItem('myUnit', h);
-        localStorage.setItem('myRoad', r);
-        location.reload();
-    } else {
+    try {
+        const q = query(collection(db, "residents"), 
+            where("unitNumber", "==", h), 
+            where("road", "==", r), 
+            where("pin", "==", p)
+        );
+        const snap = await getDocs(q);
+        
+        if(!snap.empty) {
+            localStorage.setItem('myUnit', h);
+            localStorage.setItem('myRoad', r);
+            location.reload();
+        } else {
+            showToast("Invalid Unit or PIN", "error");
+        }
+    } catch (e) {
+        showToast("Connection Error", "error");
+    } finally {
         btn.innerHTML = "Verify & Enter";
         btn.disabled = false;
-        showToast("Invalid Unit or PIN", "error");
     }
-}
-
-function logout() {
-    if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
-    localStorage.clear(); 
-    location.reload();
 }
 
 // --- APP INITIALIZATION ---
 function initApp() {
     const road = localStorage.getItem('myRoad');
-    const displayUnit = document.getElementById('display-unit');
-    if(displayUnit) displayUnit.innerText = `${myUnit}, ${road}`;
+    if(qs('display-unit')) qs('display-unit').innerText = `${myUnit}, ${road}`;
     
+    // Initialize QR Object if element exists
+    if (qs("qrcode")) {
+        qrObj = new QRCode(qs("qrcode"), { width: 180, height: 180 });
+    }
+
     loadNews(); 
     loadBills(); 
     loadMyVisitors(); 
     
-    db.collection("settings").doc("taman_config").get().then(doc => {
-        const tamanDisplay = document.getElementById('taman-display');
-        if(doc.exists && tamanDisplay) tamanDisplay.innerText = doc.data().name || "Resident of";
+    getDoc(doc(db, "settings", "taman_config")).then(snap => {
+        if(snap.exists() && qs('taman-display')) qs('taman-display').innerText = snap.data().name || "Resident";
     });
 }
 
-function switchTab(t) {
-    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-    document.getElementById('view-' + t).classList.remove('hidden');
-    
-    const cardContainer = document.getElementById('paymaster-card-container');
-    if(cardContainer) cardContainer.classList.remove('hidden');
-    
-    ['news', 'invite', 'bills'].forEach(tab => {
-        const btn = document.getElementById('nav-' + tab);
-        if(btn) {
-            btn.classList.toggle('text-indigo-600', tab === t);
-            btn.classList.toggle('text-slate-400', tab !== t);
-        }
-    });
-}
-
-// --- DATA LOADERS ---
+// --- DATA LOADERS (REALTIME) ---
 function loadNews() {
-    unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
-        const list = document.getElementById('news-list'); 
+    const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(10));
+    unsubNews = onSnapshot(q, (s) => {
+        const list = qs('news-list'); 
         if(!list) return;
-        list.innerHTML = "";
-        if(s.empty) list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>`;
-        s.forEach(doc => { 
-            const n = doc.data(); 
+        list.innerHTML = s.empty ? `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>` : "";
+        s.forEach(d => { 
+            const n = d.data(); 
             const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
             list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${date}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.content}</p></div>`; 
         });
@@ -136,50 +129,27 @@ function loadNews() {
 
 function loadBills() {
     const myRoad = localStorage.getItem('myRoad'); 
-    unsubBills = db.collection("invoices")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad)
-        .onSnapshot(snapshot => {
-            myBillsRaw = [];
-            let uC = 0, uT = 0, hasI = !snapshot.empty;
-            snapshot.forEach(doc => {
-                const b = doc.data();
-                b.id = doc.id;
-                myBillsRaw.push(b);
-                if(b.status !== 'paid') { 
-                    uC++; 
-                    uT += (parseFloat(b.amount) || 0); 
-                }
-            });
-            // FIXED SORTING: Handle empty year/month values gracefully
-            myBillsRaw.sort((a, b) => {
-                const dateA = a.createdAt?.toMillis() || 0;
-                const dateB = b.createdAt?.toMillis() || 0;
-                return dateB - dateA;
-            });
-            
-            updatePaymasterUI(uC, uT, hasI);
-            renderBillList();
-        }, err => {
-            console.error("Billing stream error:", err);
-            updatePaymasterUI(0, 0, false);
+    const q = query(collection(db, "invoices"), where("unitNumber", "==", myUnit), where("road", "==", myRoad));
+    
+    unsubBills = onSnapshot(q, (snapshot) => {
+        myBillsRaw = [];
+        let uC = 0, uT = 0;
+        snapshot.forEach(d => {
+            const b = d.data(); b.id = d.id;
+            myBillsRaw.push(b);
+            if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
         });
-}
-
-// --- BILLING LOGIC ---
-function setBillFilter(filter) {
-    currentBillFilter = filter;
-    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.className = "px-3 py-1 rounded-md text-slate-500";
+        
+        // Safe Sorting (handles null timestamps during local updates)
+        myBillsRaw.sort((a, b) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
+        
+        updatePaymasterUI(uC, uT, !snapshot.empty);
+        renderBillList();
     });
-    const activeFilter = document.getElementById('f-' + filter);
-    if(activeFilter) activeFilter.className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
-    renderBillList();
 }
 
 function renderBillList() {
-    const list = document.getElementById('bill-list');
+    const list = qs('bill-list');
     if(!list) return;
     list.innerHTML = "";
     invoiceCache = {};
@@ -188,248 +158,168 @@ function renderBillList() {
         if(currentBillFilter === 'unpaid') return b.status !== 'paid';
         return true;
     });
+    
     if(filtered.length === 0) {
         list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
         return;
     }
+
     filtered.forEach(b => {
         invoiceCache[b.id] = b;
         const isP = b.status === 'paid';
-        const displayMonth = b.month || "Bill";
-        const displayYear = b.year || "";
         list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
             <div>
-                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${displayMonth} ${displayYear}</p>
+                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month || 'Bill'} ${b.year || ''}</p>
                 <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
                 <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
             </div>
             <div class="text-right">
                 <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
-                ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
+                ${isP ? `<button onclick="window.openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="window.openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
             </div>
         </div>`;
     });
 }
 
 function updatePaymasterUI(count, total, hasI) {
-    const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
+    const card = qs('paymaster-status-card'), emo = qs('paymaster-emoji'), msg = qs('paymaster-message');
     if(!card || !emo || !msg) return;
 
-    card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-    
-    if (!hasI) { 
-        card.classList.add('bg-slate-200', 'text-slate-600'); 
-        emo.innerText = "👋"; 
-        msg.innerText = "No billing records found."; 
-        return; 
-    }
+    card.className = "p-6 rounded-3xl transition-all duration-500 ";
+    if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No billing records."; return; }
 
     const safeTotal = (Number(total) || 0).toFixed(2);
-
-    if (count === 0) { 
-        card.classList.add('bg-emerald-500', 'text-white'); 
-        emo.innerText = "🏆"; 
-        msg.innerText = "Up to date! Thank you for doing your part to keep our Taman safe!"; 
-    } 
-    else if (count < 3) { 
-        card.classList.add('bg-amber-400', 'text-slate-800'); 
-        emo.innerText = "🔔"; 
-        msg.innerText = `Outstanding: RM${safeTotal}. Your contribution helps keep our taman safe.`; 
-    } 
-    else { 
-        card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
-        emo.innerText = "⚠️"; 
-        msg.innerText = `Urgent: RM${safeTotal}. Please contribute to help us keep the taman secured.`; 
-    }
+    if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date! Thank you!"; } 
+    else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${safeTotal}`; } 
+    else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${safeTotal}`; }
 }
 
-function openReceipt(id) {
-    const d = invoiceCache[id]; if(!d) return;
-    document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
-    document.getElementById('rcp-amount').innerText = (parseFloat(d.amount)||0).toFixed(2); 
-    document.getElementById('rcp-unit').innerText = d.unitNumber; 
-    document.getElementById('rcp-remark').innerText = `${d.month || ''} ${d.year || ''}`;
-    document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
-    document.getElementById('receipt-modal').classList.remove('hidden');
-}
-function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
-function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
-function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
-
-// --- VISITOR MANAGEMENT ---
+// --- VISITORS ---
 function loadMyVisitors() {
     const myRoad = localStorage.getItem('myRoad'); 
-    unsubVisits = db.collection("visits")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad)
-        .onSnapshot(snapshot => {
-            const pendingList = document.getElementById('visitor-pending-list');
-            const historyList = document.getElementById('visitor-history-list');
-            if(!pendingList || !historyList) return;
+    const q = query(collection(db, "visits"), where("unitNumber", "==", myUnit), where("road", "==", myRoad));
+    
+    unsubVisits = onSnapshot(q, (snapshot) => {
+        const pendingList = qs('visitor-pending-list');
+        const historyList = qs('visitor-history-list');
+        if(!pendingList || !historyList) return;
 
-            let data = []; 
-            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+        let data = []; 
+        snapshot.forEach(d => { let obj = d.data(); obj.id = d.id; data.push(obj); });
+        data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
 
-            let pendingH = "", historyH = "";
-            const now = new Date().getTime();
-            const limit = 48 * 60 * 60 * 1000; 
+        let pendingH = "", historyH = "";
+        const now = Date.now();
 
-            data.forEach(v => {
-                const isE = v.status === 'entered';
-                const isC = v.status === 'cancelled';
-                const isPending = v.status === 'pending' || !v.status; 
-                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                const isWithin48 = (now - timeMs) < limit;
+        data.forEach(v => {
+            const isE = v.status === 'entered';
+            const isC = v.status === 'cancelled';
+            const isPending = v.status === 'pending' || !v.status; 
+            const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+            const isWithin48 = v.entryTime ? (now - v.entryTime.toDate().getTime() < 172800000) : true;
 
-                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
+            const clickAttr = (isPending && isWithin48 && !isC) ? `onclick="window.reShowQR('${v.id}')"` : '';
 
-                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-                    <div>
-                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+            const cardHtml = `<div ${clickAttr} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm mb-3 ${isPending && !isC ? 'cursor-pointer active:scale-95 transition-all' : ''}">
+                <div><p class="text-sm font-bold text-slate-800">${v.visitorName}</p><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p></div>
+                <div class="text-right">
+                    <div class="flex gap-2 justify-end mb-1">
+                        ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); window.cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase">Cancel</button>` : ''}
+                        <span class="px-3 py-1 rounded-full text-[9px] font-black ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
                     </div>
-                    <div class="text-right">
-                        <div class="flex gap-2 justify-end mb-1">
-                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
-                        </div>
-                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
-                    </div>
-                </div>`;
+                    <p class="text-[8px] text-slate-300 mt-1 uppercase">${dt}</p>
+                </div>
+            </div>`;
 
-                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
-                else historyH += cardHtml;
-            });
-            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+            if (isPending && isWithin48 && !isC) pendingH += cardHtml;
+            else historyH += cardHtml;
         });
+        pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
+        historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
+    });
 }
 
-function cancelVisit(id) {
-    document.getElementById('cancel-target-id').value = id;
-    document.getElementById('cancel-confirm-modal').classList.remove('hidden');
-}
+// --- ACTIONS ---
+async function generateGuestPass() {
+    const n = qs('guest-name').value, ph = qs('guest-phone').value, pl = qs('guest-plate').value;
+    const btn = qs('guest-btn'), myRoad = localStorage.getItem('myRoad');
 
-function closeCancelModal() {
-    document.getElementById('cancel-confirm-modal').classList.add('hidden');
+    if(!n || !ph || !pl) return showToast("Fill all details", "error");
+    
+    btn.innerHTML = `<span class="spinner"></span>`; btn.disabled = true;
+
+    try {
+        const docRef = await addDoc(collection(db, "visits"), { 
+            visitorName: n, visitorPhone: ph, carPlate: pl.toUpperCase(), 
+            unitNumber: myUnit, road: myRoad, status: "pending", 
+            entryTime: serverTimestamp() 
+        });
+        
+        qs('qr-result').classList.remove('hidden'); 
+        qrObj.clear(); qrObj.makeCode(docRef.id);
+        qs('guest-name').value = ""; qs('guest-phone').value = ""; qs('guest-plate').value = "";
+        showToast("QR Generated");
+    } catch (e) { showToast("Failed", "error"); }
+    finally { btn.innerHTML = "Create QR"; btn.disabled = false; }
 }
 
 async function confirmCancelAction() {
-    const id = document.getElementById('cancel-target-id').value;
-    if(!id) return;
-    
-    const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
-    confirmBtn.disabled = true;
-    confirmBtn.innerHTML = `<span class="spinner"></span>`;
-
+    const id = qs('cancel-target-id').value;
+    const btn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`;
     try {
-        await db.collection("visits").doc(id).update({ 
-            status: "cancelled",
-            cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showToast("Pass Cancelled");
-    } catch (err) {
-        showToast("System Error", "error");
+        await updateDoc(doc(db, "visits", id), { status: "cancelled", cancelledAt: serverTimestamp() });
+        showToast("Cancelled");
     } finally {
-        confirmBtn.disabled = false;
-        confirmBtn.innerText = "Confirm";
-        closeCancelModal();
+        btn.disabled = false; btn.innerText = "Confirm";
+        qs('cancel-confirm-modal').classList.add('hidden');
     }
 }
 
-async function generateGuestPass() {
-    const n = document.getElementById('guest-name').value;
-    const ph = document.getElementById('guest-phone').value;
-    const pl = document.getElementById('guest-plate').value;
-    const btn = document.getElementById('guest-btn');
-    const myRoad = localStorage.getItem('myRoad');
+// --- GLOBALS FOR HTML ONCLICK ---
+window.setIdentity = setIdentity;
+window.switchTab = (t) => {
+    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+    qs('view-' + t).classList.remove('hidden');
+    ['news', 'invite', 'bills'].forEach(tab => {
+        const b = qs('nav-' + tab);
+        if(b) b.className = tab === t ? 'flex flex-col items-center text-indigo-600' : 'flex flex-col items-center text-slate-400';
+    });
+};
+window.openReceipt = (id) => {
+    const d = invoiceCache[id]; if(!d) return;
+    qs('rcp-no').innerText = d.receiptNumber || 'N/A'; 
+    qs('rcp-amount').innerText = (parseFloat(d.amount)||0).toFixed(2); 
+    qs('rcp-unit').innerText = d.unitNumber; 
+    qs('rcp-remark').innerText = `${d.month || ''} ${d.year || ''}`;
+    qs('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
+    qs('receipt-modal').classList.remove('hidden');
+};
+window.closeReceipt = () => qs('receipt-modal').classList.add('hidden');
+window.openPayment = () => qs('payment-modal').classList.remove('hidden');
+window.closePayment = () => qs('payment-modal').classList.add('hidden');
+window.reShowQR = (id) => { qs('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(id); window.scrollTo(0,0); };
+window.cancelVisit = (id) => { qs('cancel-target-id').value = id; qs('cancel-confirm-modal').classList.remove('hidden'); };
+window.closeCancelModal = () => qs('cancel-confirm-modal').classList.add('hidden');
+window.confirmCancelAction = confirmCancelAction;
+window.generateGuestPass = generateGuestPass;
+window.logout = () => { localStorage.clear(); location.reload(); };
+window.setBillFilter = (filter) => {
+    currentBillFilter = filter;
+    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => qs(id).className = "px-3 py-1 rounded-md text-slate-500");
+    qs('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
+    renderBillList();
+};
 
-    if(!n || !ph || !pl) {
-        showToast("Fill all details", "error");
-        return;
-    }
-    
-    btn.innerHTML = `<span class="spinner"></span>`;
-    btn.disabled = true;
-
-    try {
-        const docRef = await db.collection("visits").add({ 
-            visitorName: n, 
-            visitorPhone: ph, 
-            carPlate: pl.toUpperCase(), 
-            unitNumber: myUnit, 
-            road: myRoad,
-            status: "pending", 
-            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
-        });
-        
-        document.getElementById('qr-result').classList.remove('hidden'); 
-        qrObj.clear(); 
-        qrObj.makeCode(docRef.id);
-        
-        document.getElementById('guest-name').value = ""; 
-        document.getElementById('guest-phone').value = ""; 
-        document.getElementById('guest-plate').value = "";
-        
-        showToast("QR Generated Successfully");
-    } catch (err) {
-        showToast("Generation Failed", "error");
-    } finally {
-        btn.innerHTML = "Create QR";
-        btn.disabled = false;
-    }
-}
-
-async function shareQRCode() {
-    const qrCanvas = document.querySelector('#qrcode canvas');
-    if (!qrCanvas) return;
-    try {
-        const dataUrl = qrCanvas.toDataURL("image/png");
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], "VisitorQR.png", { type: "image/png" });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                files: [file],
-                title: 'TamanGuard Visitor Pass',
-                text: `Visitor Pass for Unit ${myUnit}. Scan at Guard House.`
-            });
-        } else {
-            const link = document.createElement('a');
-            link.download = 'VisitorQR.png'; link.href = dataUrl; link.click();
-        }
-    } catch (err) { console.error("Sharing failed", err); }
-}
-
-function reShowQR(visitId) {
-    document.getElementById('qr-result').classList.remove('hidden');
-    qrObj.clear();
-    qrObj.makeCode(visitId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-// --- ONLOAD GATEKEEPER ---
-window.onload = () => {
-    const savedUnit = localStorage.getItem('myUnit');
-    const loginScreen = document.getElementById('login-screen');
-    const appHeader = document.getElementById('app-header');
-    const appMain = document.getElementById('app-main');
-    const appNav = document.getElementById('app-nav');
-
-    if (!savedUnit) {
-        if(loginScreen) loginScreen.classList.remove('hidden');
-        if(appHeader) appHeader.style.display = 'none';
-        if(appMain) appMain.style.display = 'none';
-        if(appNav) appNav.style.display = 'none';
-        fetchRoads(); 
+// --- START ---
+window.addEventListener('DOMContentLoaded', () => {
+    if (!myUnit) {
+        qs('login-screen').classList.remove('hidden');
+        fetchRoads();
     } else {
-        myUnit = savedUnit;
-        if(loginScreen) loginScreen.classList.add('hidden');
-        if(appHeader) appHeader.style.display = 'flex';
-        if(appMain) appMain.style.display = 'block';
-        if(appNav) appNav.style.display = 'flex';
+        qs('app-header').style.display = 'flex';
+        qs('app-main').style.display = 'block';
+        qs('app-nav').style.display = 'flex';
         initApp();
     }
-};
-</script>
+});
