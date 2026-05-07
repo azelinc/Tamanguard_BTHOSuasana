@@ -132,6 +132,7 @@ async function initAuth() {
       qs("#userName").textContent = userProfile.name || user.email;
       qs("#userRole").textContent = userRole.replace("_", " ");
       applyRoleVisibility();
+      loadSettings();
       showTab("news");
       loadStats(); 
     } catch (err) {
