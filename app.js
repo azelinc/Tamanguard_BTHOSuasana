@@ -23,6 +23,7 @@ let userRole = null;
 let tamanConfig = { name: "", roads: [] };
 const listeners = {};
 const allResidents = [];
+let allInvoices = []; // For local smart filtering
 let residentFilterRoad = "All";
 const visitorCursor = { last: null, hasMore: true };
 const invoiceCursor = { last: null, hasMore: true };
@@ -133,7 +134,7 @@ async function initAuth() {
       qs("#userRole").textContent = userRole.replace("_", " ");
       
       applyRoleVisibility();
-      loadSettings(); // Fixed: Load header name immediately
+      loadSettings(); 
       showTab("news");
       loadStats(); 
     } catch (err) {
@@ -598,55 +599,135 @@ if (qs("#invResidentSelect")) {
 }
 
 async function loadBilling(reset = true) {
-  if (reset) { invoiceCursor.last = null; invoiceCursor.hasMore = true; qs("#invoicesTableBody").innerHTML = ""; }
+  if (reset) { 
+      invoiceCursor.last = null; 
+      invoiceCursor.hasMore = true; 
+      allInvoices = []; // Clear for local filtering
+  }
   if (!invoiceCursor.hasMore) return;
+  
   const constraints = [orderBy("createdAt", "desc"), limit(PAGE_SIZE)];
   if (invoiceCursor.last) constraints.push(startAfter(invoiceCursor.last));
+  
   try {
     const snap = await getDocs(query(collection(db, "invoices"), ...constraints));
-    const tbody = qs("#invoicesTableBody");
-    if (!snap.docs.length && reset) {
-      tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">No invoices found.</td></tr>';
-    }
-    snap.forEach(d => tbody.appendChild(buildInvoiceRow(d.id, d.data())));
+    snap.forEach(d => allInvoices.push({ id: d.id, ...d.data() }));
+    
     invoiceCursor.last = snap.docs[snap.docs.length - 1] || null;
     invoiceCursor.hasMore = snap.docs.length === PAGE_SIZE;
     qs("#loadMoreInvoices").classList.toggle("hidden", !invoiceCursor.hasMore);
+    
+    renderInvoices(); // Handle local filtering and rendering
+
     const up = await getDocs(query(collection(db, "invoices"), where("status", "==", "pending")));
     qs("#statBills").textContent = up.size;
   } catch (err) { toast(err.message, "error"); }
 }
 
+function renderInvoices() {
+  const tbody = qs("#invoicesTableBody");
+  const term = qs("#invoiceSearch").value.toLowerCase().replace(/[- \s]/g, "");
+  const hidePaid = qs("#hidePaidToggle").checked;
+  
+  tbody.innerHTML = "";
+  
+  const filtered = allInvoices.filter(inv => {
+    // 1. Status Check
+    if (hidePaid && inv.status === "paid") return false;
+    
+    if (!term) return true;
+
+    // 2. Data Lookup (Find the resident for Name/Phone search)
+    const resident = allResidents.find(r => r.unitNumber === inv.unitNumber && r.road === inv.road);
+    const resName = (resident?.name || "").toLowerCase();
+    const resPhone = (resident?.phone || "").replace(/[^0-9]/g, "");
+    
+    // 3. Smart Match Logic (Ignore Road Name in search term)
+    // Priority: Exact Unit Match
+    const matchUnit = inv.unitNumber.toLowerCase() === term || inv.unitNumber.toLowerCase().startsWith(term);
+    const matchName = resName.includes(term);
+    const matchPhone = resPhone.includes(term);
+    
+    return matchUnit || matchName || matchPhone;
+  });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">No matching records.</td></tr>';
+    return;
+  }
+
+  filtered.forEach(inv => tbody.appendChild(buildInvoiceRow(inv.id, inv)));
+}
+
 qs("#loadMoreInvoices").addEventListener("click", () => loadBilling(false));
+qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 300));
+qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
 
 function buildInvoiceRow(id, d) {
   const tr = document.createElement("tr");
-  tr.className = "hover:bg-slate-800/30 transition-colors";
+  tr.className = "hover:bg-slate-800/30 transition-colors group";
   const sClass = d.status === "paid" ? "bg-emerald-500/20 text-emerald-400" : "bg-amber-500/20 text-amber-400";
   const sText = d.status === "paid" ? "Paid" : "Pending";
+  
   tr.innerHTML = `
-    <td class="px-4 py-3 font-mono text-slate-400 inv-id"></td>
-    <td class="px-4 py-3 text-white inv-unit"></td>
+    <td class="px-4 py-3 font-mono text-[10px] text-slate-500 inv-id"></td>
+    <td class="px-4 py-3">
+        <button class="view-history text-left hover:text-purple-400 transition-colors">
+            <span class="block font-bold text-white text-sm group-hover:underline">${d.unitNumber}</span>
+            <span class="text-[10px] text-slate-500 block">${d.road}</span>
+        </button>
+    </td>
     <td class="px-4 py-3 text-slate-300 inv-period"></td>
     <td class="px-4 py-3 font-medium text-white inv-amount"></td>
     <td class="px-4 py-3 text-slate-300 inv-due"></td>
     <td class="px-4 py-3"><span class="px-2 py-1 rounded-full text-xs font-medium ${sClass}">${sText}</span></td>
     <td class="px-4 py-3 text-right space-x-2">
-      ${d.status !== "paid" ? `<button class="pay-btn text-emerald-400 hover:text-emerald-300 text-sm font-medium">Pay</button>` : `<span class="text-xs text-slate-500">Receipt: <span class="rcpt-num"></span></span>`}
+      ${d.status !== "paid" ? `<button class="pay-btn text-emerald-400 hover:text-emerald-300 text-sm font-medium">Pay</button>` : `<span class="text-[10px] text-slate-500">RCP: <span class="rcpt-num"></span></span>`}
       <button class="del-inv text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>
     </td>
   `;
-  tr.querySelector(".inv-id").textContent = d.invoiceId || id;
-  tr.querySelector(".inv-unit").textContent = `${d.unitNumber || "-"} (${d.road || "-"})`;
+  tr.querySelector(".inv-id").textContent = (d.invoiceId || id).substring(0, 15);
   tr.querySelector(".inv-period").textContent = `${d.month || "-"} ${d.year || ""}`;
   tr.querySelector(".inv-amount").textContent = `RM ${parseFloat(d.amount || 0).toFixed(2)}`;
   tr.querySelector(".inv-due").textContent = d.dueDate || "-";
+  
   const rcpt = tr.querySelector(".rcpt-num");
   if (rcpt) rcpt.textContent = d.receiptNumber || "-";
+  
+  tr.querySelector(".view-history").onclick = () => showHouseHistory(d.unitNumber, d.road);
   const pb = tr.querySelector(".pay-btn");
   if (pb) pb.onclick = () => payInvoice(id);
   tr.querySelector(".del-inv").onclick = () => deleteInvoice(id);
   return tr;
+}
+
+function showHouseHistory(unit, road) {
+    const modal = qs("#historyModal");
+    const tbody = qs("#historyTableBody");
+    qs("#historyUnitTitle").textContent = `UNIT ${unit} — ${road}`;
+    tbody.innerHTML = "";
+    
+    // Search local cache for all bills of this unit/road
+    const history = allInvoices
+        .filter(inv => inv.unitNumber === unit && inv.road === road)
+        .sort((a, b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+
+    if (!history.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500">No records found for this unit.</td></tr>';
+    } else {
+        history.forEach(inv => {
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-slate-700/30";
+            tr.innerHTML = `
+                <td class="px-4 py-3 text-white font-medium">${inv.month} ${inv.year}</td>
+                <td class="px-4 py-3 text-slate-300">RM ${parseFloat(inv.amount).toFixed(2)}</td>
+                <td class="px-4 py-3"><span class="text-[10px] font-bold ${inv.status === 'paid' ? 'text-emerald-400' : 'text-amber-400'}">${inv.status.toUpperCase()}</span></td>
+                <td class="px-4 py-3 text-right text-[10px] text-slate-500 font-mono">${inv.receiptNumber || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    modal.classList.remove("hidden");
 }
 
 function setupYearDropdowns() {
