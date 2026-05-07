@@ -131,8 +131,9 @@ async function initAuth() {
       qs("#logoutBtn").classList.remove("hidden");
       qs("#userName").textContent = userProfile.name || user.email;
       qs("#userRole").textContent = userRole.replace("_", " ");
+      
       applyRoleVisibility();
-      loadSettings();
+      loadSettings(); // Fixed: Load header name immediately
       showTab("news");
       loadStats(); 
     } catch (err) {
@@ -222,6 +223,7 @@ async function loadSettings() {
 
 function renderRoads() {
   const box = qs("#roadList");
+  if(!box) return;
   box.innerHTML = "";
   (tamanConfig.roads || []).forEach(r => {
     const chip = document.createElement("div");
@@ -237,12 +239,14 @@ function renderRoads() {
     box.appendChild(chip);
   });
   const sel = qs("#resRoad");
-  sel.innerHTML = '<option value="">Select Road/Block</option>';
-  (tamanConfig.roads || []).forEach(r => {
-    const o = document.createElement("option");
-    o.value = r; o.textContent = r;
-    sel.appendChild(o);
-  });
+  if(sel) {
+    sel.innerHTML = '<option value="">Select Road/Block</option>';
+    (tamanConfig.roads || []).forEach(r => {
+      const o = document.createElement("option");
+      o.value = r; o.textContent = r;
+      sel.appendChild(o);
+    });
+  }
 }
 
 qs("#addRoadBtn").addEventListener("click", async () => {
@@ -497,13 +501,12 @@ async function loadVisitors(reset = true) {
   } catch (err) { toast(err.message, "error"); }
 }
 
-
+qs("#loadMoreVisitors").addEventListener("click", () => loadVisitors(false));
 
 function buildVisitorRow(id, d) {
   const tr = document.createElement("tr");
   tr.className = "hover:bg-slate-800/30 transition-colors";
   
-  // Status Color Logic
   let statusClass = "bg-slate-700 text-slate-300";
   let statusText = d.status || "Pending";
 
@@ -520,7 +523,6 @@ function buildVisitorRow(id, d) {
   tr.innerHTML = `
     <td class="px-4 py-3 text-slate-300">${d.entryTime?.toDate ? d.entryTime.toDate().toLocaleString("en-MY") : "-"}</td>
     <td class="px-4 py-3 font-medium text-white">${d.carPlate || "-"}</td>
-    <!-- Updated this cell to show both Unit and Road -->
     <td class="px-4 py-3 text-slate-300">
         <span class="font-bold text-white">${d.unitNumber || "-"}</span> 
         <span class="text-[10px] block opacity-60">${d.road || "Unknown Road"}</span>
@@ -543,32 +545,6 @@ qs("#visitorSearch").addEventListener("input", debounce(() => {
   const t = qs("#visitorSearch").value.toLowerCase();
   qsa("#visitorsTableBody tr").forEach(tr => { tr.style.display = tr.textContent.toLowerCase().includes(t) ? "" : "none"; });
 }, 300));
-
-qs("#visitorForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const plate = qs("#visPlate").value.trim().toUpperCase();
-  const unit = qs("#visUnit").value.trim();
-  const name = qs("#visName").value.trim();
-  const phone = qs("#visPhone").value.trim();
-  const purpose = qs("#visPurpose").value.trim();
-  if (!plate || !unit || !name || !phone) { toast("Fill required fields.", "error"); return; }
-  if (!validators.plate(plate)) { toast("Invalid car plate format.", "error"); return; }
-  if (!validators.phone(phone)) { toast("Invalid phone number.", "error"); return; }
-  const btn = qs("#visitorSubmitBtn");
-  setLoading(btn, true);
-  try {
-    await addDoc(collection(db, "visits"), {
-      carPlate: plate, unitNumber: unit, visitorName: name, visitorPhone: phone,
-      purpose, status: "entered", entryTime: serverTimestamp(),
-      createdBy: userProfile?.name || currentUser?.email
-    });
-    toast("Visitor checked in.", "success");
-    closeModal("visitorModal");
-    qs("#visitorForm").reset();
-    loadVisitors(true);
-  } catch (err) { toast(err.message, "error"); }
-  finally { setLoading(btn, false); }
-});
 
 async function checkoutVisitor(id) {
   try {
@@ -692,16 +668,10 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
   const due = qs("#bulkDue").value;
   const remark = qs("#bulkRemark").value.trim() || "Security Fee";
 
-  if (!month || isNaN(amount)) { 
-    toast("Check Month/Amount", "error"); 
-    return; 
-  }
+  if (!month || isNaN(amount)) { toast("Check Month/Amount", "error"); return; }
   
   const resSnap = await getDocs(collection(db, "residents"));
-  if (resSnap.empty) {
-    toast("No residents found to bill.", "error");
-    return;
-  }
+  if (resSnap.empty) { toast("No residents found to bill.", "error"); return; }
 
   const btn = qs("#generateBulkBtn");
   setLoading(btn, true);
@@ -712,18 +682,10 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
 
     resSnap.forEach(d => {
       const r = d.data();
-      
-      // FIX: Check for BOTH camelCase and underscore naming to prevent 'undefined'
       const unit = r.unitNumber || r.unit_number;
       const road = r.road;
+      if (!unit || !road) return; 
 
-      // Skip this resident if the critical data is missing
-      if (!unit || !road) {
-        console.warn(`Skipping invalid resident document: ${d.id}`);
-        return; 
-      }
-
-      // Sanitize for the document ID path
       const cleanRoad = road.replace(/\//g, '-').replace(/\s+/g, '');
       const cleanUnit = unit.replace(/\s+/g, '');
       
@@ -732,7 +694,7 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
       
       batch.set(ref, {
         invoiceId: invId,
-        unitNumber: unit, // Use the detected unit value
+        unitNumber: unit,
         road: road,
         month,
         year: parseInt(year),
@@ -746,19 +708,13 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
       count++;
     });
     
-    if (count === 0) {
-      toast("No valid residents found to bill (check for missing unit/road).", "error");
-    } else {
+    if (count > 0) {
       await batch.commit();
       toast(`Successfully generated ${count} bills!`, "success");
       loadBilling(true);
     }
-  } catch (err) {
-    console.error(err);
-    toast("Error: " + err.message, "error");
-  } finally {
-    setLoading(btn, false);
-  }
+  } catch (err) { toast("Error: " + err.message, "error"); }
+  finally { setLoading(btn, false); }
 });
 
 qs("#invoiceForm").addEventListener("submit", async (e) => {
@@ -772,7 +728,6 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
 
   if (!unit || !road || isNaN(amount)) { toast("Select a resident and enter amount.", "error"); return; }
   
-  // Also sanitize road/unit for custom bills to prevent path errors
   const cleanRoad = road.replace(/\//g, '-').replace(/\s+/g, '');
   const cleanUnit = unit.replace(/\s+/g, '');
   const invId = `INV-${cleanUnit}-${cleanRoad}-${month}-${year}-${Date.now()}`;
@@ -870,7 +825,6 @@ qsa("[data-close-modal]").forEach(btn => {
 qsa(".fixed.inset-0").forEach(el => {
   el.addEventListener("click", (e) => { if (e.target === el) el.classList.add("hidden"); });
 });
-
 
 qs("#addInvoiceBtn").addEventListener("click", () => qs("#invoiceModal").classList.remove("hidden"));
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
