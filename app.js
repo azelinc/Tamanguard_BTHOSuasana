@@ -398,27 +398,26 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
     const unit = qs("#invUnit").value; 
     const amount = parseFloat(qs("#invAmount").value);
     const remarks = qs("#invRemarks").value.trim(); 
-    const dueDateValue = qs("#invDue").value; // This is YYYY-MM-DD
+    const dueDateValue = qs("#invDue").value; 
 
-    if(!unit || isNaN(amount)) return toast("Select resident and amount", "error");
-    if(!dueDateValue) return toast("Please select a Due Date", "error");
+    if(!unit || isNaN(amount) || !dueDateValue) return toast("Please fill all fields", "error");
 
     setLoading(qs("#invoiceSubmitBtn"), true);
 
     try {
-        // Parse the date to get the month name and year
-        const dateParts = dueDateValue.split('-'); // [YYYY, MM, DD]
+        // Parse the picked date to get the Month Name and Year
+        const parts = dueDateValue.split('-'); // [YYYY, MM, DD]
         const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
         
-        const monthName = months[parseInt(dateParts[1]) - 1]; // Convert "05" to "May"
-        const yearValue = parseInt(dateParts[0]);            // "2026"
+        const selectedMonth = months[parseInt(parts[1]) - 1]; // Converts "05" to "May"
+        const selectedYear = parseInt(parts[0]);            // Converts "2026" to 2026
 
         await addDoc(collection(db, "invoices"), { 
             unitNumber: unit, 
             road: qs("#invRoad").value, 
             amount: amount, 
-            month: monthName,      // Correctly sets "May", "June", etc.
-            year: yearValue,       // Sets 2026
+            month: selectedMonth,   // THIS FIXES THE "CUSTOM" LABEL
+            year: selectedYear,    // SETS THE CHOSEN YEAR
             remarks: remarks || 'Custom Bill', 
             dueDate: dueDateValue,
             status: "pending", 
@@ -486,7 +485,16 @@ qs("#residentForm").addEventListener("submit", async (e) => {
 });
 
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
-qs("#addInvoiceBtn").addEventListener("click", () => qs("#invoiceModal").classList.remove("hidden"));
+qs("#addInvoiceBtn").addEventListener("click", () => {
+    qs("#invoiceModal").classList.remove("hidden");
+    
+    // Set default date to today's local date
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    qs("#invDue").value = `${yyyy}-${mm}-${dd}`;
+});
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
 
