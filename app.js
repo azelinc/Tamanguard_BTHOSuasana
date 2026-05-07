@@ -7,7 +7,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 250;
 let userProfile = null;
 let userRole = null;
 let tamanConfig = { name: "", roads: [] };
@@ -88,13 +88,12 @@ function showTab(name) {
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
-/* DATA PRELOAD */
 async function preloadResidentData() {
     const snap = await getDocs(collection(db, "residents"));
     allResidents.length = 0; snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
 }
 
-/* SETTINGS TAB */
+/* SETTINGS */
 async function loadSettings() {
   const snap = await getDoc(doc(db, "settings", "taman_config"));
   if (snap.exists()) tamanConfig = snap.data();
@@ -124,7 +123,7 @@ qs("#addRoadBtn").addEventListener("click", async () => {
     const v = qs("#newRoadName").value.trim(); if(!v) return;
     const roads = [...(tamanConfig.roads || []), v];
     await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, roads, updatedAt: serverTimestamp() });
-    qs("#newRoadName").value = ""; toast("Road added", "success"); loadSettings();
+    qs("#newRoadName").value = ""; loadSettings();
 });
 
 async function removeRoad(r) {
@@ -145,8 +144,8 @@ async function loadAdmins() {
   const tbody = qs("#adminTableBody"); tbody.innerHTML = "";
   snap.forEach(d => {
     const data = d.data(); const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="py-3 text-white font-medium">${data.name}</td><td class="py-3 uppercase text-[10px] text-slate-500 font-bold">${data.role}</td><td class="py-3 text-right"><button class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button></td>`;
-    tr.querySelector("button").onclick = async () => { if(confirm("Remove admin access?")) { await deleteDoc(doc(db, "admin_accounts", d.id)); loadAdmins(); }};
+    tr.innerHTML = `<td class="py-3 text-white font-medium">${data.name}</td><td class="py-3 text-right"><button class="text-red-400"><i class="fas fa-trash"></i></button></td>`;
+    tr.querySelector("button").onclick = async () => { if(confirm("Remove admin?")) { await deleteDoc(doc(db, "admin_accounts", d.id)); loadAdmins(); }};
     tbody.appendChild(tr);
   });
 }
@@ -157,12 +156,12 @@ qs("#adminForm").addEventListener("submit", async (e) => {
         const email = qs("#admEmail").value.trim(); const pass = qs("#admPassword").value;
         const cred = await createUserWithEmailAndPassword(auth, email, pass);
         await setDoc(doc(db, "admin_accounts", cred.user.uid), { name: qs("#admName").value.trim(), email, role: qs("#admRole").value, createdAt: serverTimestamp() });
-        toast("Admin added", "success"); closeModal("adminModal"); qs("#adminForm").reset(); loadAdmins();
+        toast("Admin added!", "success"); closeModal("adminModal"); qs("#adminForm").reset(); loadAdmins();
     } catch(e) { toast(e.message, "error"); }
     finally { setLoading(btn, false); }
 });
 
-/* NEWS TAB */
+/* NEWS */
 function loadNews() {
   onSnapshot(query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(20)), (snap) => {
     const box = qs("#newsList"); box.innerHTML = "";
@@ -193,7 +192,7 @@ qs("#postNewsBtn").addEventListener("click", async () => {
     } finally { setLoading(qs("#postNewsBtn"), false); }
 });
 
-/* RESIDENTS TAB */
+/* RESIDENTS */
 function loadResidents() {
     onSnapshot(query(collection(db, "residents"), orderBy("unitNumber")), (snap) => {
         allResidents.length = 0; snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
@@ -229,19 +228,19 @@ async function showResidentProfile(res) {
     try {
         const snap = await getDocs(query(collection(db, "invoices"), where("unitNumber", "==", res.unitNumber)));
         const history = snap.docs.map(d => d.data()).filter(i => i.road === res.road).sort((a,b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-        tbody.innerHTML = history.length ? "" : '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No payment history.</td></tr>';
+        tbody.innerHTML = history.length ? "" : '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No payment history found.</td></tr>';
         history.forEach(inv => {
-            const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20 hover:bg-slate-800/10";
+            const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20";
             const isPaid = inv.status === 'paid';
             tr.innerHTML = `<td class="py-4 px-4 text-white">${inv.month || '-'} ${inv.year || ''}</td><td class="py-4 px-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid?'bg-emerald-500/10 text-emerald-400':'bg-amber-500/10 text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || '-'}</td>`;
             tbody.appendChild(tr);
         });
-    } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400 text-xs">Failed to load bills.</td></tr>'; }
+    } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400">Failed to load bills.</td></tr>'; }
 }
 
 qs("#residentSearch").addEventListener("input", debounce(() => renderResidents(), 100));
 
-/* BILLING TAB */
+/* BILLING */
 async function loadBilling(reset = true) {
   if (reset) allInvoices = [];
   const snap = await getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(PAGE_SIZE)));
@@ -266,10 +265,12 @@ function renderInvoices() {
     return matchUnit || matchName || matchPhone;
   });
 
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="6" class="py-12 text-center text-slate-500 text-xs">No matching bills.</td></tr>'; return; }
+
   filtered.forEach(inv => {
     const tr = document.createElement("tr"); tr.className = "hover:bg-slate-800/30 group border-b border-slate-700/30 transition-colors";
     const sClass = inv.status==='paid'?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400';
-    tr.innerHTML = `<td class="px-4 py-4 font-mono text-[10px] text-slate-500">${inv.id.substring(0,8)}</td><td class="px-4 py-4"><button class="view-h text-left hover:text-purple-400 transition-colors"><span class="block font-bold text-white">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></button></td><td class="px-4 py-4 text-slate-300 text-sm">${inv.month || '-'} ${inv.year || ''}</td><td class="px-4 py-4 font-bold text-white">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${sClass}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right"><button class="pay-b bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition-all ${inv.status==='paid'?'hidden':''}">PAY</button></td>`;
+    tr.innerHTML = `<td class="px-4 py-4 font-mono text-[10px] text-slate-500">${inv.id.substring(0,8)}</td><td class="px-4 py-4"><button class="view-h text-left hover:text-purple-400 transition-colors"><span class="block font-bold text-white">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></button></td><td class="px-4 py-4 text-slate-300 text-sm">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 font-bold text-white">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${sClass}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right"><button class="pay-b bg-emerald-600/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded text-[10px] font-bold hover:bg-emerald-600 hover:text-white transition-all ${inv.status==='paid'?'hidden':''}">PAY</button></td>`;
     tr.querySelector(".view-h").onclick = () => showHouseHistoryModal(inv.unitNumber, inv.road);
     if(tr.querySelector(".pay-b")) tr.querySelector(".pay-b").onclick = () => payInvoice(inv.id);
     tbody.appendChild(tr);
@@ -280,13 +281,13 @@ qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 
 qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
 
 function showHouseHistoryModal(unit, road) {
-    const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `Unit ${unit} — ${road}`;
+    const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `${unit} — ${road}`;
     tbody.innerHTML = "";
     const history = allInvoices.filter(i => i.unitNumber === unit && i.road === road).sort((a,b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
     history.forEach(inv => {
         const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors";
         const isPaid = inv.status === 'paid';
-        tr.innerHTML = `<td class="px-4 py-4 text-white font-medium">${inv.month || '-'} ${inv.year || ''}</td><td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="text-[10px] font-bold ${isPaid?'text-emerald-400':'text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right">${isPaid?`<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber}</span>`:`<button class='h-pay-btn bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>PAY</button>`}</td>`;
+        tr.innerHTML = `<td class="px-4 py-4 text-white font-medium">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="text-[10px] font-bold ${isPaid?'text-emerald-400':'text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right">${isPaid?`<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber}</span>`:`<button class='h-pay-btn bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>PAY</button>`}</td>`;
         if(tr.querySelector(".h-pay-btn")) {
             tr.querySelector(".h-pay-btn").onclick = async (e) => {
                 const b = e.target;
@@ -304,10 +305,10 @@ async function payInvoice(id, fullRefresh = true) {
     await updateDoc(doc(db, "invoices", id), { status: "paid", receiptNumber: rcpt, paidAt: serverTimestamp() });
     const local = allInvoices.find(i => i.id === id);
     if(local) { local.status = "paid"; local.receiptNumber = rcpt; }
-    toast("Payment saved!"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats();
+    toast("Payment recorded!", "success"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats();
 }
 
-/* GENERATE & CUSTOM BILLS */
+/* GENERATE ALL (FIXED ID SANITIZATION) */
 qs("#generateBulkBtn").addEventListener("click", async () => {
     const m = qs("#bulkMonth").value; const y = qs("#bulkYear").value; const a = parseFloat(qs("#bulkAmount").value);
     const due = qs("#bulkDue") ? qs("#bulkDue").value : ""; 
@@ -316,11 +317,14 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
     try {
         const batch = writeBatch(db);
         allResidents.forEach(r => {
-            const id = `INV-${r.unitNumber}-${r.road}-${m}-${y}`.replace(/[\s/]+/g, '-');
+            // CRITICAL FIX: Replace slashes with dashes to avoid path segment errors
+            const safeRoad = r.road.replace(/[\s/]+/g, '-');
+            const safeUnit = r.unitNumber.replace(/[\s/]+/g, '-');
+            const id = `INV-${safeUnit}-${safeRoad}-${m}-${y}`;
             batch.set(doc(db, "invoices", id), { invoiceId: id, unitNumber: r.unitNumber, road: r.road, month: m, year: parseInt(y), amount: a, dueDate: due, status: "pending", createdAt: serverTimestamp() });
         });
         await batch.commit(); toast("Bills generated!", "success"); loadBilling(true);
-    } catch(e) { toast("Error: Check road names for special characters", "error"); }
+    } catch(e) { toast("Generation failed. Check characters.", "error"); }
     finally { setLoading(qs("#generateBulkBtn"), false); }
 });
 
@@ -331,7 +335,8 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
     try {
         await addDoc(collection(db, "invoices"), { unitNumber: unit, road: qs("#invRoad").value, amount, month: 'Custom', status: "pending", createdAt: serverTimestamp() });
         toast("Custom bill created", "success"); closeModal("invoiceModal"); loadBilling(true);
-    } finally { setLoading(qs("#invoiceSubmitBtn"), false); }
+    } catch(e) { toast(e.message, "error"); }
+    finally { setLoading(qs("#invoiceSubmitBtn"), false); }
 });
 
 function updateInvoiceResidentList() {
@@ -353,7 +358,7 @@ async function loadVisitors() {
     const tbody = qs("#visitorsTableBody"); tbody.innerHTML = "";
     snap.forEach(d => {
         const data = d.data(); const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="px-4 py-3">${data.entryTime?.toDate().toLocaleString("en-MY")}</td><td class="px-4 py-3 font-bold">${data.carPlate}</td><td class="px-4 py-3">${data.unitNumber}</td><td class="px-4 py-3">${data.visitorName}</td><td class="px-4 py-3 text-[10px] font-bold uppercase text-emerald-400">${data.status}</td>`;
+        tr.innerHTML = `<td class="px-4 py-3">${data.entryTime?.toDate().toLocaleDateString()}</td><td class="px-4 py-3 font-bold">${data.carPlate}</td><td class="px-4 py-3">${data.unitNumber}</td><td class="px-4 py-3">${data.visitorName}</td><td class="px-4 py-3 text-[10px] font-bold uppercase text-emerald-400">${data.status}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -365,7 +370,6 @@ async function loadStats() {
     } catch(e) {}
 }
 
-/* MODAL HELPERS */
 function openResidentModal(id = null, data = {}) {
   qs("#residentModal").classList.remove("hidden");
   qs("#residentModalTitle").textContent = id ? "Edit Resident" : "Add Resident";
@@ -378,8 +382,9 @@ qs("#residentForm").addEventListener("submit", async (e) => {
     try {
         const payload = { unitNumber: qs("#resUnit").value.trim(), road: qs("#resRoad").value.trim(), name: qs("#resName").value.trim(), phone: qs("#resPhone").value.trim(), pin: qs("#resPin").value.trim(), vehiclePlate: qs("#resVehicle").value.toUpperCase().trim() };
         if (id) await updateDoc(doc(db, "residents", id), payload); else await addDoc(collection(db, "residents"), payload);
-        toast("Resident saved!", "success"); closeModal("residentModal"); loadResidents();
-    } finally { setLoading(qs("#residentSubmitBtn"), false); }
+        toast("Saved successfully!", "success"); closeModal("residentModal"); loadResidents();
+    } catch(e) { toast("Save failed", "error"); }
+    finally { setLoading(qs("#residentSubmitBtn"), false); }
 });
 
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
