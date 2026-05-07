@@ -496,7 +496,7 @@ async function loadVisitors(reset = true) {
   } catch (err) { toast(err.message, "error"); }
 }
 
-qs("#loadMoreVisitors").addEventListener("click", () => loadVisitors(false));
+
 
 function buildVisitorRow(id, d) {
   const tr = document.createElement("tr");
@@ -870,7 +870,7 @@ qsa(".fixed.inset-0").forEach(el => {
   el.addEventListener("click", (e) => { if (e.target === el) el.classList.add("hidden"); });
 });
 
-qs("#addVisitorBtn").addEventListener("click", () => qs("#visitorModal").classList.remove("hidden"));
+
 qs("#addInvoiceBtn").addEventListener("click", () => qs("#invoiceModal").classList.remove("hidden"));
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 
