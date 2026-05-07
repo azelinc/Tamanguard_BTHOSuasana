@@ -379,29 +379,44 @@ async function loadBilling(reset = true) {
 
 function renderInvoices() {
   const tbody = qs("#invoicesTableBody");
-  const termInput = qs("#invoiceSearch").value.toLowerCase();
+  const rawTerm = qs("#invoiceSearch").value.toLowerCase();
   const hidePaid = qs("#hidePaidToggle").checked;
+  
+  // Clean terms for smarter searching
+  const termInput = rawTerm.trim();
+  const phoneSearchTerm = rawTerm.replace(/[^0-9]/g, ""); // "012-3" becomes "0123"
   
   tbody.innerHTML = "";
   
   const filtered = allInvoices.filter(inv => {
+    // 1. Status Check
     if (hidePaid && inv.status === "paid") return false;
+    
+    // If search is empty, just show based on status
     if (!termInput) return true;
 
-    // Smart Cross-Ref Lookup
-    const resident = allResidents.find(r => r.unitNumber === inv.unitNumber && r.road === inv.road);
-    const resName = (resident?.name || "").toLowerCase();
-    const resPhone = (resident?.phone || "").replace(/[^0-9]/g, "");
-    
-    // Priority 1: Exact Unit Number (Type "1" -> matches Unit "1", "10", "11", etc.)
+    // 2. Local Data Matching
+    // Unit match is prioritized and ignore road
     const matchUnit = inv.unitNumber.toLowerCase().startsWith(termInput);
-    // Priority 2: Full name or partial name
+    
+    // Find the resident associated with this invoice to check name/phone
+    const resident = allResidents.find(r => r.unitNumber === inv.unitNumber && r.road === inv.road);
+    
+    // Name Search
+    const resName = (resident?.name || "").toLowerCase();
     const matchName = resName.includes(termInput);
-    // Priority 3: Phone (ignores non-digits)
-    const matchPhone = resPhone.includes(termInput);
+    
+    // Phone Search (Clean both database phone and search input phone)
+    const resPhoneClean = (resident?.phone || "").replace(/[^0-9]/g, "");
+    const matchPhone = phoneSearchTerm !== "" && resPhoneClean.includes(phoneSearchTerm);
     
     return matchUnit || matchName || matchPhone;
   });
+
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">No matching records.</td></tr>';
+    return;
+  }
 
   filtered.forEach(inv => {
     const tr = document.createElement("tr");
@@ -421,7 +436,7 @@ function renderInvoices() {
   });
 }
 
-qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50)); // Faster response
+qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50)); 
 qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
 
 function showHouseHistory(unit, road) {
