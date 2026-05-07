@@ -191,28 +191,103 @@ function renderInvoices() {
 qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50));
 qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
 
+// --- Updated House History Logic ---
 function showHouseHistory(unit, road) {
-    const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `Unit ${unit} (${road})`;
+    const tbody = qs("#historyTableBody");
+    qs("#historyUnitTitle").textContent = `Unit ${unit} (${road})`;
     tbody.innerHTML = "";
-    allInvoices.filter(i => i.unitNumber === unit && i.road === road).forEach(inv => {
-        const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/30";
+    
+    // Filter from our local master list (allInvoices)
+    const history = allInvoices.filter(i => i.unitNumber === unit && i.road === road);
+
+    if (history.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-8 text-center text-slate-500">No records found.</td></tr>`;
+    }
+
+    history.forEach(inv => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-700/30 hover:bg-slate-800/20 transition-colors";
         const isPaid = inv.status === 'paid';
+        
         tr.innerHTML = `
-            <td class="px-4 py-3 text-white">${inv.month} ${inv.year}</td>
-            <td class="px-4 py-3 text-slate-300">RM ${inv.amount}</td>
-            <td class="px-4 py-3"><span class="text-[10px] font-bold ${isPaid?'text-emerald-400':'text-amber-400'}">${inv.status.toUpperCase()}</span></td>
-            <td class="px-4 py-3 text-right">${isPaid ? `<span class='text-[10px] text-slate-500'>${inv.receiptNumber}</span>` : `<button class='h-pay bg-emerald-600 px-2 py-1 rounded text-[10px] font-bold'>PAY</button>`}</td>`;
-        if(tr.querySelector(".h-pay")) tr.querySelector(".h-pay").onclick = () => { payInvoice(inv.id); closeModal("historyModal"); };
+            <td class="px-4 py-4 text-white font-medium">${inv.month} ${inv.year}</td>
+            <td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount).toFixed(2)}</td>
+            <td class="px-4 py-4">
+                <span class="text-[10px] font-bold px-2 py-1 rounded-full ${isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">
+                    ${inv.status.toUpperCase()}
+                </span>
+            </td>
+            <td class="px-4 py-4 text-right">
+                ${isPaid ? 
+                    `<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber}</span>` : 
+                    `<button class='h-pay-btn bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-3 py-1.5 rounded transition-all shadow-lg shadow-emerald-900/20'>PAY</button>`
+                }
+            </td>`;
+        
+        const btn = tr.querySelector(".h-pay-btn");
+        if(btn) {
+            // "Double-Tap" in-app confirmation logic
+            btn.onclick = async () => {
+                if (btn.textContent === "PAY") {
+                    btn.textContent = "CONFIRM?";
+                    btn.classList.replace("bg-emerald-600", "bg-orange-600");
+                    // Reset back to "PAY" if they don't click again within 3 seconds
+                    setTimeout(() => {
+                        if(btn.textContent === "CONFIRM?") {
+                            btn.textContent = "PAY";
+                            btn.classList.replace("bg-orange-600", "bg-emerald-600");
+                        }
+                    }, 3000);
+                } else {
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fas fa-spinner animate-spin"></i>`;
+                    await payInvoice(inv.id, false); // "false" tells it not to close modal or reload everything
+                    
+                    // Update local UI immediately without closing modal
+                    inv.status = 'paid';
+                    inv.receiptNumber = `RCP-${Date.now()}`; // Temporary visual receipt
+                    showHouseHistory(unit, road); // Refresh the list inside modal
+                }
+            };
+        }
         tbody.appendChild(tr);
     });
     qs("#historyModal").classList.remove("hidden");
 }
 
-async function payInvoice(id) {
-    if(!confirm("Resident paid?")) return;
-    const rcpt = `RCP-${Date.now()}`;
-    await updateDoc(doc(db, "invoices", id), { status: "paid", receiptNumber: rcpt });
-    toast("Payment saved!"); loadBilling(true); loadStats();
+// --- Updated Pay Function ---
+// Added 'refreshAll' parameter to control UI behavior
+async function payInvoice(id, refreshAll = true) {
+    try {
+        const rcpt = `RCP-${Date.now()}`;
+        const invRef = doc(db, "invoices", id);
+        
+        await updateDoc(invRef, { 
+            status: "paid", 
+            receiptNumber: rcpt,
+            paidAt: serverTimestamp() 
+        });
+
+        // Update the local data object in our master array so the background list stays synced
+        const localInv = allInvoices.find(i => i.id === id);
+        if (localInv) {
+            localInv.status = "paid";
+            localInv.receiptNumber = rcpt;
+        }
+
+        toast("Payment recorded successfully!", "success");
+        
+        if (refreshAll) {
+            loadBilling(true); // Only refresh whole page if paid from main list
+            loadStats();
+        } else {
+            renderInvoices(); // Just re-draw the main list in the background
+            loadStats();
+        }
+    } catch (err) {
+        console.error(err);
+        toast("Failed to update payment.", "error");
+    }
 }
 
 function updateInvoiceResidentList() {
