@@ -392,15 +392,39 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
     finally { setLoading(qs("#generateBulkBtn"), false); }
 });
 
+// Locate the qs("#invoiceForm").addEventListener("submit" ... section and replace it
 qs("#invoiceForm").addEventListener("submit", async (e) => {
-    e.preventDefault(); const unit = qs("#invUnit").value; const amount = parseFloat(qs("#invAmount").value);
+    e.preventDefault(); 
+    const unit = qs("#invUnit").value; 
+    const amount = parseFloat(qs("#invAmount").value);
+    const remarks = qs("#invRemarks").value.trim(); // Capture remarks
+    const dueDate = qs("#invDue").value;
+
     if(!unit || isNaN(amount)) return toast("Select resident and amount", "error");
+    
     setLoading(qs("#invoiceSubmitBtn"), true);
     try {
-        await addDoc(collection(db, "invoices"), { unitNumber: unit, road: qs("#invRoad").value, amount, month: 'Custom', remarks: 'Custom Bill', status: "pending", createdAt: serverTimestamp() });
-        toast("Custom bill created", "success"); closeModal("invoiceModal"); loadBilling(true);
-    } catch(e) { toast(e.message, "error"); }
-    finally { setLoading(qs("#invoiceSubmitBtn"), false); }
+        await addDoc(collection(db, "invoices"), { 
+            unitNumber: unit, 
+            road: qs("#invRoad").value, 
+            amount: amount, 
+            month: 'Custom', 
+            year: new Date().getFullYear(),
+            remarks: remarks || 'Custom Bill', // Use input or default
+            dueDate: dueDate,
+            status: "pending", 
+            createdAt: serverTimestamp() 
+        });
+        
+        toast("Custom bill created", "success"); 
+        closeModal("invoiceModal"); 
+        qs("#invoiceForm").reset(); // Clear form for next time
+        loadBilling(true);
+    } catch(e) { 
+        toast(e.message, "error"); 
+    } finally { 
+        setLoading(qs("#invoiceSubmitBtn"), false); 
+    }
 });
 
 function updateInvoiceResidentList() {
