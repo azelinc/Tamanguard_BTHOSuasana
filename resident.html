@@ -1,9 +1,171 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-import { 
-    getFirestore, collection, doc, getDoc, getDocs, 
-    query, where, orderBy, limit, onSnapshot, 
-    addDoc, updateDoc, serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TamanGuard - Resident App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        @media print { body * { visibility: hidden; } #receipt-modal-content, #receipt-modal-content * { visibility: visible; } #receipt-modal-content { position: absolute; left: 0; top: 0; width: 100%; } #receipt-close-btn, #receipt-print-btn { display: none; } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .spinner { border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #app-header, #app-main, #app-nav { 
+            display: none; 
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 pb-20">
+
+    <!-- In-App Notification Toast -->
+<div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
+    
+    <!-- PAYMENT INFO MODAL -->
+    <div id="payment-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
+            <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600 text-2xl">💳</div>
+            <h3 class="text-lg font-black text-slate-800 uppercase">Make Payment</h3>
+            <p class="text-xs text-slate-500 mt-2 mb-6 uppercase font-bold tracking-widest">Bank Transfer / DuitNow</p>
+            <div class="bg-slate-50 p-4 rounded-2xl text-left space-y-3 mb-6 border border-slate-100">
+                <div><p class="text-[9px] text-slate-400 font-bold uppercase">Bank Name</p><p class="font-bold text-slate-800">MAYBANK</p></div>
+                <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Name</p><p class="font-bold text-slate-800">PERSATUAN PENDUDUK ZON C</p></div>
+                <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Number</p><p class="font-bold text-indigo-600 tracking-wider">5123 8963 2240</p></div>
+            </div>
+            <p class="text-[9px] text-slate-400 italic mb-6">Please include your Unit No in the reference and send the receipt to the Admin via WhatsApp.</p>
+            <button onclick="closePayment()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl uppercase tracking-widest text-xs">Got it</button>
+        </div>
+    </div>
+
+    <!-- RECEIPT MODAL -->
+    <div id="receipt-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
+        <div id="receipt-modal-content" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
+            <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">TamanGuard Management</p></div>
+            <div class="p-8 space-y-4 text-xs">
+                <div class="flex justify-between"><span class="text-slate-400">Receipt No:</span><span id="rcp-no" class="font-bold text-slate-800">--</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Paid Date:</span><span id="rcp-date" class="font-bold text-slate-800">--</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Unit No:</span><span id="rcp-unit" class="font-bold text-indigo-600">--</span></div>
+                <hr class="border-slate-100">
+                <div class="py-2 text-center"><p id="rcp-remark" class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">--</p><h2 class="text-4xl font-black text-slate-800">RM <span id="rcp-amount">0.00</span></h2></div>
+                <hr class="border-slate-100"><div class="text-[10px] text-center text-slate-400 italic">This is a computer-generated receipt.</div>
+            </div>
+            <div class="p-4 bg-slate-50 flex gap-2"><button onclick="closeReceipt()" class="flex-1 py-3 text-xs font-bold text-slate-500 uppercase">Close</button><button onclick="window.print()" class="flex-1 bg-indigo-600 py-3 text-xs font-bold text-white rounded-xl uppercase">Print / Save</button></div>
+        </div>
+    </div>
+
+    <!-- LOGIN OVERLAY -->
+    <div id="login-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
+        <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
+            <h1 class="text-2xl font-black text-indigo-600 mb-2 text-center uppercase tracking-tighter">TamanGuard</h1>
+            <p class="text-slate-400 text-[10px] mb-6 text-center italic font-bold uppercase tracking-widest">Resident Secure Login</p>
+            <div class="space-y-4 mb-6">
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">House Number</label><input id="login-house" type="text" placeholder="e.g. 10" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 uppercase"></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Select Road</label><select id="login-road" class="w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"><option value="">Loading Roads...</option></select></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"></div>
+            </div>
+            <button id="login-btn" onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">Verify & Enter</button>
+            <p id="login-error" class="text-red-500 text-[10px] mt-4 text-center hidden font-bold italic uppercase">❌ Invalid Unit or PIN</p>
+        </div>
+    </div>
+
+    <!-- HEADER -->
+    <header id="app-header" class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
+        <div><p id="taman-display" class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p><h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2></div>
+        <button onclick="logout()" class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">Logout</button>
+    </header>
+
+    <main id="app-main" class="p-4 space-y-6">
+        <!-- PAYMASTER STATUS CARD -->
+        <section id="paymaster-card-container">
+            <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
+               <div class="text-3xl" id="paymaster-emoji">🧐</div>
+               <div class="flex-1">
+                   <h4 class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
+                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
+               </div>
+            </div>
+        </section>
+
+        <!-- Tab Views -->
+        <section id="view-news">
+            <h3 class="font-bold text-lg mb-3">Taman News</h3>
+            <div id="news-list" class="space-y-4"></div>
+        </section>
+        
+        <section id="view-bills" class="hidden">
+            <div class="flex justify-between items-end mb-4">
+                <h3 class="font-bold text-lg">My Security Fees</h3>
+                <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
+                    <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600">All</button>
+                    <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500">Unpaid</button>
+                    <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500">Paid</button>
+                </div>
+            </div>
+            <div id="bill-list" class="space-y-3"></div>
+        </section>
+        
+        <section id="view-invite" class="hidden">
+            <h3 class="font-bold text-lg mb-3">Register Visitor</h3>
+            <div class="bg-white p-6 rounded-3xl shadow-sm border mb-6">
+                <input id="guest-name" type="text" placeholder="Visitor Name" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-phone" type="tel" placeholder="Visitor Phone" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-plate" type="text" placeholder="Vehicle Plate No." class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none uppercase">
+                <button id="guest-btn" onclick="generateGuestPass()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2">Create QR</button>
+                <div id="qr-result" class="hidden mt-6 flex flex-col items-center border-t pt-6 text-center">
+                    <div id="qrcode" onclick="shareQRCode()" class="p-2 bg-white border-4 border-indigo-100 rounded-xl cursor-pointer active:scale-95 transition-transform"></div>
+                    <p class="text-[10px] text-slate-400 font-bold mt-3 uppercase animate-pulse">Click QR to Share with Visitor</p>
+                </div>
+            </div>
+            
+            <h3 class="font-bold text-sm mb-3 uppercase tracking-widest text-indigo-600">Active Passes (48h)</h3>
+            <div id="visitor-pending-list" class="space-y-3 mb-6"></div>
+            
+            <h3 class="font-bold text-sm mb-3 uppercase tracking-widest text-slate-400">History</h3>
+            <div id="visitor-history-list" class="space-y-3"></div>
+        </section>
+    </main>
+
+    <!-- BOTTOM NAV -->
+    <nav id="app-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t p-3 flex justify-around items-center z-50 shadow-lg">
+        <button onclick="switchTab('news')" id="nav-news" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-indigo-600"><span>📢</span>News</button>
+        <button onclick="switchTab('invite')" id="nav-invite" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><div class="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center -mt-8 text-white text-xl border-4 border-slate-50 shadow-lg">+</div>Guest</button>
+        <button onclick="switchTab('bills')" id="nav-bills" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
+    </nav>
+
+    <!-- Custom Cancel Confirmation Modal -->
+    <div id="cancel-confirm-modal" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-white w-full max-w-xs rounded-3xl p-6 text-center shadow-2xl">
+            <div class="text-3xl mb-2">🗑️</div>
+            <h3 class="font-black text-slate-800 uppercase tracking-tight">Cancel Pass?</h3>
+            <p class="text-xs text-slate-400 mt-2 mb-6">This visitor will no longer be able to enter the Taman with this QR code.</p>
+            <input type="hidden" id="cancel-target-id">
+            <div class="flex gap-3">
+                <button onclick="closeCancelModal()" class="flex-1 py-3 text-xs font-bold text-slate-400 uppercase">Back</button>
+                <button onclick="confirmCancelAction()" class="flex-1 bg-red-500 text-white py-3 rounded-xl text-xs font-bold uppercase shadow-lg shadow-red-200">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+   // --- NOTIFICATION SYSTEM ---
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
+    
+    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 animate-bounce text-center transition-opacity duration-500`;
+    toast.innerText = msg;
+    
+    container.appendChild(toast);
+    setTimeout(() => { 
+        toast.style.opacity = '0'; 
+        setTimeout(() => toast.remove(), 500); 
+    }, 3000);
+}
 
 // --- FIREBASE CONFIG ---
 const firebaseConfig = {
@@ -14,9 +176,8 @@ const firebaseConfig = {
     messagingSenderId: "112467759191",
     appId: "1:112467759191:web:0785a5e578741f01891312"
 };
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 // --- STATE VARIABLES ---
 let invoiceCache = {};
@@ -24,103 +185,88 @@ let myBillsRaw = [];
 let currentBillFilter = 'all';
 let myUnit = localStorage.getItem('myUnit');
 let unsubBills, unsubNews, unsubVisits;
-let qrObj = null;
-
-// Helper for UI
-const qs = (id) => document.getElementById(id);
-
-// --- NOTIFICATION SYSTEM ---
-function showToast(msg, type = 'info') {
-    const container = qs('toast-container');
-    if(!container) return;
-    const toast = document.createElement('div');
-    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
-    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 text-center transition-opacity duration-500`;
-    toast.innerText = msg;
-    container.appendChild(toast);
-    setTimeout(() => { 
-        toast.style.opacity = '0'; 
-        setTimeout(() => toast.remove(), 500); 
-    }, 3000);
-}
+let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
 
 // --- AUTH & IDENTITY ---
-async function fetchRoads() {
-    try {
-        const docSnap = await getDoc(doc(db, "settings", "taman_config"));
-        const s = qs('login-road');
-        const t = qs('taman-display');
-        if(docSnap.exists()) {
-            const data = docSnap.data();
+function fetchRoads() {
+    db.collection("settings").doc("taman_config").get().then(doc => {
+        const s = document.getElementById('login-road');
+        const t = document.getElementById('taman-display');
+        if(doc.exists && s) {
+            const data = doc.data();
             const r = data.roads || [];
-            if(s) s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
-            if(data.name && t) t.innerText = data.name;
+            s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+            if (data.name) t.innerText = data.name;
         }
-    } catch (e) { console.error("Error fetching roads", e); }
+    });
 }
 
 async function setIdentity() {
-    const h = qs('login-house').value.trim().toUpperCase();
-    const r = qs('login-road').value;
-    const p = qs('login-pin').value.trim();
-    const btn = qs('login-btn');
+    const h = document.getElementById('login-house').value.trim().toUpperCase();
+    const r = document.getElementById('login-road').value;
+    const p = document.getElementById('login-pin').value.trim();
+    const btn = document.getElementById('login-btn');
     
-    if(!h || !r || !p) return showToast("Fill all fields", "error");
+    if(!h || !r || !p) {
+        showToast("Fill all fields", "error");
+        return;
+    }
     
     btn.innerHTML = `<span class="spinner"></span> Verifying...`;
     btn.disabled = true;
 
-    try {
-        const q = query(collection(db, "residents"), 
-            where("unitNumber", "==", h), 
-            where("road", "==", r), 
-            where("pin", "==", p)
-        );
-        const snap = await getDocs(q);
-        
-        if(!snap.empty) {
-            localStorage.setItem('myUnit', h);
-            localStorage.setItem('myRoad', r);
-            location.reload();
-        } else {
-            showToast("Invalid Unit or PIN", "error");
-        }
-    } catch (e) {
-        showToast("Connection Error", "error");
-    } finally {
+    const snap = await db.collection("residents")
+                        .where("unitNumber", "==", h)
+                        .where("road", "==", r)
+                        .where("pin", "==", p)
+                        .get();
+    
+    if(!snap.empty) {
+        localStorage.setItem('myUnit', h);
+        localStorage.setItem('myRoad', r);
+        location.reload();
+    } else {
         btn.innerHTML = "Verify & Enter";
         btn.disabled = false;
+        showToast("Invalid Unit or PIN", "error");
     }
+}
+
+function logout() {
+    if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
+    localStorage.clear(); 
+    location.reload();
 }
 
 // --- APP INITIALIZATION ---
 function initApp() {
     const road = localStorage.getItem('myRoad');
-    if(qs('display-unit')) qs('display-unit').innerText = `${myUnit}, ${road}`;
-    
-    // Initialize QR Object if element exists
-    if (qs("qrcode")) {
-        qrObj = new QRCode(qs("qrcode"), { width: 180, height: 180 });
-    }
-
-    loadNews(); 
-    loadBills(); 
-    loadMyVisitors(); 
-    
-    getDoc(doc(db, "settings", "taman_config")).then(snap => {
-        if(snap.exists() && qs('taman-display')) qs('taman-display').innerText = snap.data().name || "Resident";
+    document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
+    loadNews(); loadBills(); loadMyVisitors(); 
+    db.collection("settings").doc("taman_config").get().then(doc => {
+        if(doc.exists) document.getElementById('taman-display').innerText = doc.data().name || "Resident of";
     });
 }
 
-// --- DATA LOADERS (REALTIME) ---
+function switchTab(t) {
+    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+    document.getElementById('view-' + t).classList.remove('hidden');
+    document.getElementById('paymaster-card-container').classList.remove('hidden');
+    
+    ['news', 'invite', 'bills'].forEach(tab => {
+        const btn = document.getElementById('nav-' + tab);
+        btn.classList.toggle('text-indigo-600', tab === t);
+        btn.classList.toggle('text-slate-400', tab !== t);
+    });
+}
+
+// --- DATA LOADERS ---
 function loadNews() {
-    const q = query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(10));
-    unsubNews = onSnapshot(q, (s) => {
-        const list = qs('news-list'); 
-        if(!list) return;
-        list.innerHTML = s.empty ? `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>` : "";
-        s.forEach(d => { 
-            const n = d.data(); 
+    unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
+        const list = document.getElementById('news-list'); list.innerHTML = "";
+        if(s.empty) list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>`;
+        s.forEach(doc => { 
+            const n = doc.data(); 
             const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
             list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${date}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.content}</p></div>`; 
         });
@@ -129,28 +275,36 @@ function loadNews() {
 
 function loadBills() {
     const myRoad = localStorage.getItem('myRoad'); 
-    const q = query(collection(db, "invoices"), where("unitNumber", "==", myUnit), where("road", "==", myRoad));
-    
-    unsubBills = onSnapshot(q, (snapshot) => {
-        myBillsRaw = [];
-        let uC = 0, uT = 0;
-        snapshot.forEach(d => {
-            const b = d.data(); b.id = d.id;
-            myBillsRaw.push(b);
-            if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
+    unsubBills = db.collection("invoices")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad)
+        .onSnapshot(snapshot => {
+            myBillsRaw = [];
+            let uC = 0, uT = 0, hasI = !snapshot.empty;
+            snapshot.forEach(doc => {
+                const b = doc.data();
+                b.id = doc.id;
+                myBillsRaw.push(b);
+                if(b.status !== 'paid') { uC++; uT += (parseFloat(b.amount) || 0); }
+            });
+            myBillsRaw.sort((a, b) => b.year - a.year || b.month.localeCompare(a.month));
+            updatePaymasterUI(uC, uT, hasI);
+            renderBillList();
         });
-        
-        // Safe Sorting (handles null timestamps during local updates)
-        myBillsRaw.sort((a, b) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-        
-        updatePaymasterUI(uC, uT, !snapshot.empty);
-        renderBillList();
+}
+
+// --- BILLING LOGIC ---
+function setBillFilter(filter) {
+    currentBillFilter = filter;
+    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
+        document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
     });
+    document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
+    renderBillList();
 }
 
 function renderBillList() {
-    const list = qs('bill-list');
-    if(!list) return;
+    const list = document.getElementById('bill-list');
     list.innerHTML = "";
     invoiceCache = {};
     const filtered = myBillsRaw.filter(b => {
@@ -158,168 +312,224 @@ function renderBillList() {
         if(currentBillFilter === 'unpaid') return b.status !== 'paid';
         return true;
     });
-    
     if(filtered.length === 0) {
         list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
         return;
     }
-
     filtered.forEach(b => {
         invoiceCache[b.id] = b;
         const isP = b.status === 'paid';
         list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
             <div>
-                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month || 'Bill'} ${b.year || ''}</p>
+                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${b.month} ${b.year}</p>
                 <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
                 <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
             </div>
             <div class="text-right">
                 <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
-                ${isP ? `<button onclick="window.openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="window.openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
+                ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
             </div>
         </div>`;
     });
 }
 
 function updatePaymasterUI(count, total, hasI) {
-    const card = qs('paymaster-status-card'), emo = qs('paymaster-emoji'), msg = qs('paymaster-message');
-    if(!card || !emo || !msg) return;
-
-    card.className = "p-6 rounded-3xl transition-all duration-500 ";
-    if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No billing records."; return; }
-
-    const safeTotal = (Number(total) || 0).toFixed(2);
-    if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date! Thank you!"; } 
-    else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${safeTotal}`; } 
-    else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${safeTotal}`; }
+    const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
+    card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
+    if (!hasI) { card.classList.add('bg-slate-200', 'text-slate-600'); emo.innerText = "👋"; msg.innerText = "No records found."; return; }
+    if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date! Thank you for doing your part to keep our Taman safe!"; } 
+    else if (count < 3) { card.classList.add('bg-amber-400', 'text-slate-800'); emo.innerText = "🔔"; msg.innerText = `Outstanding: RM${total.toFixed(2)}. Your contribution will help keep our taman safe. `; } 
+    else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Urgent: RM${total.toFixed(2)}. We really need your help to contribute to keep our taman safe.`; }
 }
 
-// --- VISITORS ---
+function openReceipt(id) {
+    const d = invoiceCache[id]; if(!d) return;
+    document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
+    document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); 
+    document.getElementById('rcp-unit').innerText = d.unitNumber; 
+    document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`;
+    document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
+    document.getElementById('receipt-modal').classList.remove('hidden');
+}
+function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
+function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
+function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
+
+// --- VISITOR MANAGEMENT ---
 function loadMyVisitors() {
     const myRoad = localStorage.getItem('myRoad'); 
-    const q = query(collection(db, "visits"), where("unitNumber", "==", myUnit), where("road", "==", myRoad));
-    
-    unsubVisits = onSnapshot(q, (snapshot) => {
-        const pendingList = qs('visitor-pending-list');
-        const historyList = qs('visitor-history-list');
-        if(!pendingList || !historyList) return;
+    unsubVisits = db.collection("visits")
+        .where("unitNumber", "==", myUnit)
+        .where("road", "==", myRoad)
+        .onSnapshot(snapshot => {
+            const pendingList = document.getElementById('visitor-pending-list');
+            const historyList = document.getElementById('visitor-history-list');
+            let data = []; 
+            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
+            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
 
-        let data = []; 
-        snapshot.forEach(d => { let obj = d.data(); obj.id = d.id; data.push(obj); });
-        data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+            let pendingH = "", historyH = "";
+            const now = new Date().getTime();
+            const limit = 48 * 60 * 60 * 1000; 
 
-        let pendingH = "", historyH = "";
-        const now = Date.now();
+            data.forEach(v => {
+                const isE = v.status === 'entered';
+                const isC = v.status === 'cancelled';
+                const isPending = v.status === 'pending' || !v.status; 
+                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
+                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                const isWithin48 = (now - timeMs) < limit;
 
-        data.forEach(v => {
-            const isE = v.status === 'entered';
-            const isC = v.status === 'cancelled';
-            const isPending = v.status === 'pending' || !v.status; 
-            const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-            const isWithin48 = v.entryTime ? (now - v.entryTime.toDate().getTime() < 172800000) : true;
+                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
 
-            const clickAttr = (isPending && isWithin48 && !isC) ? `onclick="window.reShowQR('${v.id}')"` : '';
-
-            const cardHtml = `<div ${clickAttr} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm mb-3 ${isPending && !isC ? 'cursor-pointer active:scale-95 transition-all' : ''}">
-                <div><p class="text-sm font-bold text-slate-800">${v.visitorName}</p><p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p></div>
-                <div class="text-right">
-                    <div class="flex gap-2 justify-end mb-1">
-                        ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); window.cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase">Cancel</button>` : ''}
-                        <span class="px-3 py-1 rounded-full text-[9px] font-black ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
+                    <div>
+                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
                     </div>
-                    <p class="text-[8px] text-slate-300 mt-1 uppercase">${dt}</p>
-                </div>
-            </div>`;
+                    <div class="text-right">
+                        <div class="flex gap-2 justify-end mb-1">
+                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                        </div>
+                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
+                    </div>
+                </div>`;
 
-            if (isPending && isWithin48 && !isC) pendingH += cardHtml;
-            else historyH += cardHtml;
+                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
+                else historyH += cardHtml;
+            });
+            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
+            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
         });
-        pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-        historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
-    });
 }
 
-// --- ACTIONS ---
-async function generateGuestPass() {
-    const n = qs('guest-name').value, ph = qs('guest-phone').value, pl = qs('guest-plate').value;
-    const btn = qs('guest-btn'), myRoad = localStorage.getItem('myRoad');
+function cancelVisit(id) {
+    document.getElementById('cancel-target-id').value = id;
+    document.getElementById('cancel-confirm-modal').classList.remove('hidden');
+}
 
-    if(!n || !ph || !pl) return showToast("Fill all details", "error");
-    
-    btn.innerHTML = `<span class="spinner"></span>`; btn.disabled = true;
-
-    try {
-        const docRef = await addDoc(collection(db, "visits"), { 
-            visitorName: n, visitorPhone: ph, carPlate: pl.toUpperCase(), 
-            unitNumber: myUnit, road: myRoad, status: "pending", 
-            entryTime: serverTimestamp() 
-        });
-        
-        qs('qr-result').classList.remove('hidden'); 
-        qrObj.clear(); qrObj.makeCode(docRef.id);
-        qs('guest-name').value = ""; qs('guest-phone').value = ""; qs('guest-plate').value = "";
-        showToast("QR Generated");
-    } catch (e) { showToast("Failed", "error"); }
-    finally { btn.innerHTML = "Create QR"; btn.disabled = false; }
+function closeCancelModal() {
+    document.getElementById('cancel-confirm-modal').classList.add('hidden');
 }
 
 async function confirmCancelAction() {
-    const id = qs('cancel-target-id').value;
-    const btn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
-    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>`;
+    const id = document.getElementById('cancel-target-id').value;
+    if(!id) return;
+    
+    const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = `<span class="spinner"></span>`;
+
     try {
-        await updateDoc(doc(db, "visits", id), { status: "cancelled", cancelledAt: serverTimestamp() });
-        showToast("Cancelled");
+        await db.collection("visits").doc(id).update({ 
+            status: "cancelled",
+            cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        showToast("Pass Cancelled");
+    } catch (err) {
+        console.error(err);
+        showToast("System Error: Permissions", "error");
     } finally {
-        btn.disabled = false; btn.innerText = "Confirm";
-        qs('cancel-confirm-modal').classList.add('hidden');
+        confirmBtn.disabled = false;
+        confirmBtn.innerText = "Confirm";
+        closeCancelModal();
     }
 }
 
-// --- GLOBALS FOR HTML ONCLICK ---
-window.setIdentity = setIdentity;
-window.switchTab = (t) => {
-    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-    qs('view-' + t).classList.remove('hidden');
-    ['news', 'invite', 'bills'].forEach(tab => {
-        const b = qs('nav-' + tab);
-        if(b) b.className = tab === t ? 'flex flex-col items-center text-indigo-600' : 'flex flex-col items-center text-slate-400';
-    });
-};
-window.openReceipt = (id) => {
-    const d = invoiceCache[id]; if(!d) return;
-    qs('rcp-no').innerText = d.receiptNumber || 'N/A'; 
-    qs('rcp-amount').innerText = (parseFloat(d.amount)||0).toFixed(2); 
-    qs('rcp-unit').innerText = d.unitNumber; 
-    qs('rcp-remark').innerText = `${d.month || ''} ${d.year || ''}`;
-    qs('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
-    qs('receipt-modal').classList.remove('hidden');
-};
-window.closeReceipt = () => qs('receipt-modal').classList.add('hidden');
-window.openPayment = () => qs('payment-modal').classList.remove('hidden');
-window.closePayment = () => qs('payment-modal').classList.add('hidden');
-window.reShowQR = (id) => { qs('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(id); window.scrollTo(0,0); };
-window.cancelVisit = (id) => { qs('cancel-target-id').value = id; qs('cancel-confirm-modal').classList.remove('hidden'); };
-window.closeCancelModal = () => qs('cancel-confirm-modal').classList.add('hidden');
-window.confirmCancelAction = confirmCancelAction;
-window.generateGuestPass = generateGuestPass;
-window.logout = () => { localStorage.clear(); location.reload(); };
-window.setBillFilter = (filter) => {
-    currentBillFilter = filter;
-    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => qs(id).className = "px-3 py-1 rounded-md text-slate-500");
-    qs('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
-    renderBillList();
-};
+async function generateGuestPass() {
+    const n = document.getElementById('guest-name').value;
+    const ph = document.getElementById('guest-phone').value;
+    const pl = document.getElementById('guest-plate').value;
+    const btn = document.getElementById('guest-btn');
+    const myRoad = localStorage.getItem('myRoad');
 
-// --- START ---
-window.addEventListener('DOMContentLoaded', () => {
-    if (!myUnit) {
-        qs('login-screen').classList.remove('hidden');
-        fetchRoads();
+    if(!n || !ph || !pl) {
+        showToast("Fill all details", "error");
+        return;
+    }
+    
+    btn.innerHTML = `<span class="spinner"></span>`;
+    btn.disabled = true;
+
+    try {
+        const docRef = await db.collection("visits").add({ 
+            visitorName: n, 
+            visitorPhone: ph, 
+            carPlate: pl.toUpperCase(), 
+            unitNumber: myUnit, 
+            road: myRoad,
+            status: "pending", 
+            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+        });
+        
+        document.getElementById('qr-result').classList.remove('hidden'); 
+        qrObj.clear(); 
+        qrObj.makeCode(docRef.id);
+        
+        document.getElementById('guest-name').value = ""; 
+        document.getElementById('guest-phone').value = ""; 
+        document.getElementById('guest-plate').value = "";
+        
+        showToast("QR Generated Successfully");
+    } catch (err) {
+        showToast("Generation Failed", "error");
+    } finally {
+        btn.innerHTML = "Create QR";
+        btn.disabled = false;
+    }
+}
+
+async function shareQRCode() {
+    const qrCanvas = document.querySelector('#qrcode canvas');
+    if (!qrCanvas) return;
+    try {
+        const dataUrl = qrCanvas.toDataURL("image/png");
+        const blob = await (await fetch(dataUrl)).blob();
+        const file = new File([blob], "VisitorQR.png", { type: "image/png" });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: 'TamanGuard Visitor Pass',
+                text: `Visitor Pass for Unit ${myUnit}. Scan at Guard House.`
+            });
+        } else {
+            const link = document.createElement('a');
+            link.download = 'VisitorQR.png'; link.href = dataUrl; link.click();
+        }
+    } catch (err) { console.error("Sharing failed", err); }
+}
+
+function reShowQR(visitId) {
+    document.getElementById('qr-result').classList.remove('hidden');
+    qrObj.clear();
+    qrObj.makeCode(visitId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- ONLOAD GATEKEEPER ---
+window.onload = () => {
+    const savedUnit = localStorage.getItem('myUnit');
+    const loginScreen = document.getElementById('login-screen');
+    const appHeader = document.getElementById('app-header');
+    const appMain = document.getElementById('app-main');
+    const appNav = document.getElementById('app-nav');
+
+    if (!savedUnit) {
+        loginScreen.classList.remove('hidden');
+        if(appHeader) appHeader.style.display = 'none';
+        if(appMain) appMain.style.display = 'none';
+        if(appNav) appNav.style.display = 'none';
+        fetchRoads(); 
     } else {
-        qs('app-header').style.display = 'flex';
-        qs('app-main').style.display = 'block';
-        qs('app-nav').style.display = 'flex';
+        myUnit = savedUnit;
+        loginScreen.classList.add('hidden');
+        if(appHeader) appHeader.style.display = 'flex';
+        if(appMain) appMain.style.display = 'block';
+        if(appNav) appNav.style.display = 'flex';
         initApp();
     }
-});
+};
+    </script>
+</body>
+</html>
