@@ -385,7 +385,44 @@
       </form>
     </div>
   </div>
+  
+<!-- VISITOR DETAIL MODAL -->
+<div id="visitDetailModal" class="fixed inset-0 z-[200] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-sm p-8 relative shadow-2xl border border-slate-700">
+        <h3 class="text-xl font-bold text-white mb-6 text-center">Visit Timeline</h3>
+        
+        <div class="space-y-6 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-700">
+            <!-- Created -->
+            <div class="relative pl-10">
+                <div class="absolute left-0 w-6 h-6 bg-slate-800 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-plus text-[10px] text-blue-400"></i>
+                </div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Created</p>
+                <p id="detCreated" class="text-sm text-white font-medium">-</p>
+            </div>
 
+            <!-- Entered -->
+            <div class="relative pl-10" id="detEnteredRow">
+                <div class="absolute left-0 w-6 h-6 bg-slate-800 border-2 border-emerald-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-sign-in-alt text-[10px] text-emerald-400"></i>
+                </div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Entered</p>
+                <p id="detEntered" class="text-sm text-white font-medium">-</p>
+            </div>
+
+            <!-- Cancelled (Conditional) -->
+            <div class="relative pl-10 hidden" id="detCancelledRow">
+                <div class="absolute left-0 w-6 h-6 bg-slate-800 border-2 border-red-500 rounded-full flex items-center justify-center">
+                    <i class="fas fa-times text-[10px] text-red-400"></i>
+                </div>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Cancelled</p>
+                <p id="detCancelled" class="text-sm text-white font-medium">-</p>
+            </div>
+        </div>
+
+        <button data-close-modal="visitDetailModal" class="mt-8 w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs uppercase tracking-widest transition-all">Close</button>
+    </div>
+</div>
 
   
   <script type="module" src="../app.js?v=99999"></script>
