@@ -251,24 +251,25 @@ function renderResidents() {
 
 // --- WHATSAPP INVITE LOGIC ---
 function sendWhatsAppInvite(res) {
-    // UPDATE THIS: Put your actual resident app link here
-    // Example: const baseUrl = "https://bthosuasana.web.app";
     const baseUrl = "https://bthosuasana.tamanguard.my"; 
-
-    const message = `*TamanGuard BTHO Suasana Zon C Official Access*%0A%0AHello ${res.name}, welcome! Click the secure link below to instantly log in to the TamanGuard App for Unit ${res.unitNumber}:%0A%0A${baseUrl}?u=${res.unitNumber}&r=${encodeURIComponent(res.road)}&p=${res.pin}%0A%0AOnce logged in, you can generate guest passes and view your security fee bills.`;
     
-    // Clean phone number for Malaysia
-    let phone = res.phone.replace(/\D/g, ''); // Remove all non-digits
-    
-    // If it starts with 0 (e.g. 012...), change to 6012...
-    if (phone.startsWith('0')) {
-        phone = '6' + phone;
-    } 
-    // If it starts with 1 (e.g. 12...), change to 6012...
-    else if (phone.startsWith('1')) {
-        phone = '60' + phone;
-    }
+    // 1. Properly encode each part to handle spaces and slashes (like 5/1)
+    const unit = encodeURIComponent(res.unitNumber);
+    const road = encodeURIComponent(res.road);
+    const pin = encodeURIComponent(res.pin);
 
+    // 2. Build the full link
+    const magicLink = `${baseUrl}?u=${unit}&r=${road}&p=${pin}`;
+
+    // 3. Create the message
+    const message = `*TamanGuard Official Access*%0A%0AHello ${res.name}, welcome! Click the secure link below to instantly log in for Unit ${res.unitNumber}:%0A%0A${magicLink}%0A%0AOnce logged in, you can generate guest passes and view bills.`;
+    
+    // 4. Format the phone number
+    let phone = res.phone.replace(/\D/g, ''); 
+    if (phone.startsWith('0')) phone = '6' + phone;
+    else if (phone.startsWith('1')) phone = '60' + phone;
+
+    // 5. Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
 }
 
