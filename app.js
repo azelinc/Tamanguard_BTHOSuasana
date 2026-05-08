@@ -208,12 +208,43 @@ function loadResidents() {
 function renderResidents() {
     const grid = qs("#residentsGrid"); grid.innerHTML = "";
     const term = qs("#residentSearch").value.toLowerCase().trim();
-    allResidents.filter(r => !term || `${r.name} ${r.unitNumber} ${r.phone}`.toLowerCase().includes(term)).forEach(r => {
+    
+    allResidents.filter(r => !term || `${r.name} ${r.unitNumber} ${r.phone}`.toLowerCase().includes(term)).forEach(res => {
         const card = document.createElement("div"); 
         card.className = "glass rounded-xl p-4 hover:bg-slate-800/50 cursor-pointer transition-all group relative border border-slate-700/30";
-        card.innerHTML = `<div class="flex justify-between items-start mb-3"><h4 class="font-bold text-white group-hover:text-emerald-400 transition-colors">${r.name}</h4><button class="edit-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-all"><i class="fas fa-pen text-xs"></i></button></div><p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${r.unitNumber} • ${r.road || '-'}</p><p class="text-[11px] text-slate-500 mt-1">${r.phone}</p>`;
-        card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(r.id, r); };
-        card.onclick = () => showResidentProfile(r);
+        
+        // CHECK IF JOINED
+        const statusBadge = res.isJoined 
+            ? `<span class="flex items-center gap-1 text-[9px] text-emerald-400 font-bold uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded-full"><i class="fas fa-check-circle"></i> Joined</span>` 
+            : `<span class="text-[9px] text-slate-500 font-bold uppercase tracking-tighter italic">Not Joined</span>`;
+
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex flex-col gap-1">
+                    <h4 class="font-bold text-white group-hover:text-emerald-400 transition-colors">${res.name}</h4>
+                    ${statusBadge}
+                </div>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    <button class="invite-btn p-2 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white" title="Invite via WhatsApp">
+                        <i class="fab fa-whatsapp text-xs"></i>
+                    </button>
+                    <button class="edit-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-blue-400">
+                        <i class="fas fa-pen text-xs"></i>
+                    </button>
+                </div>
+            </div>
+            <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
+            <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>`;
+
+        card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
+        
+        // Invite via WhatsApp
+        card.querySelector(".invite-btn").onclick = (e) => {
+            e.stopPropagation();
+            sendWhatsAppInvite(res);
+        };
+
+        card.onclick = () => showResidentProfile(res);
         grid.appendChild(card);
     });
 }
