@@ -514,7 +514,7 @@ qs("#invResidentSelect")?.addEventListener("change", (e) => {
 });
 
 /* VISITORS & STATS */
-/* VISITORS TAB IMPROVEMENTS */
+
 async function loadVisitors() {
     const snap = await getDocs(query(collection(db, "visits"), orderBy("entryTime", "desc"), limit(50)));
     const tbody = qs("#visitorsTableBody"); 
@@ -523,28 +523,43 @@ async function loadVisitors() {
     snap.forEach(d => {
         const data = d.data();
         const tr = document.createElement("tr");
-        tr.className = "hover:bg-slate-800/30 border-b border-slate-700/30 transition-colors";
+        tr.className = "hover:bg-slate-800/40 transition-colors group";
 
-        // Status Styling
-        let sClass = "bg-slate-500/10 text-slate-400";
+        // Status Style Logic
         const status = (data.status || 'PENDING').toUpperCase();
-        if(status === 'PENDING') sClass = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
-        if(status === 'ENTERED') sClass = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
-        if(status === 'EXITED')  sClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-        if(status === 'CANCELLED') sClass = "bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        let sStyle = "text-slate-400 bg-slate-400/10";
+        if(status === 'PENDING')   sStyle = "text-amber-400 bg-amber-500/10 border-amber-500/20";
+        if(status === 'ENTERED')   sStyle = "text-blue-400 bg-blue-500/10 border-blue-500/20";
+        if(status === 'EXITED')    sStyle = "text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+        if(status === 'CANCELLED') sStyle = "text-rose-400 bg-rose-500/10 border-rose-500/20";
 
-        const dateStr = data.entryTime?.toDate().toLocaleDateString('en-MY', { day: '2-digit', month: '2-digit' }) || '-';
+        const dateObj = data.entryTime?.toDate();
+        const dateStr = dateObj ? dateObj.toLocaleDateString('en-MY', {day:'2-digit', month:'2-digit'}) : '--/--';
+        const timeStr = dateObj ? dateObj.toLocaleTimeString('en-MY', {hour:'2-digit', minute:'2-digit', hour12: true}) : '';
 
         tr.innerHTML = `
-            <td class="px-4 py-4 text-slate-500 font-mono text-xs w-20">${dateStr}</td>
-            <td class="px-4 py-4 font-black text-white tracking-wider w-24">${data.carPlate}</td>
-            <td class="px-4 py-4 min-w-[150px]">
-                <span class="block font-bold text-white text-sm">${data.unitNumber}</span>
-                <span class="text-[10px] text-slate-500 uppercase tracking-tighter">${data.road || '-'}</span>
+            <td class="px-6 py-3">
+                <div class="text-sm font-medium text-slate-300">${dateStr}</div>
+                <div class="text-[10px] text-slate-500 font-mono uppercase">${timeStr}</div>
             </td>
-            <td class="px-4 py-4 text-slate-300 text-sm capitalize">${data.visitorName}</td>
-            <td class="px-4 py-4 text-right">
-                <button class="view-det px-3 py-1 rounded-full text-[9px] font-black tracking-widest transition-all hover:scale-105 ${sClass}">
+            <td class="px-6 py-3">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-car-side text-slate-600 text-xs"></i>
+                    <span class="text-sm font-black text-white tracking-wide">${data.carPlate}</span>
+                </div>
+            </td>
+            <td class="px-6 py-3">
+                <div class="text-sm font-bold text-white">${data.unitNumber}</div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-tight truncate max-w-[150px]">
+                    ${data.road || 'Unassigned Road'}
+                </div>
+            </td>
+            <td class="px-6 py-3">
+                <div class="text-sm text-slate-300 font-medium capitalize">${data.visitorName || 'Guest'}</div>
+                <div class="text-[10px] text-slate-500 italic">${data.visitorPhone || ''}</div>
+            </td>
+            <td class="px-6 py-3 text-right">
+                <button class="view-det px-3 py-1 rounded-md text-[9px] font-black tracking-widest border transition-all active:scale-95 ${sStyle}">
                     ${status}
                 </button>
             </td>
