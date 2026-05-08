@@ -538,14 +538,59 @@ function openResidentModal(id = null, data = {}) {
   qs("#resName").value = data.name || ""; qs("#resPhone").value = data.phone || ""; qs("#resPin").value = data.pin || ""; qs("#resVehicle").value = data.vehiclePlate || "";
 }
 
+// --- UPDATED RESIDENT FORM WITH DUPLICATE CHECK ---
 qs("#residentForm").addEventListener("submit", async (e) => {
-    e.preventDefault(); const id = qs("#residentId").value; setLoading(qs("#residentSubmitBtn"), true);
+    e.preventDefault(); 
+    const id = qs("#residentId").value; // Current ID (if editing)
+    const unit = qs("#resUnit").value.trim();
+    const road = qs("#resRoad").value.trim();
+    
+    setLoading(qs("#residentSubmitBtn"), true);
+
     try {
-        const payload = { unitNumber: qs("#resUnit").value.trim(), road: qs("#resRoad").value.trim(), name: qs("#resName").value.trim(), phone: qs("#resPhone").value.trim(), pin: qs("#resPin").value.trim(), vehiclePlate: qs("#resVehicle").value.toUpperCase().trim() };
-        if (id) await updateDoc(doc(db, "residents", id), payload); else await addDoc(collection(db, "residents"), payload);
-        toast("Saved successfully!", "success"); closeModal("residentModal"); loadResidents();
-    } catch(e) { toast("Save failed", "error"); }
-    finally { setLoading(qs("#residentSubmitBtn"), false); }
+        // 1. UNIQUE CHECK: Search local cache for existing Unit + Road
+        const isDuplicate = allResidents.some(res => 
+            String(res.unitNumber) === String(unit) && 
+            String(res.road).toLowerCase() === String(road).toLowerCase() &&
+            res.id !== id // Ignore the current record if we are just editing it
+        );
+
+        if (isDuplicate) {
+            toast(`Error: Unit ${unit} on ${road} is already registered!`, "error");
+            setLoading(qs("#residentSubmitBtn"), false);
+            return; // Stop the save process
+        }
+
+        // 2. Prepare the data
+        const payload = { 
+            unitNumber: unit, 
+            road: road, 
+            name: qs("#resName").value.trim(), 
+            phone: qs("#resPhone").value.trim(), 
+            pin: qs("#resPin").value.trim(), 
+            vehiclePlate: qs("#resVehicle").value.toUpperCase().trim(),
+            updatedAt: serverTimestamp()
+        };
+
+        // 3. Save to Firestore
+        if (id) {
+            await updateDoc(doc(db, "residents", id), payload);
+        } else {
+            // New resident defaults
+            payload.createdAt = serverTimestamp();
+            payload.isJoined = false; 
+            await addDoc(collection(db, "residents"), payload);
+        }
+
+        toast("Saved successfully!", "success"); 
+        closeModal("residentModal"); 
+        loadResidents(); // Refresh the list
+    } catch(e) { 
+        console.error(e);
+        toast("Save failed: " + e.message, "error"); 
+    } finally { 
+        setLoading(qs("#residentSubmitBtn"), false); 
+    }
 });
 
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
