@@ -534,11 +534,19 @@ async function loadStats() {
 function openResidentModal(id = null, data = {}) {
   qs("#residentModal").classList.remove("hidden");
   qs("#residentModalTitle").textContent = id ? "Edit Resident" : "Add Resident";
-    // SHOW delete button if editing, HIDE if adding new
-  qs("#deleteResidentBtn").classList.toggle("hidden", !id);
   
-  qs("#residentId").value = id || ""; qs("#resUnit").value = data.unitNumber || ""; qs("#resRoad").value = data.road || "";
-  qs("#resName").value = data.name || ""; qs("#resPhone").value = data.phone || ""; qs("#resPin").value = data.pin || ""; qs("#resVehicle").value = data.vehiclePlate || "";
+  // Toggle Delete button: Show if id exists (editing), hide if id is null (adding)
+  const delBtn = qs("#deleteResidentBtn");
+  if (id) delBtn.classList.remove("hidden");
+  else delBtn.classList.add("hidden");
+
+  qs("#residentId").value = id || ""; 
+  qs("#resUnit").value = data.unitNumber || ""; 
+  qs("#resRoad").value = data.road || "";
+  qs("#resName").value = data.name || ""; 
+  qs("#resPhone").value = data.phone || ""; 
+  qs("#resPin").value = data.pin || ""; 
+  qs("#resVehicle").value = data.vehiclePlate || "";
 }
 
 // --- UPDATED RESIDENT FORM WITH DUPLICATE CHECK ---
@@ -599,14 +607,13 @@ qs("#residentForm").addEventListener("submit", async (e) => {
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
 // This button opens the Custom Bill modal
 // 1. When the Delete button in the "Edit Resident" modal is clicked
+// Open the custom confirmation modal
 qs("#deleteResidentBtn").addEventListener("click", () => {
-    // Get the name from the edit form to show in the confirmation
-    const name = qs("#resName").value;
-    qs("#deleteTargetName").textContent = name;
-    
-    // Show the custom confirmation modal
+    qs("#deleteTargetName").textContent = qs("#resName").value;
     qs("#deleteConfirmModal").classList.remove("hidden");
 });
+
+
 
 // 2. When the "Yes, Delete" button inside the custom confirmation is clicked
 qs("#executeDeleteBtn").addEventListener("click", async () => {
