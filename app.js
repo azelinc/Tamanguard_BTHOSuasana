@@ -514,14 +514,79 @@ qs("#invResidentSelect")?.addEventListener("change", (e) => {
 });
 
 /* VISITORS & STATS */
+/* VISITORS TAB IMPROVEMENTS */
 async function loadVisitors() {
-    const snap = await getDocs(query(collection(db, "visits"), orderBy("entryTime", "desc"), limit(20)));
-    const tbody = qs("#visitorsTableBody"); tbody.innerHTML = "";
+    // Increased limit to 50 for better history viewing
+    const snap = await getDocs(query(collection(db, "visits"), orderBy("entryTime", "desc"), limit(50)));
+    const tbody = qs("#visitorsTableBody"); 
+    tbody.innerHTML = "";
+    
     snap.forEach(d => {
-        const data = d.data(); const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="px-4 py-3">${data.entryTime?.toDate().toLocaleDateString()}</td><td class="px-4 py-3 font-bold">${data.carPlate}</td><td class="px-4 py-3">${data.unitNumber}</td><td class="px-4 py-3">${data.visitorName}</td><td class="px-4 py-3 text-[10px] font-bold uppercase text-emerald-400">${data.status}</td>`;
+        const data = d.data();
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/30 border-b border-slate-700/30 transition-colors";
+
+        // Status Styling Logic
+        let sClass = "bg-slate-500/10 text-slate-400"; // Default
+        const status = (data.status || 'PENDING').toUpperCase();
+        
+        if(status === 'PENDING') sClass = "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        if(status === 'ENTERED') sClass = "bg-blue-500/10 text-blue-400 border border-blue-500/20";
+        if(status === 'EXITED')  sClass = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        if(status === 'CANCELLED') sClass = "bg-rose-500/10 text-rose-400 border border-rose-500/20";
+
+        // Date Formatting (Shortened)
+        const dateStr = data.entryTime?.toDate().toLocaleDateString('en-MY', { day: '2-digit', month: '2-digit' }) || '-';
+
+        tr.innerHTML = `
+            <td class="px-4 py-4 text-slate-500 font-mono text-xs w-16">${dateStr}</td>
+            <td class="px-4 py-4 font-black text-white tracking-wider w-24">${data.carPlate}</td>
+            <td class="px-4 py-4 min-w-[140px]">
+                <span class="block font-bold text-white text-sm">${data.unitNumber}</span>
+                <span class="text-[10px] text-slate-500 uppercase tracking-tighter">${data.road || '-'}</span>
+            </td>
+            <td class="px-4 py-4 text-slate-300 text-sm capitalize">${data.visitorName}</td>
+            <td class="px-4 py-4 text-right">
+                <button class="view-det px-3 py-1 rounded-full text-[10px] font-black tracking-widest transition-all hover:scale-105 ${sClass}">
+                    ${status}
+                </button>
+            </td>
+        `;
+
+        // Click event for the status button
+        tr.querySelector(".view-det").onclick = () => showVisitDetails(data);
         tbody.appendChild(tr);
     });
+}
+
+function showVisitDetails(data) {
+    const modal = qs("#visitDetailModal");
+    
+    // Format helper
+    const fmt = (ts) => ts ? ts.toDate().toLocaleString('en-MY', { 
+        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' 
+    }) : 'Not yet recorded';
+
+    // Populate data
+    qs("#detCreated").textContent = fmt(data.entryTime); // entryTime is used as creation time in your schema
+    
+    // Entered Time
+    if (data.status === 'entered' || data.status === 'exited') {
+        qs("#detEntered").textContent = fmt(data.actualEntryTime || data.entryTime);
+        qs("#detEnteredRow").classList.remove('hidden');
+    } else {
+        qs("#detEnteredRow").classList.add('hidden');
+    }
+
+    // Cancelled Time
+    if (data.status === 'cancelled') {
+        qs("#detCancelled").textContent = fmt(data.cancelledAt);
+        qs("#detCancelledRow").classList.remove('hidden');
+    } else {
+        qs("#detCancelledRow").classList.add('hidden');
+    }
+
+    modal.classList.remove("hidden");
 }
 
 async function loadStats() {
