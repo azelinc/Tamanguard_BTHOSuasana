@@ -330,19 +330,45 @@ function renderBillList() {
     filtered.forEach(b => {
         invoiceCache[b.id] = b;
         const isP = b.status === 'paid';
-        // FIXED UNDEFINED FALLBACK:
         const monthLabel = b.month || 'Bill';
         const yearLabel = b.year || '';
+        // Pull actual remarks from DB, fallback to Maintenance Fee if empty
+        const remarksText = b.remarks || 'Maintenance Fee';
 
-        list.innerHTML += `<div class="bg-white p-4 rounded-3xl flex justify-between items-center border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm">
-            <div>
-                <p class="text-[9px] text-indigo-50 font-bold uppercase tracking-widest bg-indigo-500 inline-block px-2 rounded mb-1">${monthLabel} ${yearLabel}</p>
-                <p class="font-black text-lg">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
-                <p class="text-[10px] text-slate-400 italic">${b.description || 'Maintenance Fee'}</p>
+        list.innerHTML += `
+        <div class="bg-white px-4 py-3 rounded-2xl flex items-center justify-between border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm gap-3">
+            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 flex-1 min-w-0">
+                <!-- Month/Year Badge -->
+                <div class="shrink-0">
+                    <p class="text-[8px] text-white font-bold uppercase tracking-widest bg-indigo-500 px-2 py-0.5 rounded-md inline-block whitespace-nowrap">
+                        ${monthLabel} ${yearLabel}
+                    </p>
+                </div>
+                <!-- Remarks -->
+                <div class="truncate">
+                    <p class="text-[11px] font-bold text-slate-700 truncate capitalize">${remarksText}</p>
+                </div>
             </div>
-            <div class="text-right">
-                <span class="px-4 py-1 rounded-full text-[10px] font-black tracking-widest ${isP ? 'bg-green-100 text-green-600' : 'bg-red-500 text-white'}">${(b.status || 'unpaid').toUpperCase()}</span>
-                ${isP ? `<button onclick="openReceipt('${b.id}')" class="block mt-2 text-[10px] font-bold text-indigo-600 underline ml-auto">Receipt</button>` : `<button onclick="openPayment()" class="block mt-2 text-[10px] font-bold text-slate-800 underline ml-auto">Pay Now</button>`}
+
+            <!-- Amount and Action Section -->
+            <div class="flex items-center gap-4 shrink-0">
+                <div class="text-right">
+                    <p class="font-black text-sm text-slate-900">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
+                </div>
+                
+                <div class="w-16 text-right">
+                    ${isP ? `
+                        <div class="flex flex-col items-end">
+                            <span class="text-[8px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase">PAID</span>
+                            <button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold text-indigo-600 underline">Receipt</button>
+                        </div>
+                    ` : `
+                        <div class="flex flex-col items-end">
+                            <span class="text-[8px] font-black text-white bg-red-500 px-2 py-0.5 rounded uppercase">UNPAID</span>
+                            <button onclick="openPayment()" class="text-[9px] font-bold text-slate-800 underline">Pay Now</button>
+                        </div>
+                    `}
+                </div>
             </div>
         </div>`;
     });
