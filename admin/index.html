@@ -346,6 +346,26 @@
     </div>
   </div>
 
+  <!-- CUSTOM DELETE CONFIRMATION MODAL -->
+<div id="deleteConfirmModal" class="fixed inset-0 z-[500] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-xs p-6 text-center shadow-2xl border border-red-500/20">
+        <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Are you sure?</h3>
+        <p class="text-sm text-slate-400 mb-6">This will permanently remove <span id="deleteTargetName" class="text-white font-bold"></span> and all their access.</p>
+        
+        <div class="flex flex-col gap-2">
+            <button id="executeDeleteBtn" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase tracking-widest transition-all">
+                Yes, Delete Resident
+            </button>
+            <button data-close-modal="deleteConfirmModal" class="w-full py-3 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:text-white transition-all">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
+  
   <script type="module" src="../app.js?v=99999"></script>
 </body>
 </html>
