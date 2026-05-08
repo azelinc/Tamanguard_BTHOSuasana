@@ -280,7 +280,7 @@
 
             if (count > 0) {
                 chatStatus.innerText = "🔒 LOCKED"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
-                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Payment Required to Enable Chat</div>`;
+                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Chat enabled for Resident with no outstanding payment only</div>`;
             } else {
                 chatStatus.innerText = "✅ ACTIVE"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
                 if(!chatGate.querySelector('input')) chatGate.innerHTML = `<div class="flex gap-2"><input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white rounded-2xl px-4 py-3 text-sm outline-none shadow-sm"><button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button></div>`;
