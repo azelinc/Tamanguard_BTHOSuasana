@@ -401,12 +401,12 @@ function updatePaymasterUI(count, total, hasI) {
     else if (count < 3) { 
         card.classList.add('bg-amber-400', 'text-slate-800'); 
         emo.innerText = "🔔"; 
-        msg.innerText = `Outstanding: RM${displayTotal}. Your contribution helps keep our taman safe.`; 
+        msg.innerText = `Outstanding: RM${displayTotal}. Your contribution will help to keep our taman safe.`; 
     } 
     else { 
         card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
         emo.innerText = "⚠️"; 
-        msg.innerText = `Urgent: RM${displayTotal}. Please contribute to help us keep the taman secured.`; 
+        msg.innerText = `Important: RM${displayTotal}. Please contribute to help us keep the taman safe and secure.`; 
     }
 }
 
