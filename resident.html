@@ -79,15 +79,17 @@
 
     <main id="app-main" class="p-4 space-y-6">
         <!-- PAYMASTER STATUS CARD -->
-        <section id="paymaster-card-container">
-            <div id="paymaster-status-card" class="p-5 rounded-3xl transition-all duration-500 shadow-lg border border-white flex items-center gap-4">
-               <div class="text-3xl" id="paymaster-emoji">🧐</div>
-               <div class="flex-1">
-                   <h4 class="text-[10px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
-                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
-               </div>
-            </div>
-        </section>
+        
+<section id="paymaster-card-container">
+    <div id="paymaster-status-card" onclick="switchTab('bills')" class="p-4 rounded-2xl transition-all duration-500 shadow-sm border border-white flex items-center gap-4 cursor-pointer active:scale-[0.98]">
+       <div class="text-2xl" id="paymaster-emoji">🧐</div>
+       <div class="flex-1">
+           <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Status Overview</h4>
+           <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
+       </div>
+       <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
+    </div>
+</section>
 
         <!-- Tab Views -->
         <section id="view-news">
