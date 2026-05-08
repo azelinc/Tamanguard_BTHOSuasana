@@ -595,6 +595,40 @@ qs("#residentForm").addEventListener("submit", async (e) => {
 
 qs("#addResidentBtn").addEventListener("click", () => openResidentModal());
 // This button opens the Custom Bill modal
+// 1. When the Delete button in the "Edit Resident" modal is clicked
+qs("#deleteResidentBtn").addEventListener("click", () => {
+    // Get the name from the edit form to show in the confirmation
+    const name = qs("#resName").value;
+    qs("#deleteTargetName").textContent = name;
+    
+    // Show the custom confirmation modal
+    qs("#deleteConfirmModal").classList.remove("hidden");
+});
+
+// 2. When the "Yes, Delete" button inside the custom confirmation is clicked
+qs("#executeDeleteBtn").addEventListener("click", async () => {
+    const id = qs("#residentId").value; // This is the ID currently in the Edit form
+    const btn = qs("#executeDeleteBtn");
+    
+    if (!id) return;
+
+    setLoading(btn, true);
+    try {
+        await deleteDoc(doc(db, "residents", id));
+        
+        toast("Resident removed", "info");
+        
+        // Close both modals
+        closeModal("deleteConfirmModal");
+        closeModal("residentModal");
+        
+        loadResidents(); // Refresh the grid
+    } catch (e) {
+        toast("Delete failed", "error");
+    } finally {
+        setLoading(btn, false);
+    }
+});
 qs("#addInvoiceBtn").addEventListener("click", () => {
     // 1. Show the modal
     qs("#invoiceModal").classList.remove("hidden");
