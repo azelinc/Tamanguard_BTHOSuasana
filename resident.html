@@ -577,47 +577,60 @@ function reShowQR(visitId) {
 
 // --- UPDATED ONLOAD GATEKEEPER WITH MAGIC LINK ---
 window.onload = async () => {
-    // 1. Check if the URL has ?u=..&r=..&p=.. (Magic Link)
     const urlParams = new URLSearchParams(window.location.search);
-    const u = urlParams.get('u'); // Unit Number
-    const r = urlParams.get('r'); // Road Name
+    const u = urlParams.get('u'); // Unit
+    const r = urlParams.get('r'); // Road
     const p = urlParams.get('p'); // PIN
 
     if (u && r && p) {
+        console.log("Magic Link detected. Authenticating...");
+        
         try {
-            // Search database for this resident
+            // We search for the resident. 
+            // .get() is used here to find the matching Unit/Road
             const snap = await db.collection("residents")
-                                .where("unitNumber", "==", u)
                                 .where("road", "==", r)
                                 .where("pin", "==", p)
                                 .get();
             
-            if(!snap.empty) {
-                const resDoc = snap.docs[0];
-                
-                // REPORT SUCCESS TO ADMIN DASHBOARD
+            // Filter locally to handle Unit Number being stored as String or Number
+            const match = snap.docs.find(doc => {
+                const data = doc.data();
+                return String(data.unitNumber) === String(u);
+            });
+
+            if (match) {
+                const resDoc = match;
+                const resData = resDoc.data();
+
+                // 1. Update joined status
                 await db.collection("residents").doc(resDoc.id).update({
                     isJoined: true,
                     lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
 
-                // SAVE CREDENTIALS TO LOCAL STORAGE
-                localStorage.setItem('myUnit', u);
-                localStorage.setItem('myRoad', r);
+                // 2. Save to local storage
+                localStorage.setItem('myUnit', String(resData.unitNumber));
+                localStorage.setItem('myRoad', resData.road);
 
-                // CLEAN THE URL (Removes the PIN from the browser bar for security)
+                // 3. Success notification
+                showToast("Login Successful! Welcome.");
+
+                // 4. Clean URL and reload
                 window.history.replaceState({}, document.title, window.location.pathname);
-                
-                // RELOAD TO START APP
-                location.reload();
-                return; // Exit early so the logic below doesn't run yet
+                setTimeout(() => location.reload(), 1000);
+                return;
             } else {
-                showToast("Magic link invalid or expired", "error");
+                console.error("No resident match found for these credentials.");
+                showToast("Magic Link Error: Profile not found", "error");
             }
         } catch (err) {
             console.error("Auth error:", err);
+            showToast("System Error during login", "error");
         }
     }
+
+  
 
     // 2. STANDARD GATEKEEPER LOGIC (Runs if no magic link is present)
     const savedUnit = localStorage.getItem('myUnit');
