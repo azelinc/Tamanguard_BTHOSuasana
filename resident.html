@@ -583,50 +583,53 @@ window.onload = async () => {
     const p = urlParams.get('p'); // PIN
 
     if (u && r && p) {
-        console.log("Magic Link detected. Authenticating...");
+        showToast("Verifying Magic Link...");
         
         try {
-            // We search for the resident. 
-            // .get() is used here to find the matching Unit/Road
+            // We search only by PIN first to avoid "Firestore Index" errors
             const snap = await db.collection("residents")
-                                .where("road", "==", r)
                                 .where("pin", "==", p)
                                 .get();
             
-            // Filter locally to handle Unit Number being stored as String or Number
-            const match = snap.docs.find(doc => {
-                const data = doc.data();
-                return String(data.unitNumber) === String(u);
-            });
-
-            if (match) {
-                const resDoc = match;
-                const resData = resDoc.data();
-
-                // 1. Update joined status
-                await db.collection("residents").doc(resDoc.id).update({
-                    isJoined: true,
-                    lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+            if (snap.empty) {
+                showToast("Invalid PIN in link", "error");
+            } else {
+                // Now we find the specific unit and road from the results
+                const match = snap.docs.find(doc => {
+                    const data = doc.data();
+                    // We compare unit and road (case-insensitive for road)
+                    return String(data.unitNumber) === String(u) && 
+                           String(data.road).trim().toLowerCase() === String(r).trim().toLowerCase();
                 });
 
-                // 2. Save to local storage
-                localStorage.setItem('myUnit', String(resData.unitNumber));
-                localStorage.setItem('myRoad', resData.road);
+                if (match) {
+                    const resDoc = match;
+                    const resData = resDoc.data();
 
-                // 3. Success notification
-                showToast("Login Successful! Welcome.");
+                    // 1. Update joined status in database
+                    await db.collection("residents").doc(resDoc.id).update({
+                        isJoined: true,
+                        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
 
-                // 4. Clean URL and reload
-                window.history.replaceState({}, document.title, window.location.pathname);
-                setTimeout(() => location.reload(), 1000);
-                return;
-            } else {
-                console.error("No resident match found for these credentials.");
-                showToast("Magic Link Error: Profile not found", "error");
+                    // 2. Save credentials to phone memory
+                    localStorage.setItem('myUnit', String(resData.unitNumber));
+                    localStorage.setItem('myRoad', resData.road);
+
+                    showToast("Login Successful!");
+
+                    // 3. Clean URL and reload into the dashboard
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    setTimeout(() => location.reload(), 800);
+                    return; 
+                } else {
+                    showToast("Link doesn't match this unit/road", "error");
+                }
             }
         } catch (err) {
-            console.error("Auth error:", err);
-            showToast("System Error during login", "error");
+            console.error("Auth Error:", err);
+            // This displays the actual error in a toast so you can see it
+            showToast("Error: " + err.message, "error");
         }
     }
 
