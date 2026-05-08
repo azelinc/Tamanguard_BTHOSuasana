@@ -34,30 +34,36 @@
   </div>
 
   <!-- Header -->
-  <nav class="fixed top-0 w-full z-40 bg-slate-900/80 backdrop-blur border-b border-slate-700/50 px-4 py-3">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-3">
-  <!-- This container hides the white edges of your image -->
-  <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-slate-700">
-    <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover scale-150">
-  </div>
-        <div>
-          <h1 class="text-lg font-bold">TamanGuard</h1>
-          <div class="flex items-center gap-2 text-xs text-slate-400">
-            <span id="tamanNameDisplay">Loading...</span>
-          </div>
-        </div>
+  <!-- Header -->
+<nav class="fixed top-0 w-full z-40 bg-slate-900/80 backdrop-blur border-b border-slate-700/50 px-4 py-3">
+  <div class="max-w-7xl mx-auto flex items-center justify-between">
+    
+    <!-- LEFT SIDE: Logo and Title -->
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white border border-slate-700">
+        <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover scale-150">
       </div>
-      <div class="flex items-center gap-4">
-        <div id="userBadge" class="hidden flex items-center gap-2 glass px-3 py-1.5 rounded-full">
-          <span id="userName" class="text-sm font-medium">Admin</span>
-          <span id="userRole" class="text-[10px] uppercase bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Role</span>
+      <div>
+        <h1 class="text-lg font-bold">TamanGuard</h1>
+        <div class="flex items-center gap-2 text-xs text-slate-400">
+          <span id="tamanNameDisplay">Loading...</span>
         </div>
-        <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400"><i class="fas fa-sign-out-alt"></i></button>
       </div>
     </div>
-  </nav>
+
+    <!-- RIGHT SIDE: Admin Badge and Logout -->
+    <div class="flex items-center gap-4">
+      <div id="userBadge" class="hidden flex items-center gap-2 glass px-3 py-1.5 rounded-full">
+        <span id="userName" class="text-sm font-medium">Admin</span>
+        <span id="userRole" class="text-[10px] uppercase bg-slate-700 px-1.5 py-0.5 rounded text-slate-300">Role</span>
+      </div>
+      <button id="logoutBtn" class="hidden w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400">
+        <i class="fas fa-sign-out-alt"></i>
+      </button>
+    </div>
+
+  </div>
+</nav>
 
   <main class="pt-24 pb-6 px-4 max-w-7xl mx-auto">
     <!-- Stats Row -->
