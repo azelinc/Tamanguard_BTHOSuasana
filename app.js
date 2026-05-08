@@ -534,6 +534,9 @@ async function loadStats() {
 function openResidentModal(id = null, data = {}) {
   qs("#residentModal").classList.remove("hidden");
   qs("#residentModalTitle").textContent = id ? "Edit Resident" : "Add Resident";
+    // SHOW delete button if editing, HIDE if adding new
+  qs("#deleteResidentBtn").classList.toggle("hidden", !id);
+  
   qs("#residentId").value = id || ""; qs("#resUnit").value = data.unitNumber || ""; qs("#resRoad").value = data.road || "";
   qs("#resName").value = data.name || ""; qs("#resPhone").value = data.phone || ""; qs("#resPin").value = data.pin || ""; qs("#resVehicle").value = data.vehiclePlate || "";
 }
