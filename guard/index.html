@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TamanGuard - Guard Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.6s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans overflow-x-hidden no-scrollbar">
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
+
+    <!-- Top Bar -->
+    <nav class="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-2">
+            <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <span class="font-bold tracking-wider uppercase text-xs">Guard Terminal</span>
+        </div>
+        <div id="clock" class="text-sm font-mono text-slate-400">00:00:00</div>
+    </nav>
+
+    <main class="p-4 max-w-2xl mx-auto space-y-6">
+        <!-- SOS Button -->
+        <button onclick="openModal('sos-modal')" class="w-full bg-red-600 active:scale-95 transition-transform py-5 rounded-2xl shadow-lg border-b-4 border-red-900">
+            <span class="text-2xl">🚨</span>
+            <span class="text-lg font-black uppercase tracking-widest text-white">Contact RA</span>
+        </button>
+
+        <!-- Entry Control -->
+        <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
+            <div id="reader" class="overflow-hidden rounded-2xl bg-black mb-6 border-2 border-slate-700"></div>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="startScanner()" class="bg-indigo-600 py-4 rounded-xl font-bold active:bg-indigo-700 shadow-lg text-white uppercase tracking-widest text-xs">Scan QR</button>
+                <button onclick="openModal('search-modal')" class="bg-slate-700 py-4 rounded-xl font-bold active:bg-slate-600 text-white uppercase tracking-widest text-xs">Plate Search</button>
+            </div>
+            <button onclick="openModal('walkin-modal')" class="w-full mt-4 bg-emerald-600 py-4 rounded-xl font-bold active:bg-emerald-700 text-white uppercase tracking-widest text-xs">Manual Drive-in</button>
+        </div>
+
+        <!-- Active Logs -->
+        <section>
+            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 px-2">Active & Pending</h2>
+            <div id="active-log" class="space-y-3"></div>
+        </section>
+
+        <!-- Done Logs -->
+        <section class="opacity-60">
+            <h2 class="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 px-2">Recently Exited</h2>
+            <div id="done-log" class="space-y-3 pb-20"></div>
+        </section>
+    </main>
+
+    <!-- VERIFY ENTRY MODAL -->
+    <div id="verify-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700 text-center">
+            <h3 class="text-[10px] font-black text-slate-500 uppercase mb-2">Confirm Visitor Entry</h3>
+            <h2 id="modal-plate" class="text-3xl font-black text-white mb-6 uppercase">---</h2>
+            <div class="bg-slate-900/50 p-4 rounded-2xl text-left space-y-2 mb-8 border border-slate-700">
+                <p class="text-xs text-slate-400">Visitor: <span id="modal-name" class="text-white font-bold uppercase">--</span></p>
+                <p class="text-xs text-slate-400">Destination: <span id="modal-dest" class="text-indigo-400 font-bold uppercase">--</span></p>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="closeModal('verify-modal')" class="flex-1 py-4 text-xs font-bold text-slate-500 uppercase">Back</button>
+                <button id="confirm-entry-btn" onclick="processEntry()" class="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-bold uppercase shadow-lg">Grant Entry</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PLATE SEARCH MODAL -->
+    <div id="search-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700">
+            <h3 class="text-center font-black text-white uppercase tracking-widest mb-6">Search Plate No.</h3>
+            <input id="search-input" type="text" placeholder="e.g. ABC1234" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase mb-6 outline-none focus:border-indigo-500 text-white">
+            <div class="flex gap-4">
+                <button onclick="closeModal('search-modal')" class="flex-1 py-4 text-xs font-bold text-slate-500 uppercase">Back</button>
+                <button onclick="runPlateSearch()" class="flex-1 bg-indigo-600 text-white py-4 rounded-2xl text-xs font-bold uppercase">Search</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- WALK-IN MODAL -->
+    <div id="walkin-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700 shadow-2xl">
+            <h3 class="text-center font-black text-white uppercase tracking-widest mb-6">Manual Registration</h3>
+            <div class="space-y-3 mb-8">
+                <input id="w-plate" type="text" placeholder="PLATE NO" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <input id="w-name" type="text" placeholder="VISITOR NAME" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <input id="w-phone" type="tel" placeholder="PHONE NUMBER" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="w-unit" type="text" placeholder="UNIT" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                    <select id="w-road" class="w-full bg-slate-900 px-2 rounded-xl border border-slate-700 font-bold uppercase text-[10px] text-white outline-none focus:border-emerald-500"></select>
+                </div>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="closeModal('walkin-modal')" class="flex-1 py-4 text-xs font-bold text-slate-500 uppercase">Back</button>
+                <button onclick="processWalkin()" class="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-bold uppercase shadow-lg shadow-emerald-900/20">Grant Entry</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SOS MODAL -->
+    <div id="sos-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700 text-center">
+            <h3 class="font-black text-white uppercase tracking-widest mb-6">Contact Committee</h3>
+            <div class="space-y-4">
+                <a href="tel:0122750485" class="block w-full bg-slate-700 p-4 rounded-2xl font-bold text-white uppercase">📞 Call RA Office</a>
+                <a href="https://wa.me/60122750485" class="block w-full bg-emerald-600 p-4 rounded-2xl font-bold text-white uppercase">💬 WhatsApp RA</a>
+            </div>
+            <button onclick="closeModal('sos-modal')" class="mt-8 text-xs font-bold text-slate-500 uppercase tracking-widest underline">Close</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+            authDomain: "mytaman-1db3a.firebaseapp.com",
+            projectId: "mytaman-1db3a",
+            storageBucket: "mytaman-1db3a.appspot.com",
+            messagingSenderId: "112467759191",
+            appId: "1:112467759191:web:0785a5e578741f01891312"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let currentActiveId = null;
+        const html5QrCode = new Html5Qrcode("reader");
+
+        // --- UI UTILS ---
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `${type === 'error' ? 'bg-red-600' : 'bg-slate-700'} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 text-center transition-all duration-500`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
+        }
+
+        function openModal(id) { 
+            document.getElementById(id).classList.remove('hidden'); 
+            if(id === 'walkin-modal') fetchRoads();
+        }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); currentActiveId = null; }
+
+        setInterval(() => {
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('en-MY', { hour12: false });
+        }, 1000);
+
+        // --- SCAN & SEARCH LOGIC ---
+        function startScanner() {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
+                (text) => { verifyVisit(text.trim()); html5QrCode.stop(); }
+            ).catch(err => showToast("Camera Denied", "error"));
+        }
+
+        async function runPlateSearch() {
+            const plate = document.getElementById('search-input').value.trim().toUpperCase();
+            if(!plate) return showToast("Enter plate no", "error");
+
+            const snap = await db.collection("visits")
+                .where("carPlate", "==", plate)
+                .where("status", "==", "pending")
+                .limit(1)
+                .get();
+
+            if(snap.empty) {
+                showToast("No Pending Pass Found", "error");
+            } else {
+                closeModal('search-modal');
+                verifyVisit(snap.docs[0].id);
+            }
+        }
+
+        async function verifyVisit(id) {
+            try {
+                const doc = await db.collection("visits").doc(id).get();
+                if (!doc.exists) return showToast("Invalid Pass", "error");
+                
+                const d = doc.data();
+                if (d.status === 'cancelled') return showToast("Pass Cancelled", "error");
+
+                currentActiveId = id;
+                document.getElementById('modal-plate').innerText = d.carPlate;
+                document.getElementById('modal-name').innerText = d.visitorName;
+                document.getElementById('modal-dest').innerText = `${d.unitNumber}, ${d.road || '-'}`;
+                openModal('verify-modal');
+            } catch (e) { showToast("System Error", "error"); }
+        }
+
+        async function processEntry() {
+            if(!currentActiveId) return;
+            try {
+                await db.collection("visits").doc(currentActiveId).update({
+                    status: "entered",
+                    actualEntryTime: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                showToast("Entry Granted");
+                closeModal('verify-modal');
+            } catch (e) { showToast("Failed to update", "error"); }
+        }
+
+        // --- REAL-TIME FEED (IMPROVED CARD UI) ---
+        db.collection("visits").orderBy("entryTime", "desc").limit(20).onSnapshot(snap => {
+            const activeLog = document.getElementById('active-log');
+            const doneLog = document.getElementById('done-log');
+            activeLog.innerHTML = ""; doneLog.innerHTML = "";
+            
+            snap.forEach(doc => {
+                const v = doc.data(); const id = doc.id;
+                if(v.status === 'cancelled') return;
+
+                const status = (v.status || "pending").toUpperCase();
+                const isInside = status === "ENTERED";
+                const isExited = status === "EXITED";
+                const isPending = status === "PENDING";
+
+                const cardHtml = `
+                    <div class="p-3 rounded-2xl flex items-center justify-between border transition-all ${isInside ? 'bg-emerald-900/10 border-emerald-500/30 shadow-lg shadow-emerald-900/10' : 'bg-slate-800 border-slate-700 shadow-md'}">
+                        <!-- LEFT: Info -->
+                        <div class="flex-1 min-w-0 pr-3">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-black text-xl leading-none ${isExited ? 'text-slate-600' : 'text-white'}">${v.carPlate}</span>
+                                <span class="text-[9px] bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg text-indigo-300 font-bold uppercase tracking-tight">
+                                    ${v.unitNumber} • ${v.road || '-'}
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                                <span class="truncate max-w-[90px]">${v.visitorName}</span>
+                                <span class="text-slate-700">|</span>
+                                <span>${v.visitorPhone || v.phone || 'No Phone'}</span>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT: Large Actions -->
+                        <div class="flex items-center gap-2">
+                            ${isPending ? `
+                                <button onclick="verifyVisit('${id}')" class="h-14 w-24 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-lg flex flex-col items-center justify-center transition-transform active:scale-95">
+                                    <i class="fas fa-sign-in-alt text-sm mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase">ENTRY</span>
+                                </button>
+                            ` : isInside ? `
+                                <button onclick="processExit('${id}')" class="h-14 w-24 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl shadow-lg flex flex-col items-center justify-center transition-transform active:scale-95">
+                                    <i class="fas fa-sign-out-alt text-sm mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase">EXIT</span>
+                                </button>
+                            ` : `
+                                <div class="w-24 text-center">
+                                    <span class="text-[9px] font-black text-slate-600 uppercase tracking-widest">${status}</span>
+                                </div>
+                            `}
+                        </div>
+                    </div>`;
+
+                if (isExited) doneLog.innerHTML += cardHtml;
+                else activeLog.innerHTML += cardHtml;
+            });
+        });
+
+        async function processExit(id) {
+            try {
+                await db.collection("visits").doc(id).update({ status: "exited", exitTime: firebase.firestore.FieldValue.serverTimestamp() });
+                showToast("Vehicle Exited");
+            } catch (e) { showToast("Exit Failed", "error"); }
+        }
+
+        async function fetchRoads() {
+            const doc = await db.collection("settings").doc("taman_config").get();
+            if(doc.exists) {
+                const r = doc.data().roads || [];
+                document.getElementById('w-road').innerHTML = '<option value="">SELECT ROAD</option>' + r.map(x => `<option value="${x}">${x}</option>`).join('');
+            }
+        }
+
+        async function processWalkin() {
+            const p = document.getElementById('w-plate').value.trim().toUpperCase();
+            const n = document.getElementById('w-name').value.trim().toUpperCase();
+            const ph = document.getElementById('w-phone').value.trim();
+            const u = document.getElementById('w-unit').value.trim().toUpperCase();
+            const r = document.getElementById('w-road').value;
+
+            if(!p || !n || !u || !r) return showToast("Fill all details", "error");
+
+            try {
+                await db.collection("visits").add({
+                    carPlate: p, 
+                    visitorName: n, 
+                    visitorPhone: ph, 
+                    unitNumber: u, 
+                    road: r,
+                    status: "entered", 
+                    entryTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    actualEntryTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    type: "walk-in"
+                });
+                showToast("Manual Entry Granted");
+                closeModal('walkin-modal');
+                // Clear fields
+                ['w-plate', 'w-name', 'w-phone', 'w-unit'].forEach(id => document.getElementById(id).value = "");
+            } catch (e) {
+                showToast("Save Failed", "error");
+            }
+        }
+
+    </script>
+</body>
+</html>
