@@ -288,16 +288,35 @@
         }
 
         function loadChat() {
-            unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
-                const box = document.getElementById('chat-messages'); if(!box) return;
-                let html = ""; const docs = snap.docs.reverse();
-                docs.forEach(doc => {
-                    const m = doc.data(), isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
-                    html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}"><span class="text-[8px] font-bold text-slate-400 mb-1 uppercase">Unit ${m.unit}</span><div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">${m.text}</div></div>`;
-                });
-                box.innerHTML = html; box.scrollTop = box.scrollHeight;
-            });
-        }
+    unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
+        const box = document.getElementById('chat-messages'); 
+        if(!box) return;
+        
+        let html = ""; 
+        const docs = snap.docs.reverse();
+        
+        docs.forEach(doc => {
+            const m = doc.data(); 
+            const isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
+            
+            // Shorten "JALAN" to "JLN" for better fit if you like, 
+            // or just use m.road directly as shown below:
+            const roadHandle = m.road || 'Unknown';
+
+            html += `
+                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+                    <span class="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">
+                        No ${m.unit} • ${roadHandle}
+                    </span>
+                    <div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">
+                        ${m.text}
+                    </div>
+                </div>`;
+        });
+        box.innerHTML = html; 
+        box.scrollTop = box.scrollHeight;
+    });
+}
 
         async function sendChatMessage() {
             const input = document.getElementById('chat-input-field'), text = input.value.trim();
