@@ -575,8 +575,51 @@ function reShowQR(visitId) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// --- ONLOAD GATEKEEPER ---
-window.onload = () => {
+// --- UPDATED ONLOAD GATEKEEPER WITH MAGIC LINK ---
+window.onload = async () => {
+    // 1. Check if the URL has ?u=..&r=..&p=.. (Magic Link)
+    const urlParams = new URLSearchParams(window.location.search);
+    const u = urlParams.get('u'); // Unit Number
+    const r = urlParams.get('r'); // Road Name
+    const p = urlParams.get('p'); // PIN
+
+    if (u && r && p) {
+        try {
+            // Search database for this resident
+            const snap = await db.collection("residents")
+                                .where("unitNumber", "==", u)
+                                .where("road", "==", r)
+                                .where("pin", "==", p)
+                                .get();
+            
+            if(!snap.empty) {
+                const resDoc = snap.docs[0];
+                
+                // REPORT SUCCESS TO ADMIN DASHBOARD
+                await db.collection("residents").doc(resDoc.id).update({
+                    isJoined: true,
+                    lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // SAVE CREDENTIALS TO LOCAL STORAGE
+                localStorage.setItem('myUnit', u);
+                localStorage.setItem('myRoad', r);
+
+                // CLEAN THE URL (Removes the PIN from the browser bar for security)
+                window.history.replaceState({}, document.title, window.location.pathname);
+                
+                // RELOAD TO START APP
+                location.reload();
+                return; // Exit early so the logic below doesn't run yet
+            } else {
+                showToast("Magic link invalid or expired", "error");
+            }
+        } catch (err) {
+            console.error("Auth error:", err);
+        }
+    }
+
+    // 2. STANDARD GATEKEEPER LOGIC (Runs if no magic link is present)
     const savedUnit = localStorage.getItem('myUnit');
     const loginScreen = document.getElementById('login-screen');
     const appHeader = document.getElementById('app-header');
@@ -584,14 +627,14 @@ window.onload = () => {
     const appNav = document.getElementById('app-nav');
 
     if (!savedUnit) {
-        loginScreen.classList.remove('hidden');
+        if(loginScreen) loginScreen.classList.remove('hidden');
         if(appHeader) appHeader.style.display = 'none';
         if(appMain) appMain.style.display = 'none';
         if(appNav) appNav.style.display = 'none';
         fetchRoads(); 
     } else {
         myUnit = savedUnit;
-        loginScreen.classList.add('hidden');
+        if(loginScreen) loginScreen.classList.add('hidden');
         if(appHeader) appHeader.style.display = 'flex';
         if(appMain) appMain.style.display = 'block';
         if(appNav) appNav.style.display = 'flex';
