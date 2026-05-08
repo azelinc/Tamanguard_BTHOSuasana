@@ -120,9 +120,15 @@
       <div id="tab-visitors" class="tab-pane hidden">
         <div class="glass rounded-xl overflow-hidden">
           <table class="w-full text-left text-sm">
-            <thead class="bg-slate-800 text-slate-400 uppercase text-[10px] tracking-widest">
-              <tr><th class="px-4 py-3">Date</th><th class="px-4 py-3">Plate</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Visitor</th><th class="px-4 py-3">Status</th></tr>
-            </thead>
+<thead class="bg-slate-800/50 text-slate-500 uppercase text-[10px] tracking-widest border-b border-slate-700">
+    <tr>
+        <th class="px-4 py-4 font-bold w-20 text-left">Date</th>
+        <th class="px-4 py-4 font-bold w-24 text-left">Plate</th>
+        <th class="px-4 py-4 font-bold min-w-[150px] text-left">Unit / Road</th>
+        <th class="px-4 py-4 font-bold text-left">Visitor Name</th>
+        <th class="px-4 py-4 font-bold text-right">Status</th>
+    </tr>
+</thead>
             <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
           </table>
         </div>
