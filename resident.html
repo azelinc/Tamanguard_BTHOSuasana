@@ -332,15 +332,20 @@ function renderBillList() {
         const isP = b.status === 'paid';
         const monthLabel = b.month || 'Bill';
         const yearLabel = b.year || '';
-        // Pull actual remarks from DB, fallback to Maintenance Fee if empty
         const remarksText = b.remarks || 'Maintenance Fee';
 
+        // --- DYNAMIC STYLING ---
+        // Unpaid bills get a soft red background and a thick left border
+        const rowStyle = isP 
+            ? 'bg-white border-slate-100' 
+            : 'bg-rose-50/50 border-red-200 border-l-4 border-l-red-500';
+
         list.innerHTML += `
-        <div class="bg-white px-4 py-3 rounded-2xl flex items-center justify-between border ${isP ? 'border-slate-100' : 'border-red-100'} shadow-sm gap-3">
+        <div class="${rowStyle} px-4 py-3 rounded-2xl flex items-center justify-between border shadow-sm gap-3 transition-all">
             <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 flex-1 min-w-0">
                 <!-- Month/Year Badge -->
                 <div class="shrink-0">
-                    <p class="text-[8px] text-white font-bold uppercase tracking-widest bg-indigo-500 px-2 py-0.5 rounded-md inline-block whitespace-nowrap">
+                    <p class="text-[8px] text-white font-bold uppercase tracking-widest ${isP ? 'bg-slate-400' : 'bg-indigo-600'} px-2 py-0.5 rounded-md inline-block whitespace-nowrap">
                         ${monthLabel} ${yearLabel}
                     </p>
                 </div>
@@ -364,8 +369,8 @@ function renderBillList() {
                         </div>
                     ` : `
                         <div class="flex flex-col items-end">
-                            <span class="text-[8px] font-black text-white bg-red-500 px-2 py-0.5 rounded uppercase">UNPAID</span>
-                            <button onclick="openPayment()" class="text-[9px] font-bold text-slate-800 underline">Pay Now</button>
+                            <span class="text-[8px] font-black text-white bg-red-600 px-2 py-0.5 rounded uppercase animate-pulse">UNPAID</span>
+                            <button onclick="openPayment()" class="text-[9px] font-bold text-red-600 underline">Pay Now</button>
                         </div>
                     `}
                 </div>
