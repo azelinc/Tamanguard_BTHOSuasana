@@ -283,7 +283,8 @@
     </div>
   </div>
 
-  <div id="residentModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
+<!-- UPDATED RESIDENT MODAL -->
+<div id="residentModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-lg p-6">
       <h3 id="residentModalTitle" class="text-xl font-bold mb-6 text-white text-center">Resident Details</h3>
       <form id="residentForm" class="space-y-4">
@@ -298,13 +299,42 @@
             <input type="text" id="resPin" placeholder="App PIN" required maxlength="6" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500">
             <input type="text" id="resVehicle" placeholder="Plate Number" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 text-white outline-none focus:border-blue-500">
         </div>
-        <div class="flex justify-end gap-2 pt-4">
-          <button type="button" data-close-modal="residentModal" class="flex-1 px-6 py-3 rounded-lg bg-slate-700 font-bold">CANCEL</button>
-          <button type="submit" id="residentSubmitBtn" class="flex-1 px-6 py-3 rounded-lg bg-emerald-600 text-white font-bold shadow-lg">SAVE</button>
+
+        <!-- UPDATED BUTTON ROW -->
+        <div class="flex justify-between items-center gap-2 pt-4">
+          <!-- Delete button on the left (hidden by default) -->
+          <button type="button" id="deleteResidentBtn" class="hidden px-4 py-3 rounded-lg bg-red-600/20 text-red-400 font-bold hover:bg-red-600 hover:text-white transition-all text-xs uppercase tracking-widest">
+            <i class="fas fa-trash-alt mr-2"></i>Delete
+          </button>
+          
+          <div class="flex gap-2 flex-1 justify-end">
+            <button type="button" data-close-modal="residentModal" class="px-6 py-3 rounded-lg bg-slate-700 font-bold text-white text-xs uppercase tracking-widest">CANCEL</button>
+            <button type="submit" id="residentSubmitBtn" class="px-6 py-3 rounded-lg bg-emerald-600 text-white font-bold shadow-lg text-xs uppercase tracking-widest">SAVE</button>
+          </div>
         </div>
       </form>
     </div>
-  </div>
+</div>
+
+<!-- IN-APP DELETE CONFIRMATION MODAL -->
+<div id="deleteConfirmModal" class="fixed inset-0 z-[500] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+    <div class="glass rounded-2xl w-full max-w-xs p-6 text-center shadow-2xl border border-red-500/20">
+        <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+            <i class="fas fa-exclamation-triangle"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-2">Are you sure?</h3>
+        <p class="text-sm text-slate-400 mb-6">This will permanently remove <span id="deleteTargetName" class="text-white font-bold"></span> and all their access.</p>
+        
+        <div class="flex flex-col gap-2">
+            <button id="executeDeleteBtn" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase tracking-widest transition-all">
+                Yes, Delete Resident
+            </button>
+            <button data-close-modal="deleteConfirmModal" class="w-full py-3 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:text-white transition-all">
+                Cancel
+            </button>
+        </div>
+    </div>
+</div>
 
   <div id="invoiceModal" class="fixed inset-0 z-[160] bg-slate-900/80 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-lg p-6">
@@ -346,25 +376,7 @@
     </div>
   </div>
 
-  <!-- CUSTOM DELETE CONFIRMATION MODAL -->
-<div id="deleteConfirmModal" class="fixed inset-0 z-[500] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
-    <div class="glass rounded-2xl w-full max-w-xs p-6 text-center shadow-2xl border border-red-500/20">
-        <div class="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
-            <i class="fas fa-exclamation-triangle"></i>
-        </div>
-        <h3 class="text-lg font-bold text-white mb-2">Are you sure?</h3>
-        <p class="text-sm text-slate-400 mb-6">This will permanently remove <span id="deleteTargetName" class="text-white font-bold"></span> and all their access.</p>
-        
-        <div class="flex flex-col gap-2">
-            <button id="executeDeleteBtn" class="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl text-xs uppercase tracking-widest transition-all">
-                Yes, Delete Resident
-            </button>
-            <button data-close-modal="deleteConfirmModal" class="w-full py-3 bg-slate-800 text-slate-400 font-bold rounded-xl text-xs uppercase tracking-widest hover:text-white transition-all">
-                Cancel
-            </button>
-        </div>
-    </div>
-</div>
+
   
   <script type="module" src="../app.js?v=99999"></script>
 </body>
