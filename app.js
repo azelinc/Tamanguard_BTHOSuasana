@@ -251,26 +251,33 @@ function renderResidents() {
 
 // --- WHATSAPP INVITE LOGIC ---
 function sendWhatsAppInvite(res) {
+    // 1. Your base app URL
     const baseUrl = "https://bthosuasana.tamanguard.my"; 
     
-    // 1. Properly encode each part to handle spaces and slashes (like 5/1)
-    const unit = encodeURIComponent(res.unitNumber);
-    const road = encodeURIComponent(res.road);
-    const pin = encodeURIComponent(res.pin);
+    // 2. Build the raw magic link string
+    // We use the raw values here; the encoding happens to the whole message later
+    const magicLink = `${baseUrl}?u=${res.unitNumber}&r=${res.road}&p=${res.pin}`;
 
-    // 2. Build the full link
-    const magicLink = `${baseUrl}?u=${unit}&r=${road}&p=${pin}`;
+    // 3. Build the plain text message
+    const rawMessage = `*TamanGuard Official Access*
 
-    // 3. Create the message
-    const message = `*TamanGuard Official Access*%0A%0AHello ${res.name}, welcome! Click the secure link below to instantly log in for Unit ${res.unitNumber}:%0A%0A${magicLink}%0A%0AOnce logged in, you can generate guest passes and view bills.`;
+Hello ${res.name}, welcome! Click the secure link below to instantly log in for Unit ${res.unitNumber}:
+
+${magicLink}
+
+Once logged in, you can generate guest passes and view bills.`;
     
-    // 4. Format the phone number
+    // 4. CRITICAL FIX: Encode the entire message 
+    // This ensures that the '&' and '?' inside the link are treated as text by WhatsApp
+    const encodedMessage = encodeURIComponent(rawMessage);
+    
+    // 5. Format the phone number
     let phone = res.phone.replace(/\D/g, ''); 
     if (phone.startsWith('0')) phone = '6' + phone;
     else if (phone.startsWith('1')) phone = '60' + phone;
 
-    // 5. Open WhatsApp
-    window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+    // 6. Open WhatsApp using the fully encoded message
+    window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
 }
 
 async function showResidentProfile(res) {
