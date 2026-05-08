@@ -99,6 +99,7 @@ async function loadSettings() {
   if (snap.exists()) {
     tamanConfig = snap.data();
     if(qs("#defaultMonthlyFee")) qs("#defaultMonthlyFee").value = tamanConfig.monthlyFee || 80;
+    if(qs("#chatEnabledToggle")) qs("#chatEnabledToggle").checked = tamanConfig.isChatEnabled ?? true;
   }
   qs("#tamanNameDisplay").textContent = tamanConfig.name || "TamanGuard";
   if(qs("#tamanNameInput")) qs("#tamanNameInput").value = tamanConfig.name || "";
@@ -139,8 +140,9 @@ async function removeRoad(r) {
 qs("#saveSettingsBtn").addEventListener("click", async () => {
     const name = qs("#tamanNameInput").value.trim();
     const fee = parseFloat(qs("#defaultMonthlyFee").value) || 80;
-    if(!name) return;
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, updatedAt: serverTimestamp() });
+    const isChatEnabled = qs("#chatEnabledToggle").checked; // Get toggle state
+  if(!name) return;
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, isChatEnabled: isChatEnabled, updatedAt: serverTimestamp() });
     toast("Config updated!", "success"); loadSettings();
 });
 
