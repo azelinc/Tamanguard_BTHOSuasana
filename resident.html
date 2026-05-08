@@ -8,125 +8,135 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @media print { body * { visibility: hidden; } #receipt-modal-content, #receipt-modal-content * { visibility: visible; } #receipt-modal-content { position: absolute; left: 0; top: 0; width: 100%; } #receipt-close-btn, #receipt-print-btn { display: none; } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .spinner { border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid white; border-radius: 50%; width: 14px; height: 14px; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        #app-header, #app-main, #app-nav { 
-            display: none; 
-        }
+        #app-header, #app-main, #app-nav { display: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 pb-20">
 
-    <!-- In-App Notification Toast -->
-<div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
+    <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
     
-    <!-- PAYMENT INFO MODAL -->
+    <!-- MODALS (Payment, Receipt, Cancel Confirm) -->
     <div id="payment-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
         <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
             <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600 text-2xl">💳</div>
             <h3 class="text-lg font-black text-slate-800 uppercase">Make Payment</h3>
-            <p class="text-xs text-slate-500 mt-2 mb-6 uppercase font-bold tracking-widest">Bank Transfer / DuitNow</p>
-            <div class="bg-slate-50 p-4 rounded-2xl text-left space-y-3 mb-6 border border-slate-100">
+            <div class="bg-slate-50 p-4 rounded-2xl text-left space-y-3 my-6 border border-slate-100">
                 <div><p class="text-[9px] text-slate-400 font-bold uppercase">Bank Name</p><p class="font-bold text-slate-800">MAYBANK</p></div>
                 <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Name</p><p class="font-bold text-slate-800">PERSATUAN PENDUDUK ZON C</p></div>
                 <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Number</p><p class="font-bold text-indigo-600 tracking-wider">5123 8963 2240</p></div>
             </div>
-            <p class="text-[9px] text-slate-400 italic mb-6">Please include your Unit No in the reference and send the receipt to the Admin via WhatsApp.</p>
             <button onclick="closePayment()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl uppercase tracking-widest text-xs">Got it</button>
         </div>
     </div>
 
-    <!-- RECEIPT MODAL -->
     <div id="receipt-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
         <div id="receipt-modal-content" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
-            <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1><p class="text-[10px] text-slate-400 font-bold uppercase mt-1">TamanGuard Management</p></div>
+            <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1></div>
             <div class="p-8 space-y-4 text-xs">
                 <div class="flex justify-between"><span class="text-slate-400">Receipt No:</span><span id="rcp-no" class="font-bold text-slate-800">--</span></div>
-                <div class="flex justify-between"><span class="text-slate-400">Paid Date:</span><span id="rcp-date" class="font-bold text-slate-800">--</span></div>
                 <div class="flex justify-between"><span class="text-slate-400">Unit No:</span><span id="rcp-unit" class="font-bold text-indigo-600">--</span></div>
-                <hr class="border-slate-100">
                 <div class="py-2 text-center"><p id="rcp-remark" class="text-[10px] text-slate-400 uppercase font-bold tracking-widest mb-1">--</p><h2 class="text-4xl font-black text-slate-800">RM <span id="rcp-amount">0.00</span></h2></div>
-                <hr class="border-slate-100"><div class="text-[10px] text-center text-slate-400 italic">This is a computer-generated receipt.</div>
             </div>
-            <div class="p-4 bg-slate-50 flex gap-2"><button onclick="closeReceipt()" class="flex-1 py-3 text-xs font-bold text-slate-500 uppercase">Close</button><button onclick="window.print()" class="flex-1 bg-indigo-600 py-3 text-xs font-bold text-white rounded-xl uppercase">Print / Save</button></div>
+            <div class="p-4 bg-slate-50 flex gap-2"><button onclick="closeReceipt()" class="flex-1 py-3 text-xs font-bold text-slate-500 uppercase">Close</button><button onclick="window.print()" class="flex-1 bg-indigo-600 py-3 text-xs font-bold text-white rounded-xl uppercase">Print</button></div>
         </div>
     </div>
 
-    <!-- LOGIN OVERLAY -->
+    <!-- LOGIN SCREEN -->
     <div id="login-screen" class="fixed inset-0 bg-indigo-600 z-[100] flex flex-col items-center justify-center p-8 hidden">
         <div class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-2xl">
             <h1 class="text-2xl font-black text-indigo-600 mb-2 text-center uppercase tracking-tighter">TamanGuard</h1>
-            <p class="text-slate-400 text-[10px] mb-6 text-center italic font-bold uppercase tracking-widest">Resident Secure Login</p>
             <div class="space-y-4 mb-6">
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">House Number</label><input id="login-house" type="text" placeholder="e.g. 10" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 uppercase"></div>
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Select Road</label><select id="login-road" class="w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500 appearance-none"><option value="">Loading Roads...</option></select></div>
-                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest outline-none focus:ring-2 focus:ring-indigo-500"></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">House Number</label><input id="login-house" type="text" placeholder="e.g. 10" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none uppercase"></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Select Road</label><select id="login-road" class="w-full p-4 bg-slate-50 border rounded-2xl text-sm font-bold appearance-none"><option value="">Loading...</option></select></div>
+                <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest"></div>
             </div>
-            <button id="login-btn" onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">Verify & Enter</button>
-            <p id="login-error" class="text-red-500 text-[10px] mt-4 text-center hidden font-bold italic uppercase">❌ Invalid Unit or PIN</p>
+            <button id="login-btn" onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg uppercase tracking-widest">Verify & Enter</button>
         </div>
     </div>
 
-    <!-- HEADER -->
+    <!-- MAIN APP HEADER -->
     <header id="app-header" class="bg-white p-6 border-b flex justify-between items-center sticky top-0 z-40">
-        <div><p id="taman-display" class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p><h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2></div>
+        <div>
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-sm border border-slate-100">
+                    <img src="logo.jpg" alt="Logo" class="w-full h-full object-cover scale-150">
+                </div>
+                <div>
+                    <p id="taman-display" class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Resident of</p>
+                    <h2 id="display-unit" class="text-lg font-black tracking-tight">--</h2>
+                </div>
+            </div>
+        </div>
         <button onclick="logout()" class="text-[9px] font-bold text-red-400 uppercase tracking-tighter">Logout</button>
     </header>
 
     <main id="app-main" class="p-4 space-y-6">
-        <!-- PAYMASTER STATUS CARD -->
-        
-<section id="paymaster-card-container">
-    <div id="paymaster-status-card" onclick="switchTab('bills')" class="p-4 rounded-2xl transition-all duration-500 shadow-sm border border-white flex items-center gap-4 cursor-pointer active:scale-[0.98]">
-       <div class="text-2xl" id="paymaster-emoji">🧐</div>
-       <div class="flex-1">
-           <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Status Overview</h4>
-           <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
-       </div>
-       <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
-    </div>
-</section>
+        <!-- STATUS OVERVIEW -->
+        <section id="paymaster-card-container">
+            <div id="paymaster-status-card" onclick="switchTab('bills')" class="p-4 rounded-2xl transition-all duration-500 shadow-sm border border-white flex items-center gap-4 cursor-pointer active:scale-[0.98]">
+               <div class="text-2xl" id="paymaster-emoji">🧐</div>
+               <div class="flex-1">
+                   <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Status Overview</h4>
+                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
+               </div>
+               <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
+            </div>
+        </section>
 
-        <!-- Tab Views News & Chat-->
-        <section id="view-news" class="flex flex-col h-[75vh]">
-    <!-- TOP SECTION: TAMAN NEWS (40%) -->
-    <div class="flex-none mb-2">
-        <h3 class="font-bold text-sm uppercase tracking-widest text-indigo-600 mb-2">📢 Taman News</h3>
-        <div id="news-list" class="space-y-3 overflow-y-auto max-h-[25vh] pr-1 no-scrollbar">
-            <!-- News items injected here -->
-        </div>
-    </div>
+        <!-- VIEW: NEWS & CHAT -->
+        <section id="view-news" class="flex flex-col h-[70vh]">
+            <div class="flex-none mb-2">
+                <h3 class="font-bold text-sm uppercase tracking-widest text-indigo-600 mb-2">📢 Taman News</h3>
+                <div id="news-list" class="space-y-3 overflow-y-auto max-h-[22vh] pr-1 no-scrollbar"></div>
+            </div>
 
-    <!-- BOTTOM SECTION: RESIDENT CHAT (60%) -->
-    <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-inner border border-slate-100 overflow-hidden mt-2">
-        <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-            <h3 class="font-bold text-xs uppercase tracking-widest text-slate-400">💬 Resident Chat</h3>
-            <span id="chat-status-tag" class="text-[8px] font-black px-2 py-0.5 rounded-full">Checking...</span>
-        </div>
-
-        <!-- Messages Area -->
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-white">
-            <!-- Chat bubbles injected here -->
-        </div>
-
-        <!-- Input Area (Gated) -->
-        <div id="chat-input-container" class="p-3 bg-slate-50 border-t border-slate-100">
-            <!-- This will be swapped by JS between Input or Locked Message -->
-            <div id="chat-gate-box">
-                <div class="flex gap-2">
-                    <input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white border-none rounded-2xl px-4 py-3 text-sm outline-none shadow-sm">
-                    <button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
+            <div class="flex-1 flex flex-col bg-white rounded-3xl shadow-inner border border-slate-100 overflow-hidden mt-2">
+                <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-bold text-xs uppercase tracking-widest text-slate-400">💬 Resident Chat</h3>
+                    <span id="chat-status-tag" class="text-[8px] font-black px-2 py-0.5 rounded-full">Checking...</span>
+                </div>
+                <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-white"></div>
+                <div id="chat-input-container" class="p-3 bg-slate-50 border-t border-slate-100">
+                    <div id="chat-gate-box"></div>
                 </div>
             </div>
-        </div>
-    </div>
-</section>
+        </section>
+        
+        <!-- VIEW: BILLS -->
+        <section id="view-bills" class="hidden">
+            <div class="flex justify-between items-end mb-4 px-1">
+                <h3 class="font-bold text-lg">My Bills</h3>
+                <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
+                    <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600">All</button>
+                    <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500">Unpaid</button>
+                    <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500">Paid</button>
+                </div>
+            </div>
+            <div id="bill-list" class="space-y-2"></div>
+        </section>
+        
+        <!-- VIEW: GUEST PASS -->
+        <section id="view-invite" class="hidden">
+            <h3 class="font-bold text-lg mb-3">Register Visitor</h3>
+            <div class="bg-white p-6 rounded-3xl shadow-sm border mb-6">
+                <input id="guest-name" type="text" placeholder="Visitor Name" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-phone" type="tel" placeholder="Visitor Phone" class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none">
+                <input id="guest-plate" type="text" placeholder="Vehicle Plate No." class="w-full bg-slate-50 p-3 rounded-xl mb-3 border outline-none uppercase">
+                <button id="guest-btn" onclick="generateGuestPass()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg flex items-center justify-center gap-2">Create QR</button>
+                <div id="qr-result" class="hidden mt-6 flex flex-col items-center border-t pt-6 text-center">
+                    <div id="qrcode" onclick="shareQRCode()" class="p-2 bg-white border-4 border-indigo-100 rounded-xl cursor-pointer"></div>
+                    <p class="text-[10px] text-slate-400 font-bold mt-3 uppercase animate-pulse">Click QR to Share</p>
+                </div>
+            </div>
+            <div id="visitor-pending-list" class="space-y-3 mb-6"></div>
+            <div id="visitor-history-list" class="space-y-3"></div>
+        </section>
     </main>
 
     <!-- BOTTOM NAV -->
@@ -136,627 +146,233 @@
         <button onclick="switchTab('bills')" id="nav-bills" class="flex flex-col items-center gap-1 text-[9px] font-black uppercase text-slate-400"><span>💳</span>Bills</button>
     </nav>
 
-    <!-- Custom Cancel Confirmation Modal -->
+    <!-- CANCEL MODAL -->
     <div id="cancel-confirm-modal" class="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-6 hidden">
         <div class="bg-white w-full max-w-xs rounded-3xl p-6 text-center shadow-2xl">
-            <div class="text-3xl mb-2">🗑️</div>
-            <h3 class="font-black text-slate-800 uppercase tracking-tight">Cancel Pass?</h3>
-            <p class="text-xs text-slate-400 mt-2 mb-6">This visitor will no longer be able to enter the Taman with this QR code.</p>
+            <h3 class="font-black text-slate-800 uppercase">Cancel Pass?</h3>
             <input type="hidden" id="cancel-target-id">
-            <div class="flex gap-3">
+            <div class="flex gap-3 mt-6">
                 <button onclick="closeCancelModal()" class="flex-1 py-3 text-xs font-bold text-slate-400 uppercase">Back</button>
-                <button onclick="confirmCancelAction()" class="flex-1 bg-red-500 text-white py-3 rounded-xl text-xs font-bold uppercase shadow-lg shadow-red-200">Confirm</button>
+                <button onclick="confirmCancelAction()" class="flex-1 bg-red-500 text-white py-3 rounded-xl text-xs font-bold uppercase">Confirm</button>
             </div>
         </div>
     </div>
 
     <script>
-// --- NOTIFICATION SYSTEM ---
-function showToast(msg, type = 'info') {
-    const container = document.getElementById('toast-container');
-    const toast = document.createElement('div');
-    const colors = type === 'error' ? 'bg-red-500' : 'bg-slate-800';
-    
-    toast.className = `${colors} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 animate-bounce text-center transition-opacity duration-500`;
-    toast.innerText = msg;
-    
-    container.appendChild(toast);
-    setTimeout(() => { 
-        toast.style.opacity = '0'; 
-        setTimeout(() => toast.remove(), 500); 
-    }, 3000);
-}
+        // --- CONFIG & INIT ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
+            authDomain: "mytaman-1db3a.firebaseapp.com",
+            projectId: "mytaman-1db3a",
+            storageBucket: "mytaman-1db3a.appspot.com",
+            messagingSenderId: "112467759191",
+            appId: "1:112467759191:web:0785a5e578741f01891312"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
 
-// --- FIREBASE CONFIG ---
-const firebaseConfig = {
-    apiKey: "AIzaSyDlsV0Fx__HwoyLEmEofsbK00qeWxjySyw",
-    authDomain: "mytaman-1db3a.firebaseapp.com",
-    projectId: "mytaman-1db3a",
-    storageBucket: "mytaman-1db3a.appspot.com",
-    messagingSenderId: "112467759191",
-    appId: "1:112467759191:web:0785a5e578741f01891312"
-};
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+        let invoiceCache = {}, myBillsRaw = [], currentBillFilter = 'all';
+        let myUnit = localStorage.getItem('myUnit'), unsubBills, unsubNews, unsubVisits, unsubChat;
+        let qrObj = null;
 
-// --- STATE VARIABLES ---
-let invoiceCache = {};
-let myBillsRaw = []; 
-let currentBillFilter = 'all';
-let myUnit = localStorage.getItem('myUnit');
-let unsubBills, unsubNews, unsubVisits;
-let qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
-
-// --- AUTH & IDENTITY ---
-function fetchRoads() {
-    db.collection("settings").doc("taman_config").get().then(doc => {
-        const s = document.getElementById('login-road');
-        const t = document.getElementById('taman-display');
-        if(doc.exists && s) {
-            const data = doc.data();
-            const r = data.roads || [];
-            s.innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
-            if (data.name) t.innerText = data.name;
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `${type === 'error' ? 'bg-red-500' : 'bg-slate-800'} text-white text-[10px] font-bold uppercase tracking-widest px-6 py-4 rounded-2xl shadow-2xl mb-3 text-center transition-all duration-500`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
         }
-    });
-}
 
-async function setIdentity() {
-    const h = document.getElementById('login-house').value.trim().toUpperCase();
-    const r = document.getElementById('login-road').value;
-    const p = document.getElementById('login-pin').value.trim();
-    const btn = document.getElementById('login-btn');
-    
-    if(!h || !r || !p) {
-        showToast("Fill all fields", "error");
-        return;
-    }
-    
-    btn.innerHTML = `<span class="spinner"></span> Verifying...`;
-    btn.disabled = true;
+        // --- AUTH ---
+        async function fetchRoads() {
+            const doc = await db.collection("settings").doc("taman_config").get();
+            if(doc.exists) {
+                const r = doc.data().roads || [];
+                document.getElementById('login-road').innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+                document.getElementById('taman-display').innerText = doc.data().name || "TamanGuard";
+            }
+        }
 
-    const snap = await db.collection("residents")
-                        .where("unitNumber", "==", h)
-                        .where("road", "==", r)
-                        .where("pin", "==", p)
-                        .get();
-    
-    if(!snap.empty) {
-        localStorage.setItem('myUnit', h);
-        localStorage.setItem('myRoad', r);
-        location.reload();
-    } else {
-        btn.innerHTML = "Verify & Enter";
-        btn.disabled = false;
-        showToast("Invalid Unit or PIN", "error");
-    }
-}
+        async function setIdentity() {
+            const h = document.getElementById('login-house').value.trim().toUpperCase();
+            const r = document.getElementById('login-road').value;
+            const p = document.getElementById('login-pin').value.trim();
+            const btn = document.getElementById('login-btn');
+            if(!h || !r || !p) return showToast("Fill all fields", "error");
+            btn.innerHTML = `<span class="spinner"></span> Verifying...`;
+            btn.disabled = true;
+            const snap = await db.collection("residents").where("unitNumber", "==", h).where("road", "==", r).where("pin", "==", p).get();
+            if(!snap.empty) {
+                localStorage.setItem('myUnit', h); localStorage.setItem('myRoad', r); location.reload();
+            } else {
+                btn.innerHTML = "Verify & Enter"; btn.disabled = false; showToast("Invalid Credentials", "error");
+            }
+        }
 
-function logout() {
-    if(unsubBills) unsubBills(); if(unsubNews) unsubNews(); if(unsubVisits) unsubVisits();
-    localStorage.clear(); 
-    location.reload();
-}
+        function logout() { localStorage.clear(); location.reload(); }
 
-// --- APP INITIALIZATION ---
-function initApp() {
-    const road = localStorage.getItem('myRoad');
-    document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
-    loadNews(); loadBills(); loadMyVisitors(); loadChat();
-    db.collection("settings").doc("taman_config").get().then(doc => {
-        if(doc.exists) document.getElementById('taman-display').innerText = doc.data().name || "Resident of";
-    });
-}
+        // --- APP LOGIC ---
+        function initApp() {
+            const road = localStorage.getItem('myRoad');
+            document.getElementById('display-unit').innerText = `${myUnit}, ${road}`;
+            // Correctly initialize QR only after element exists
+            qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
+            loadNews(); loadBills(); loadMyVisitors(); loadChat();
+        }
 
-function switchTab(t) {
-    document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
-    document.getElementById('view-' + t).classList.remove('hidden');
-    document.getElementById('paymaster-card-container').classList.remove('hidden');
-    
-    ['news', 'invite', 'bills'].forEach(tab => {
-        const btn = document.getElementById('nav-' + tab);
-        btn.classList.toggle('text-indigo-600', tab === t);
-        btn.classList.toggle('text-slate-400', tab !== t);
-    });
-}
-
-// --- DATA LOADERS ---
-function loadNews() {
-    unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
-        const list = document.getElementById('news-list'); list.innerHTML = "";
-        if(s.empty) list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400 uppercase font-bold tracking-widest">No news available</p>`;
-        s.forEach(doc => { 
-            const n = doc.data(); 
-            const date = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
-            list.innerHTML += `<div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm"><span class="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">${date}</span><h4 class="font-bold mt-1 text-slate-800 text-sm">${n.title}</h4><p class="text-xs text-slate-500 mt-2 leading-relaxed">${n.content}</p></div>`; 
-        });
-    });
-}
-
-function loadBills() {
-    const myRoad = localStorage.getItem('myRoad'); 
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const now = new Date();
-    const curMonthIdx = now.getMonth(); // 0-11
-    const curYear = now.getFullYear();
-
-    unsubBills = db.collection("invoices")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad)
-        .onSnapshot(snapshot => {
-            myBillsRaw = [];
-            let uC = 0, uT = 0, hasI = !snapshot.empty;
-            
-            snapshot.forEach(doc => {
-                const b = doc.data();
-                b.id = doc.id;
-                myBillsRaw.push(b);
-
-                // Check if bill is for a future month/year
-                const bMonthIdx = monthNames.indexOf(b.month);
-                const bYear = parseInt(b.year);
-                const isFuture = (bYear > curYear) || (bYear === curYear && bMonthIdx > curMonthIdx);
-
-                // Only count toward "Outstanding" if it's NOT paid AND NOT in the future
-                if(b.status !== 'paid' && !isFuture) { 
-                    uC++; 
-                    uT += (parseFloat(b.amount) || 0); 
-                }
+        function switchTab(t) {
+            document.querySelectorAll('section[id^="view-"]').forEach(s => s.classList.add('hidden'));
+            document.getElementById('view-' + t).classList.remove('hidden');
+            ['news', 'invite', 'bills'].forEach(tab => {
+                const btn = document.getElementById('nav-' + tab);
+                btn.classList.toggle('text-indigo-600', tab === t);
+                btn.classList.toggle('text-slate-400', tab !== t);
             });
+        }
 
-            // Sorting logic (using timestamp)
-            myBillsRaw.sort((a, b) => {
-                const timeA = a.createdAt?.toMillis() || 0;
-                const timeB = b.createdAt?.toMillis() || 0;
-                return timeB - timeA;
+        function loadNews() {
+            unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
+                const list = document.getElementById('news-list'); list.innerHTML = "";
+                s.forEach(doc => { 
+                    const n = doc.data(); const d = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
+                    list.innerHTML += `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span class="text-[8px] font-bold text-indigo-500 uppercase">${d}</span><h4 class="font-bold text-slate-800 text-xs">${n.title}</h4><p class="text-[10px] text-slate-500 mt-1">${n.content}</p></div>`; 
+                });
             });
-
-            // Update UI: If uC is 0 (even if future bills exist), it will show "Up to date!"
-            updatePaymasterUI(uC, uT, hasI);
-            renderBillList();
-        });
-}
-
-// --- BILLING LOGIC ---
-function setBillFilter(filter) {
-    currentBillFilter = filter;
-    ['f-all', 'f-paid', 'f-unpaid'].forEach(id => {
-        document.getElementById(id).className = "px-3 py-1 rounded-md text-slate-500";
-    });
-    document.getElementById('f-' + filter).className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600";
-    renderBillList();
-}
-
-function renderBillList() {
-    const list = document.getElementById('bill-list');
-    list.innerHTML = "";
-    invoiceCache = {};
-
-    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-    const now = new Date();
-    const curMonthIdx = now.getMonth(); 
-    const curYear = now.getFullYear();
-
-    const filtered = myBillsRaw.filter(b => {
-        if(currentBillFilter === 'paid') return b.status === 'paid';
-        if(currentBillFilter === 'unpaid') return b.status !== 'paid';
-        return true;
-    });
-
-    if(filtered.length === 0) {
-        list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
-        return;
-    }
-
-    filtered.forEach(b => {
-        invoiceCache[b.id] = b;
-        const isP = b.status === 'paid';
-        const monthLabel = b.month || 'Bill';
-        const yearLabel = b.year || '';
-        const remarksText = b.remarks || 'Maintenance Fee';
-
-        // Check if bill is for a future month
-        const bMonthIdx = monthNames.indexOf(b.month);
-        const bYear = parseInt(b.year);
-        const isFuture = (bYear > curYear) || (bYear === curYear && bMonthIdx > curMonthIdx);
-
-        // --- DYNAMIC STYLING LOGIC ---
-        let rowStyle, statusBadgeStyle, statusText, actionButtonColor;
-
-        if (isP) {
-            // PAID STYLE (White)
-            rowStyle = 'bg-white border-slate-100';
-            statusBadgeStyle = 'bg-green-50 text-green-600';
-            statusText = 'PAID';
-            actionButtonColor = 'text-indigo-600';
-        } else if (isFuture) {
-            // FUTURE UNPAID STYLE (Yellow/Amber)
-            rowStyle = 'bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-500';
-            statusBadgeStyle = 'bg-amber-500 text-white';
-            statusText = 'UPCOMING';
-            actionButtonColor = 'text-amber-700';
-        } else {
-            // CURRENT/PAST UNPAID STYLE (Red)
-            rowStyle = 'bg-rose-50/50 border-red-200 border-l-4 border-l-red-500';
-            statusBadgeStyle = 'bg-red-600 text-white animate-pulse';
-            statusText = 'UNPAID';
-            actionButtonColor = 'text-red-600';
         }
 
-        list.innerHTML += `
-        <div class="${rowStyle} px-4 py-3 rounded-2xl flex items-center justify-between border shadow-sm gap-3 transition-all">
-            <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 flex-1 min-w-0">
-                <!-- Month/Year Badge -->
-                <div class="shrink-0">
-                    <p class="text-[8px] text-white font-bold uppercase tracking-widest ${isP ? 'bg-slate-400' : 'bg-indigo-600'} px-2 py-0.5 rounded-md inline-block whitespace-nowrap">
-                        ${monthLabel} ${yearLabel}
-                    </p>
-                </div>
-                <!-- Remarks -->
-                <div class="truncate">
-                    <p class="text-[11px] font-bold text-slate-700 truncate capitalize">${remarksText}</p>
-                </div>
-            </div>
+        function loadBills() {
+            const myRoad = localStorage.getItem('myRoad');
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
 
-            <!-- Amount and Action Section -->
-            <div class="flex items-center gap-4 shrink-0">
-                <div class="text-right">
-                    <p class="font-black text-sm text-slate-900">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
-                </div>
-                
-                <div class="w-20 text-right">
-                    <div class="flex flex-col items-end">
-                        <span class="text-[8px] font-black px-2 py-0.5 rounded uppercase ${statusBadgeStyle}">${statusText}</span>
-                        ${isP 
-                            ? `<button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold ${actionButtonColor} underline">Receipt</button>` 
-                            : `<button onclick="openPayment()" class="text-[9px] font-bold ${actionButtonColor} underline">Pay Now</button>`
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>`;
-    });
-}
-
-function updatePaymasterUI(count, total, hasI) {
-    const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
-    const chatGate = document.getElementById('chat-gate-box');
-    const chatStatusTag = document.getElementById('chat-status-tag');
-    
-    // ... (keep your existing color logic for card, emo, msg) ...
-
-    // NEW CHAT GATING LOGIC
-    // count (uC) only includes overdue bills (past/current), not future.
-    if (count > 0) {
-        // LOCK CHAT
-        chatStatusTag.innerText = "🔒 LOCKED";
-        chatStatusTag.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
-        chatGate.innerHTML = `
-            <div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center">
-                <p class="text-[10px] text-red-600 font-bold uppercase italic">
-                    ⚠️ Payment Required to Enable Chat
-                </p>
-            </div>
-        `;
-    } else {
-        // UNLOCK CHAT
-        chatStatusTag.innerText = "✅ ACTIVE";
-        chatStatusTag.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
-        // Only rebuild input if it's currently locked to avoid clearing user's typing
-        if(chatGate.querySelector('.bg-red-50')) {
-            chatGate.innerHTML = `
-                <div class="flex gap-2">
-                    <input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white border-none rounded-2xl px-4 py-3 text-sm outline-none shadow-sm">
-                    <button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-            `;
+            unsubBills = db.collection("invoices").where("unitNumber", "==", myUnit).where("road", "==", myRoad).onSnapshot(snap => {
+                myBillsRaw = []; let uC = 0, uT = 0;
+                snap.forEach(doc => {
+                    const b = doc.data(); b.id = doc.id; myBillsRaw.push(b);
+                    const isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
+                    if(b.status !== 'paid' && !isF) { uC++; uT += (parseFloat(b.amount) || 0); }
+                });
+                myBillsRaw.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+                updatePaymasterUI(uC, uT, !snap.empty); renderBillList();
+            });
         }
-    }
-}
 
-function openReceipt(id) {
-    const d = invoiceCache[id]; if(!d) return;
-    document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; 
-    document.getElementById('rcp-amount').innerText = parseFloat(d.amount || 0).toFixed(2); 
-    document.getElementById('rcp-unit').innerText = d.unitNumber; 
-    document.getElementById('rcp-remark').innerText = `${d.month || ''} ${d.year || ''}`;
-    document.getElementById('rcp-date').innerText = d.paidAt ? d.paidAt.toDate().toLocaleDateString('en-GB') : "N/A"; 
-    document.getElementById('receipt-modal').classList.remove('hidden');
-}
-function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
-function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
-function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
+        function renderBillList() {
+            const list = document.getElementById('bill-list'); list.innerHTML = "";
+            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
 
-// --- VISITOR MANAGEMENT ---
-function loadMyVisitors() {
-    const myRoad = localStorage.getItem('myRoad'); 
-    unsubVisits = db.collection("visits")
-        .where("unitNumber", "==", myUnit)
-        .where("road", "==", myRoad)
-        .onSnapshot(snapshot => {
-            const pendingList = document.getElementById('visitor-pending-list');
-            const historyList = document.getElementById('visitor-history-list');
-            let data = []; 
-            snapshot.forEach(doc => { let d = doc.data(); d.id = doc.id; data.push(d); });
-            data.sort((a, b) => (b.entryTime?.seconds || 0) - (a.entryTime?.seconds || 0));
+            const filtered = myBillsRaw.filter(b => currentBillFilter === 'all' ? true : currentBillFilter === 'paid' ? b.status === 'paid' : b.status !== 'paid');
+            filtered.forEach(b => {
+                invoiceCache[b.id] = b;
+                const isP = b.status === 'paid';
+                const isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
+                let rowStyle, badgeStyle, statusText, btnColor;
+                if (isP) { rowStyle='bg-white border-slate-100'; badgeStyle='bg-slate-400'; statusText='PAID'; btnColor='text-indigo-600'; }
+                else if (isF) { rowStyle='bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-500'; badgeStyle='bg-amber-500'; statusText='UPCOMING'; btnColor='text-amber-700'; }
+                else { rowStyle='bg-rose-50/50 border-red-200 border-l-4 border-l-red-500'; badgeStyle='bg-red-600 animate-pulse'; statusText='UNPAID'; btnColor='text-red-600'; }
 
-            let pendingH = "", historyH = "";
-            const now = new Date().getTime();
-            const limit = 48 * 60 * 60 * 1000; 
-
-            data.forEach(v => {
-                const isE = v.status === 'entered';
-                const isC = v.status === 'cancelled';
-                const isPending = v.status === 'pending' || !v.status; 
-                const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now;
-                const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                const isWithin48 = (now - timeMs) < limit;
-
-                const clickHandler = (isPending && isWithin48 && !isC) ? `onclick="reShowQR('${v.id}')"` : '';
-
-                const cardHtml = `<div ${clickHandler} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm ${isPending && !isC ? 'cursor-pointer active:scale-[0.98] transition-transform' : ''}">
-                    <div>
-                        <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
-                        <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">${v.carPlate}</p>
+                list.innerHTML += `<div class="${rowStyle} px-4 py-3 rounded-2xl flex items-center justify-between border shadow-sm transition-all">
+                    <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 flex-1 min-w-0">
+                        <p class="text-[8px] text-white font-bold uppercase tracking-widest ${badgeStyle} px-2 py-0.5 rounded-md inline-block">${b.month} ${b.year}</p>
+                        <p class="text-[11px] font-bold text-slate-700 truncate capitalize">${b.remarks || 'Maintenance Fee'}</p>
                     </div>
-                    <div class="text-right">
-                        <div class="flex gap-2 justify-end mb-1">
-                            ${(isPending && isWithin48 && !isC) ? `<button onclick="event.stopPropagation(); cancelVisit('${v.id}')" class="text-[8px] bg-red-50 text-red-500 px-2 py-1 rounded-lg font-bold uppercase border border-red-100">Cancel</button>` : ''}
-                            <span class="px-3 py-1 rounded-full text-[9px] font-black tracking-widest ${isE ? 'bg-emerald-100 text-emerald-600' : isC ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}">${(v.status || 'PENDING').toUpperCase()}</span>
+                    <div class="flex items-center gap-4 shrink-0">
+                        <p class="font-black text-sm text-slate-900">RM${parseFloat(b.amount).toFixed(2)}</p>
+                        <div class="w-20 text-right flex flex-col items-end">
+                            <span class="text-[8px] font-black px-2 py-0.5 rounded text-white uppercase ${badgeStyle}">${statusText}</span>
+                            ${isP ? `<button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold ${btnColor} underline">Receipt</button>` : `<button onclick="openPayment()" class="text-[9px] font-bold ${btnColor} underline">Pay Now</button>`}
                         </div>
-                        <p class="text-[8px] text-slate-300 mt-1 uppercase tracking-tighter">${dt}</p>
                     </div>
                 </div>`;
-
-                if (isPending && isWithin48 && !isC) pendingH += cardHtml;
-                else historyH += cardHtml;
             });
-            pendingList.innerHTML = pendingH || '<p class="text-slate-400 text-center py-4 text-xs italic">No active passes.</p>';
-            historyList.innerHTML = historyH || '<p class="text-slate-400 text-center py-4 text-xs italic">No past history.</p>';
-        });
-}
-
-function cancelVisit(id) {
-    document.getElementById('cancel-target-id').value = id;
-    document.getElementById('cancel-confirm-modal').classList.remove('hidden');
-}
-
-function closeCancelModal() {
-    document.getElementById('cancel-confirm-modal').classList.add('hidden');
-}
-
-async function confirmCancelAction() {
-    const id = document.getElementById('cancel-target-id').value;
-    if(!id) return;
-    
-    const confirmBtn = document.querySelector('#cancel-confirm-modal button.bg-red-500');
-    confirmBtn.disabled = true;
-    confirmBtn.innerHTML = `<span class="spinner"></span>`;
-
-    try {
-        await db.collection("visits").doc(id).update({ 
-            status: "cancelled",
-            cancelledAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        showToast("Pass Cancelled");
-    } catch (err) {
-        console.error(err);
-        showToast("System Error: Permissions", "error");
-    } finally {
-        confirmBtn.disabled = false;
-        confirmBtn.innerText = "Confirm";
-        closeCancelModal();
-    }
-}
-
-async function generateGuestPass() {
-    const n = document.getElementById('guest-name').value;
-    const ph = document.getElementById('guest-phone').value;
-    const pl = document.getElementById('guest-plate').value;
-    const btn = document.getElementById('guest-btn');
-    const myRoad = localStorage.getItem('myRoad');
-
-    if(!n || !ph || !pl) {
-        showToast("Fill all details", "error");
-        return;
-    }
-    
-    btn.innerHTML = `<span class="spinner"></span>`;
-    btn.disabled = true;
-
-    try {
-        const docRef = await db.collection("visits").add({ 
-            visitorName: n, 
-            visitorPhone: ph, 
-            carPlate: pl.toUpperCase(), 
-            unitNumber: myUnit, 
-            road: myRoad,
-            status: "pending", 
-            entryTime: firebase.firestore.FieldValue.serverTimestamp() 
-        });
-        
-        document.getElementById('qr-result').classList.remove('hidden'); 
-        qrObj.clear(); 
-        qrObj.makeCode(docRef.id);
-        
-        document.getElementById('guest-name').value = ""; 
-        document.getElementById('guest-phone').value = ""; 
-        document.getElementById('guest-plate').value = "";
-        
-        showToast("QR Generated Successfully");
-    } catch (err) {
-        showToast("Generation Failed", "error");
-    } finally {
-        btn.innerHTML = "Create QR";
-        btn.disabled = false;
-    }
-}
-
-async function shareQRCode() {
-    const qrCanvas = document.querySelector('#qrcode canvas');
-    if (!qrCanvas) return;
-    try {
-        const dataUrl = qrCanvas.toDataURL("image/png");
-        const blob = await (await fetch(dataUrl)).blob();
-        const file = new File([blob], "VisitorQR.png", { type: "image/png" });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                files: [file],
-                title: 'TamanGuard Visitor Pass',
-                text: `Visitor Pass for Unit ${myUnit}. Scan at Guard House.`
-            });
-        } else {
-            const link = document.createElement('a');
-            link.download = 'VisitorQR.png'; link.href = dataUrl; link.click();
         }
-    } catch (err) { console.error("Sharing failed", err); }
-}
 
-function reShowQR(visitId) {
-    document.getElementById('qr-result').classList.remove('hidden');
-    qrObj.clear();
-    qrObj.makeCode(visitId);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-}
+        function updatePaymasterUI(count, total, hasI) {
+            const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message');
+            const chatGate = document.getElementById('chat-gate-box'), chatStatus = document.getElementById('chat-status-tag');
+            if(!card || !chatGate) return;
 
-        // --- COMMUNITY CHAT LOGIC ---
-let unsubChat;
+            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
+            if (!hasI) { card.classList.add('bg-slate-200'); emo.innerText = "👋"; msg.innerText = "No bills found."; }
+            else if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date! Thank you!"; }
+            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Outstanding: RM${total.toFixed(2)}`; }
 
-function loadChat() {
-    if(unsubChat) unsubChat();
-    // Show last 50 messages
-    const q = db.collection("community_chat").orderBy("createdAt", "desc").limit(50);
-    
-    unsubChat = q.onSnapshot(snap => {
-        const box = document.getElementById('chat-messages');
-        if(!box) return;
-        
-        let html = "";
-        // Reverse because we want oldest at top, newest at bottom for the UI
-        const docs = snap.docs.reverse();
-        
-        docs.forEach(doc => {
-            const m = doc.data();
-            const isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
-            
-            html += `
-                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-                    <span class="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">
-                        Unit ${m.unit}
-                    </span>
-                    <div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">
-                        ${m.text}
-                    </div>
-                </div>
-            `;
-        });
-        box.innerHTML = html;
-        // Auto-scroll to bottom
-        box.scrollTop = box.scrollHeight;
-    });
-}
-
-async function sendChatMessage() {
-    const input = document.getElementById('chat-input-field');
-    const text = input.value.trim();
-    if(!text) return;
-
-    try {
-        await db.collection("community_chat").add({
-            text: text,
-            unit: myUnit,
-            road: localStorage.getItem('myRoad'),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        input.value = "";
-    } catch (e) {
-        showToast("Chat error", "error");
-    }
-}
-// --- UPDATED ONLOAD GATEKEEPER WITH MAGIC LINK ---
-window.onload = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const u = urlParams.get('u'); // Unit
-    const r = urlParams.get('r'); // Road
-    const p = urlParams.get('p'); // PIN
-
-    if (u && r && p) {
-        showToast("Verifying Magic Link...");
-        
-        try {
-            // We search only by PIN first to avoid "Firestore Index" errors
-            const snap = await db.collection("residents")
-                                .where("pin", "==", p)
-                                .get();
-            
-            if (snap.empty) {
-                showToast("Invalid PIN in link", "error");
+            if (count > 0) {
+                chatStatus.innerText = "🔒 LOCKED"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
+                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Payment Required to Enable Chat</div>`;
             } else {
-                // Now we find the specific unit and road from the results
-                const match = snap.docs.find(doc => {
-                    const data = doc.data();
-                    // We compare unit and road (case-insensitive for road)
-                    return String(data.unitNumber) === String(u) && 
-                           String(data.road).trim().toLowerCase() === String(r).trim().toLowerCase();
+                chatStatus.innerText = "✅ ACTIVE"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
+                if(!chatGate.querySelector('input')) chatGate.innerHTML = `<div class="flex gap-2"><input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white rounded-2xl px-4 py-3 text-sm outline-none shadow-sm"><button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button></div>`;
+            }
+        }
+
+        // --- CHAT LOGIC ---
+        function loadChat() {
+            unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
+                const box = document.getElementById('chat-messages'); if(!box) return;
+                let html = ""; const docs = snap.docs.reverse();
+                docs.forEach(doc => {
+                    const m = doc.data(); const isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
+                    html += `<div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}"><span class="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">Unit ${m.unit}</span><div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">${m.text}</div></div>`;
                 });
+                box.innerHTML = html; box.scrollTop = box.scrollHeight;
+            });
+        }
 
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input-field'); const text = input.value.trim();
+            if(!text) return;
+            try { await db.collection("community_chat").add({ text, unit: myUnit, road: localStorage.getItem('myRoad'), createdAt: firebase.firestore.FieldValue.serverTimestamp() }); input.value = ""; }
+            catch(e) { showToast("Error", "error"); }
+        }
+
+        // --- VISITOR & OTHER UTILS ---
+        function loadMyVisitors() {
+            unsubVisits = db.collection("visits").where("unitNumber", "==", myUnit).where("road", "==", localStorage.getItem('myRoad')).onSnapshot(snapshot => {
+                const pendingList = document.getElementById('visitor-pending-list'), historyList = document.getElementById('visitor-history-list');
+                let pendingH = "", historyH = ""; const now = new Date().getTime();
+                snapshot.forEach(doc => {
+                    const v = doc.data(); const id = doc.id;
+                    const isE = v.status === 'entered', isC = v.status === 'cancelled', isP = v.status === 'pending' || !v.status;
+                    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now, dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                    const card = `<div ${isP && !isC ? `onclick="reShowQR('${id}')"` : ''} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm mb-2"><div><p class="text-sm font-bold text-slate-800">${v.visitorName}</p><p class="text-[10px] text-slate-500 uppercase">${v.carPlate}</p></div><div class="text-right"><span class="px-3 py-1 rounded-full text-[9px] font-black ${isE?'bg-emerald-100 text-emerald-600':isC?'bg-red-100 text-red-600':'bg-amber-100 text-amber-600'}">${(v.status||'PENDING').toUpperCase()}</span><p class="text-[8px] text-slate-300 mt-1">${dt}</p></div></div>`;
+                    if (isP && !isC) pendingH += card; else historyH += card;
+                });
+                pendingList.innerHTML = pendingH; historyList.innerHTML = historyH;
+            });
+        }
+
+        async function generateGuestPass() {
+            const n = document.getElementById('guest-name').value, ph = document.getElementById('guest-phone').value, pl = document.getElementById('guest-plate').value;
+            if(!n || !ph || !pl) return showToast("Fill all details", "error");
+            const docRef = await db.collection("visits").add({ visitorName: n, visitorPhone: ph, carPlate: pl.toUpperCase(), unitNumber: myUnit, road: localStorage.getItem('myRoad'), status: "pending", entryTime: firebase.firestore.FieldValue.serverTimestamp() });
+            document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(docRef.id);
+        }
+
+        function reShowQR(id) { document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(id); window.scrollTo(0,0); }
+        function openReceipt(id) { const d = invoiceCache[id]; document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); document.getElementById('rcp-unit').innerText = d.unitNumber; document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`; document.getElementById('receipt-modal').classList.remove('hidden'); }
+        function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
+        function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
+        function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
+        function setBillFilter(f) { currentBillFilter = f; renderBillList(); }
+
+        window.onload = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const u = urlParams.get('u'), r = urlParams.get('r'), p = urlParams.get('p');
+            if (u && r && p) {
+                const snap = await db.collection("residents").where("pin", "==", p).get();
+                const match = snap.docs.find(doc => String(doc.data().unitNumber) === String(u) && String(doc.data().road).toLowerCase() === String(r).toLowerCase());
                 if (match) {
-                    const resDoc = match;
-                    const resData = resDoc.data();
-
-                    // 1. Update joined status in database
-                    await db.collection("residents").doc(resDoc.id).update({
-                        isJoined: true,
-                        lastLoginAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-
-                    // 2. Save credentials to phone memory
-                    localStorage.setItem('myUnit', String(resData.unitNumber));
-                    localStorage.setItem('myRoad', resData.road);
-
-                    showToast("Login Successful!");
-
-                    // 3. Clean URL and reload into the dashboard
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    setTimeout(() => location.reload(), 800);
-                    return; 
-                } else {
-                    showToast("Link doesn't match this unit/road", "error");
+                    await db.collection("residents").doc(match.id).update({ isJoined: true, lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    localStorage.setItem('myUnit', String(match.data().unitNumber)); localStorage.setItem('myRoad', match.data().road);
+                    window.history.replaceState({}, document.title, window.location.pathname); location.reload(); return;
                 }
             }
-        } catch (err) {
-            console.error("Auth Error:", err);
-            // This displays the actual error in a toast so you can see it
-            showToast("Error: " + err.message, "error");
-        }
-    }
-
-  
-
-    // 2. STANDARD GATEKEEPER LOGIC (Runs if no magic link is present)
-    const savedUnit = localStorage.getItem('myUnit');
-    const loginScreen = document.getElementById('login-screen');
-    const appHeader = document.getElementById('app-header');
-    const appMain = document.getElementById('app-main');
-    const appNav = document.getElementById('app-nav');
-
-    if (!savedUnit) {
-        if(loginScreen) loginScreen.classList.remove('hidden');
-        if(appHeader) appHeader.style.display = 'none';
-        if(appMain) appMain.style.display = 'none';
-        if(appNav) appNav.style.display = 'none';
-        fetchRoads(); 
-    } else {
-        myUnit = savedUnit;
-        if(loginScreen) loginScreen.classList.add('hidden');
-        if(appHeader) appHeader.style.display = 'flex';
-        if(appMain) appMain.style.display = 'block';
-        if(appNav) appNav.style.display = 'flex';
-        initApp();
-    }
-};
-</script>
+            if (!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); } 
+            else { document.getElementById('app-header').style.display = 'flex'; document.getElementById('app-main').style.display = 'block'; document.getElementById('app-nav').style.display = 'flex'; initApp(); }
+        };
+    </script>
 </body>
 </html>
