@@ -8,10 +8,12 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         .spinner { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans overflow-x-hidden no-scrollbar">
@@ -32,17 +34,17 @@
         <!-- SOS Button -->
         <button onclick="openModal('sos-modal')" class="w-full bg-red-600 active:scale-95 transition-transform py-5 rounded-2xl shadow-lg border-b-4 border-red-900">
             <span class="text-2xl">🚨</span>
-            <span class="text-lg font-black uppercase tracking-widest">Contact RA</span>
+            <span class="text-lg font-black uppercase tracking-widest text-white">Contact RA</span>
         </button>
 
         <!-- Entry Control -->
         <div class="bg-slate-800 rounded-3xl p-6 border border-slate-700 shadow-xl">
             <div id="reader" class="overflow-hidden rounded-2xl bg-black mb-6 border-2 border-slate-700"></div>
             <div class="grid grid-cols-2 gap-4">
-                <button onclick="startScanner()" class="bg-indigo-600 py-4 rounded-xl font-bold active:bg-indigo-700 shadow-lg">Scan QR</button>
-                <button onclick="openModal('search-modal')" class="bg-slate-700 py-4 rounded-xl font-bold active:bg-slate-600">Plate Search</button>
+                <button onclick="startScanner()" class="bg-indigo-600 py-4 rounded-xl font-bold active:bg-indigo-700 shadow-lg text-white uppercase tracking-widest text-xs">Scan QR</button>
+                <button onclick="openModal('search-modal')" class="bg-slate-700 py-4 rounded-xl font-bold active:bg-slate-600 text-white uppercase tracking-widest text-xs">Plate Search</button>
             </div>
-            <button onclick="openModal('walkin-modal')" class="w-full mt-4 bg-emerald-600 py-4 rounded-xl font-bold active:bg-emerald-700">Manual Drive-in</button>
+            <button onclick="openModal('walkin-modal')" class="w-full mt-4 bg-emerald-600 py-4 rounded-xl font-bold active:bg-emerald-700 text-white uppercase tracking-widest text-xs">Manual Drive-in</button>
         </div>
 
         <!-- Active Logs -->
@@ -78,7 +80,7 @@
     <div id="search-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
         <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700">
             <h3 class="text-center font-black text-white uppercase tracking-widest mb-6">Search Plate No.</h3>
-            <input id="search-input" type="text" placeholder="e.g. ABC1234" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase mb-6 outline-none focus:border-indigo-500">
+            <input id="search-input" type="text" placeholder="e.g. ABC1234" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase mb-6 outline-none focus:border-indigo-500 text-white">
             <div class="flex gap-4">
                 <button onclick="closeModal('search-modal')" class="flex-1 py-4 text-xs font-bold text-slate-500 uppercase">Back</button>
                 <button onclick="runPlateSearch()" class="flex-1 bg-indigo-600 text-white py-4 rounded-2xl text-xs font-bold uppercase">Search</button>
@@ -86,20 +88,35 @@
         </div>
     </div>
 
-    <!-- WALK-IN MODAL (Previously added, kept for consistency) -->
+    <!-- WALK-IN MODAL -->
     <div id="walkin-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
-        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700 shadow-2xl">
             <h3 class="text-center font-black text-white uppercase tracking-widest mb-6">Manual Registration</h3>
-            <div class="space-y-4 mb-8">
-                <input id="w-plate" type="text" placeholder="PLATE NO" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase">
-                <input id="w-name" type="text" placeholder="VISITOR NAME" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase">
-                <input id="w-unit" type="text" placeholder="UNIT (e.g. 15)" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase">
-                <select id="w-road" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-xs"></select>
+            <div class="space-y-3 mb-8">
+                <input id="w-plate" type="text" placeholder="PLATE NO" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <input id="w-name" type="text" placeholder="VISITOR NAME" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <input id="w-phone" type="tel" placeholder="PHONE NUMBER" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="w-unit" type="text" placeholder="UNIT" class="w-full bg-slate-900 p-4 rounded-xl border border-slate-700 font-bold uppercase text-white outline-none focus:border-emerald-500">
+                    <select id="w-road" class="w-full bg-slate-900 px-2 rounded-xl border border-slate-700 font-bold uppercase text-[10px] text-white outline-none focus:border-emerald-500"></select>
+                </div>
             </div>
             <div class="flex gap-4">
                 <button onclick="closeModal('walkin-modal')" class="flex-1 py-4 text-xs font-bold text-slate-500 uppercase">Back</button>
-                <button onclick="processWalkin()" class="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-bold uppercase">Grant Entry</button>
+                <button onclick="processWalkin()" class="flex-1 bg-emerald-600 text-white py-4 rounded-2xl text-xs font-bold uppercase shadow-lg shadow-emerald-900/20">Grant Entry</button>
             </div>
+        </div>
+    </div>
+
+    <!-- SOS MODAL -->
+    <div id="sos-modal" class="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-6 hidden">
+        <div class="bg-slate-800 w-full max-w-sm rounded-3xl p-8 border border-slate-700 text-center">
+            <h3 class="font-black text-white uppercase tracking-widest mb-6">Contact Committee</h3>
+            <div class="space-y-4">
+                <a href="tel:0122750485" class="block w-full bg-slate-700 p-4 rounded-2xl font-bold text-white uppercase">📞 Call RA Office</a>
+                <a href="https://wa.me/60122750485" class="block w-full bg-emerald-600 p-4 rounded-2xl font-bold text-white uppercase">💬 WhatsApp RA</a>
+            </div>
+            <button onclick="closeModal('sos-modal')" class="mt-8 text-xs font-bold text-slate-500 uppercase tracking-widest underline">Close</button>
         </div>
     </div>
 
@@ -174,7 +191,7 @@
                 currentActiveId = id;
                 document.getElementById('modal-plate').innerText = d.carPlate;
                 document.getElementById('modal-name').innerText = d.visitorName;
-                document.getElementById('modal-dest').innerText = `${d.unitNumber}, ${d.road}`;
+                document.getElementById('modal-dest').innerText = `${d.unitNumber}, ${d.road || '-'}`;
                 openModal('verify-modal');
             } catch (e) { showToast("System Error", "error"); }
         }
@@ -184,14 +201,14 @@
             try {
                 await db.collection("visits").doc(currentActiveId).update({
                     status: "entered",
-                    entryTime: firebase.firestore.FieldValue.serverTimestamp()
+                    actualEntryTime: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 showToast("Entry Granted");
                 closeModal('verify-modal');
             } catch (e) { showToast("Failed to update", "error"); }
         }
 
-        // --- REAL-TIME FEED ---
+        // --- REAL-TIME FEED (IMPROVED CARD UI) ---
         db.collection("visits").orderBy("entryTime", "desc").limit(20).onSnapshot(snap => {
             const activeLog = document.getElementById('active-log');
             const doneLog = document.getElementById('done-log');
@@ -201,25 +218,45 @@
                 const v = doc.data(); const id = doc.id;
                 if(v.status === 'cancelled') return;
 
-                const isInside = v.status === "entered";
-                const isExited = v.status === "exited";
-                const isPending = v.status === "pending";
+                const status = (v.status || "pending").toUpperCase();
+                const isInside = status === "ENTERED";
+                const isExited = status === "EXITED";
+                const isPending = status === "PENDING";
 
                 const cardHtml = `
-                    <div class="p-4 rounded-2xl flex justify-between items-center ${isInside ? 'bg-emerald-900/20 border border-emerald-500/30' : 'bg-slate-800 border border-slate-700'}">
-                        <div>
-                            <div class="flex items-center gap-2">
-                                <span class="font-black text-lg ${isExited ? 'text-slate-600' : 'text-white'}">${v.carPlate}</span>
-                                <span class="text-[9px] bg-slate-700 px-2 py-0.5 rounded text-slate-400 font-bold uppercase">${v.unitNumber}</span>
+                    <div class="p-3 rounded-2xl flex items-center justify-between border transition-all ${isInside ? 'bg-emerald-900/10 border-emerald-500/30 shadow-lg shadow-emerald-900/10' : 'bg-slate-800 border-slate-700 shadow-md'}">
+                        <!-- LEFT: Info -->
+                        <div class="flex-1 min-w-0 pr-3">
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="font-black text-xl leading-none ${isExited ? 'text-slate-600' : 'text-white'}">${v.carPlate}</span>
+                                <span class="text-[9px] bg-slate-900 border border-slate-700 px-2 py-1 rounded-lg text-indigo-300 font-bold uppercase tracking-tight">
+                                    ${v.unitNumber} • ${v.road || '-'}
+                                </span>
                             </div>
-                            <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider">${v.visitorName}</p>
+                            <div class="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                                <span class="truncate max-w-[90px]">${v.visitorName}</span>
+                                <span class="text-slate-700">|</span>
+                                <span>${v.visitorPhone || v.phone || 'No Phone'}</span>
+                            </div>
                         </div>
-                        <div class="text-right">
-                            <span class="text-[9px] font-black tracking-widest ${isInside ? 'text-emerald-400' : isExited ? 'text-slate-600' : 'text-amber-500'}">
-                                ${v.status.toUpperCase()}
-                            </span>
-                            ${isInside ? `<button onclick="processExit('${id}')" class="block mt-2 bg-rose-600/20 text-rose-400 text-[9px] px-3 py-2 rounded-xl font-bold border border-rose-500/20 uppercase tracking-tighter">Exit</button>` : ''}
-                            ${isPending ? `<button onclick="verifyVisit('${id}')" class="block mt-2 bg-indigo-600 text-white text-[9px] px-3 py-2 rounded-xl font-bold uppercase tracking-tighter shadow-lg shadow-indigo-900/40">Entry</button>` : ''}
+
+                        <!-- RIGHT: Large Actions -->
+                        <div class="flex items-center gap-2">
+                            ${isPending ? `
+                                <button onclick="verifyVisit('${id}')" class="h-14 w-24 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl shadow-lg flex flex-col items-center justify-center transition-transform active:scale-95">
+                                    <i class="fas fa-sign-in-alt text-sm mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase">ENTRY</span>
+                                </button>
+                            ` : isInside ? `
+                                <button onclick="processExit('${id}')" class="h-14 w-24 bg-rose-600 hover:bg-rose-500 text-white rounded-2xl shadow-lg flex flex-col items-center justify-center transition-transform active:scale-95">
+                                    <i class="fas fa-sign-out-alt text-sm mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase">EXIT</span>
+                                </button>
+                            ` : `
+                                <div class="w-24 text-center">
+                                    <span class="text-[9px] font-black text-slate-600 uppercase tracking-widest">${status}</span>
+                                </div>
+                            `}
                         </div>
                     </div>`;
 
@@ -246,17 +283,31 @@
         async function processWalkin() {
             const p = document.getElementById('w-plate').value.trim().toUpperCase();
             const n = document.getElementById('w-name').value.trim().toUpperCase();
+            const ph = document.getElementById('w-phone').value.trim();
             const u = document.getElementById('w-unit').value.trim().toUpperCase();
             const r = document.getElementById('w-road').value;
+
             if(!p || !n || !u || !r) return showToast("Fill all details", "error");
 
-            await db.collection("visits").add({
-                carPlate: p, visitorName: n, unitNumber: u, road: r,
-                status: "entered", entryTime: firebase.firestore.FieldValue.serverTimestamp(),
-                type: "walk-in"
-            });
-            showToast("Manual Entry Granted");
-            closeModal('walkin-modal');
+            try {
+                await db.collection("visits").add({
+                    carPlate: p, 
+                    visitorName: n, 
+                    visitorPhone: ph, 
+                    unitNumber: u, 
+                    road: r,
+                    status: "entered", 
+                    entryTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    actualEntryTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    type: "walk-in"
+                });
+                showToast("Manual Entry Granted");
+                closeModal('walkin-modal');
+                // Clear fields
+                ['w-plate', 'w-name', 'w-phone', 'w-unit'].forEach(id => document.getElementById(id).value = "");
+            } catch (e) {
+                showToast("Save Failed", "error");
+            }
         }
 
     </script>
