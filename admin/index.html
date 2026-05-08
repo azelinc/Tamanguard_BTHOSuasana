@@ -118,21 +118,23 @@
 
       <!-- Visitors Tab -->
       <div id="tab-visitors" class="tab-pane hidden">
-        <div class="glass rounded-xl overflow-hidden">
-          <table class="w-full text-left text-sm">
-<thead class="bg-slate-800/50 text-slate-500 uppercase text-[10px] tracking-widest border-b border-slate-700">
-    <tr>
-        <th class="px-4 py-4 font-bold w-20 text-left">Date</th>
-        <th class="px-4 py-4 font-bold w-24 text-left">Plate</th>
-        <th class="px-4 py-4 font-bold min-w-[150px] text-left">Unit / Road</th>
-        <th class="px-4 py-4 font-bold text-left">Visitor Name</th>
-        <th class="px-4 py-4 font-bold text-right">Status</th>
-    </tr>
-</thead>
-            <tbody id="visitorsTableBody" class="divide-y divide-slate-700/50"></tbody>
-          </table>
-        </div>
-      </div>
+    <div class="glass rounded-xl overflow-hidden border border-slate-700/50">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-slate-800/80 text-slate-500 uppercase text-[10px] tracking-widest">
+                <tr>
+                    <th class="px-6 py-4 font-bold w-24">Date</th>
+                    <th class="px-6 py-4 font-bold w-32">Vehicle</th>
+                    <th class="px-6 py-4 font-bold w-48">Resident / Unit</th>
+                    <th class="px-6 py-4 font-bold">Visitor Details</th>
+                    <th class="px-6 py-4 font-bold text-right w-32">Status</th>
+                </tr>
+            </thead>
+            <tbody id="visitorsTableBody" class="divide-y divide-slate-800/50">
+                <!-- Data injected here -->
+            </tbody>
+        </table>
+    </div>
+</div>
 
       <!-- Billing Tab -->
       <div id="tab-billing" class="tab-pane hidden">
