@@ -332,15 +332,23 @@ function renderBillList() {
     const list = document.getElementById('bill-list');
     list.innerHTML = "";
     invoiceCache = {};
+
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const now = new Date();
+    const curMonthIdx = now.getMonth(); 
+    const curYear = now.getFullYear();
+
     const filtered = myBillsRaw.filter(b => {
         if(currentBillFilter === 'paid') return b.status === 'paid';
         if(currentBillFilter === 'unpaid') return b.status !== 'paid';
         return true;
     });
+
     if(filtered.length === 0) {
         list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
         return;
     }
+
     filtered.forEach(b => {
         invoiceCache[b.id] = b;
         const isP = b.status === 'paid';
@@ -348,11 +356,33 @@ function renderBillList() {
         const yearLabel = b.year || '';
         const remarksText = b.remarks || 'Maintenance Fee';
 
-        // --- DYNAMIC STYLING ---
-        // Unpaid bills get a soft red background and a thick left border
-        const rowStyle = isP 
-            ? 'bg-white border-slate-100' 
-            : 'bg-rose-50/50 border-red-200 border-l-4 border-l-red-500';
+        // Check if bill is for a future month
+        const bMonthIdx = monthNames.indexOf(b.month);
+        const bYear = parseInt(b.year);
+        const isFuture = (bYear > curYear) || (bYear === curYear && bMonthIdx > curMonthIdx);
+
+        // --- DYNAMIC STYLING LOGIC ---
+        let rowStyle, statusBadgeStyle, statusText, actionButtonColor;
+
+        if (isP) {
+            // PAID STYLE (White)
+            rowStyle = 'bg-white border-slate-100';
+            statusBadgeStyle = 'bg-green-50 text-green-600';
+            statusText = 'PAID';
+            actionButtonColor = 'text-indigo-600';
+        } else if (isFuture) {
+            // FUTURE UNPAID STYLE (Yellow/Amber)
+            rowStyle = 'bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-500';
+            statusBadgeStyle = 'bg-amber-500 text-white';
+            statusText = 'UPCOMING';
+            actionButtonColor = 'text-amber-700';
+        } else {
+            // CURRENT/PAST UNPAID STYLE (Red)
+            rowStyle = 'bg-rose-50/50 border-red-200 border-l-4 border-l-red-500';
+            statusBadgeStyle = 'bg-red-600 text-white animate-pulse';
+            statusText = 'UNPAID';
+            actionButtonColor = 'text-red-600';
+        }
 
         list.innerHTML += `
         <div class="${rowStyle} px-4 py-3 rounded-2xl flex items-center justify-between border shadow-sm gap-3 transition-all">
@@ -375,18 +405,14 @@ function renderBillList() {
                     <p class="font-black text-sm text-slate-900">RM${(parseFloat(b.amount)||0).toFixed(2)}</p>
                 </div>
                 
-                <div class="w-16 text-right">
-                    ${isP ? `
-                        <div class="flex flex-col items-end">
-                            <span class="text-[8px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded uppercase">PAID</span>
-                            <button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold text-indigo-600 underline">Receipt</button>
-                        </div>
-                    ` : `
-                        <div class="flex flex-col items-end">
-                            <span class="text-[8px] font-black text-white bg-red-600 px-2 py-0.5 rounded uppercase animate-pulse">UNPAID</span>
-                            <button onclick="openPayment()" class="text-[9px] font-bold text-red-600 underline">Pay Now</button>
-                        </div>
-                    `}
+                <div class="w-20 text-right">
+                    <div class="flex flex-col items-end">
+                        <span class="text-[8px] font-black px-2 py-0.5 rounded uppercase ${statusBadgeStyle}">${statusText}</span>
+                        ${isP 
+                            ? `<button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold ${actionButtonColor} underline">Receipt</button>` 
+                            : `<button onclick="openPayment()" class="text-[9px] font-bold ${actionButtonColor} underline">Pay Now</button>`
+                        }
+                    </div>
                 </div>
             </div>
         </div>`;
