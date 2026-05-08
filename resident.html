@@ -276,29 +276,43 @@ function loadNews() {
 
 function loadBills() {
     const myRoad = localStorage.getItem('myRoad'); 
+    const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const now = new Date();
+    const curMonthIdx = now.getMonth(); // 0-11
+    const curYear = now.getFullYear();
+
     unsubBills = db.collection("invoices")
         .where("unitNumber", "==", myUnit)
         .where("road", "==", myRoad)
         .onSnapshot(snapshot => {
             myBillsRaw = [];
             let uC = 0, uT = 0, hasI = !snapshot.empty;
+            
             snapshot.forEach(doc => {
                 const b = doc.data();
                 b.id = doc.id;
                 myBillsRaw.push(b);
-                if(b.status !== 'paid') { 
+
+                // Check if bill is for a future month/year
+                const bMonthIdx = monthNames.indexOf(b.month);
+                const bYear = parseInt(b.year);
+                const isFuture = (bYear > curYear) || (bYear === curYear && bMonthIdx > curMonthIdx);
+
+                // Only count toward "Outstanding" if it's NOT paid AND NOT in the future
+                if(b.status !== 'paid' && !isFuture) { 
                     uC++; 
                     uT += (parseFloat(b.amount) || 0); 
                 }
             });
 
-            // FIXED SORTING: Use timestamp instead of strings to avoid "Undefined" and sort correctly
+            // Sorting logic (using timestamp)
             myBillsRaw.sort((a, b) => {
                 const timeA = a.createdAt?.toMillis() || 0;
                 const timeB = b.createdAt?.toMillis() || 0;
                 return timeB - timeA;
             });
 
+            // Update UI: If uC is 0 (even if future bills exist), it will show "Up to date!"
             updatePaymasterUI(uC, uT, hasI);
             renderBillList();
         });
