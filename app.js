@@ -251,14 +251,17 @@ function renderResidents() {
 
 // --- WHATSAPP INVITE LOGIC ---
 function sendWhatsAppInvite(res) {
-    // 1. Your base app URL
     const baseUrl = "https://bthosuasana.tamanguard.my"; 
     
-    // 2. Build the raw magic link string
-    // We use the raw values here; the encoding happens to the whole message later
-    const magicLink = `${baseUrl}?u=${res.unitNumber}&r=${res.road}&p=${res.pin}`;
+    // 1. FIRST ENCODE: Handle the spaces/slashes in the Road name so the link doesn't break
+    const u = encodeURIComponent(res.unitNumber);
+    const r = encodeURIComponent(res.road);
+    const p = encodeURIComponent(res.pin);
 
-    // 3. Build the plain text message
+    // This creates a "clean" link with no spaces: ...?u=1&r=JLN%20SUASANA%205%2F3&p=1234
+    const magicLink = `${baseUrl}?u=${u}&r=${r}&p=${p}`;
+
+    // 2. Build the message text
     const rawMessage = `*TamanGuard Official Access*
 
 Hello ${res.name}, welcome! Click the secure link below to instantly log in for Unit ${res.unitNumber}:
@@ -267,16 +270,15 @@ ${magicLink}
 
 Once logged in, you can generate guest passes and view bills.`;
     
-    // 4. CRITICAL FIX: Encode the entire message 
-    // This ensures that the '&' and '?' inside the link are treated as text by WhatsApp
+    // 3. SECOND ENCODE: Wrap the whole message for the WhatsApp wa.me API
     const encodedMessage = encodeURIComponent(rawMessage);
     
-    // 5. Format the phone number
+    // 4. Format the phone number
     let phone = res.phone.replace(/\D/g, ''); 
     if (phone.startsWith('0')) phone = '6' + phone;
     else if (phone.startsWith('1')) phone = '60' + phone;
 
-    // 6. Open WhatsApp using the fully encoded message
+    // 5. Open WhatsApp
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
 }
 
