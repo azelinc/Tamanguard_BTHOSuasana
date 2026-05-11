@@ -371,15 +371,33 @@
                 let pH = "", hH = ""; 
                 const now = new Date().getTime();
                 
+                // 1. Gather all documents into an array
+                const visits =[];
                 snapshot.forEach(doc => {
-                    const v = doc.data();
-                    const id = doc.id;
+                    const data = doc.data();
+                    data.id = doc.id;
+                    visits.push(data);
+                });
+                
+                // 2. Sort the array so the most recently modified is at the top
+                visits.sort((a, b) => {
+                    // Fallback to 'now' if it's a new local creation pending server sync
+                    const getMs = (v) => {
+                        if (v.updatedAt && v.updatedAt.toMillis) return v.updatedAt.toMillis();
+                        if (v.entryTime && v.entryTime.toMillis) return v.entryTime.toMillis();
+                        return now; 
+                    };
+                    return getMs(b) - getMs(a); // Sort descending (newest first)
+                });
+                
+                // 3. Generate the UI
+                visits.forEach(v => {
+                    const id = v.id;
                     const isE = v.status === 'entered';
                     const isC = v.status === 'cancelled';
                     const isP = v.status === 'pending' || !v.status;
-                    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                    const dt = v.entryTime && v.entryTime.toDate ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
                     
-                    // Add a Cancel (X) button for Pending passes only - Now calls openCancelModal
                     const cancelBtn = (isP && !isC) ? 
                         `<button onclick="event.stopPropagation(); openCancelModal('${id}')" class="ml-4 w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center shrink-0 active:scale-95 transition-all hover:bg-red-100 hover:text-red-600"><i class="fas fa-trash-alt text-[10px]"></i></button>` : '';
 
@@ -422,13 +440,13 @@
             const btn = document.getElementById('confirm-cancel-btn');
             const originalText = btn.innerHTML;
             
-            // Show loading state
             btn.innerHTML = `<span class="spinner"></span>`;
             btn.disabled = true;
 
             try {
                 await db.collection("visits").doc(pendingCancelId).update({ 
-                    status: 'cancelled' 
+                    status: 'cancelled',
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Added timestamp
                 });
                 
                 showToast("Visitor pass cancelled");
@@ -437,7 +455,6 @@
             } catch (error) {
                 showToast("Failed to cancel pass", "error");
             } finally {
-                // Restore button and close modal
                 btn.innerHTML = originalText;
                 btn.disabled = false;
                 closeCancelModal();
@@ -508,7 +525,8 @@
                     unitNumber: myUnit, 
                     road: localStorage.getItem('myRoad'), 
                     status: "pending", 
-                    entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+                    entryTime: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp() // Added timestamp
                 });
                 
                 document.getElementById('qr-result').classList.remove('hidden'); 
