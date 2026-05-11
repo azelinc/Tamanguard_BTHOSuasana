@@ -393,28 +393,48 @@
                 // 3. Generate the UI
                 visits.forEach(v => {
                     const id = v.id;
-                    const isE = v.status === 'entered';
-                    const isC = v.status === 'cancelled';
-                    const isP = v.status === 'pending' || !v.status;
+                    const statusStr = (v.status || 'pending').toLowerCase();
+                    const isPending = statusStr === 'pending';
                     const dt = v.entryTime && v.entryTime.toDate ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
                     
-                    const cancelBtn = (isP && !isC) ? 
-                        `<button onclick="event.stopPropagation(); openCancelModal('${id}')" class="ml-4 w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center shrink-0 active:scale-95 transition-all hover:bg-red-100 hover:text-red-600"><i class="fas fa-trash-alt text-[10px]"></i></button>` : '';
+                    // Match visual styles exactly like the Billing Section
+                    let cardStyle, badgeStyle;
+                    if (statusStr === 'entered') {
+                        // Active/Ongoing: Emerald Green
+                        cardStyle = 'bg-emerald-50/40 border-emerald-200 border-l-4 border-l-emerald-500';
+                        badgeStyle = 'bg-emerald-500';
+                    } else if (statusStr === 'exited') {
+                        // Completed (Like "Paid"): Clean White & Slate
+                        cardStyle = 'bg-white border-slate-100 border-l-4 border-l-slate-300 opacity-80';
+                        badgeStyle = 'bg-slate-400';
+                    } else if (statusStr === 'cancelled') {
+                        // Voided (Like "Unpaid"): Red
+                        cardStyle = 'bg-rose-50/50 border-red-200 border-l-4 border-l-red-500 opacity-80';
+                        badgeStyle = 'bg-red-500';
+                    } else { 
+                        // Pending (Like "Upcoming"): Amber/Yellow
+                        cardStyle = 'bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-500';
+                        badgeStyle = 'bg-amber-500';
+                    }
+
+                    // Cancel button with enhanced contrast for the amber background
+                    const cancelBtn = isPending ? 
+                        `<button onclick="event.stopPropagation(); openCancelModal('${id}')" class="ml-4 w-8 h-8 rounded-full bg-white text-red-500 flex items-center justify-center shrink-0 active:scale-95 transition-all hover:bg-red-50 shadow-sm border border-red-100"><i class="fas fa-trash-alt text-[10px]"></i></button>` : '';
 
                     const card = `
-                    <div ${isP && !isC ? `onclick="reShowQR('${id}')" class="cursor-pointer active:scale-[0.99] ` : `class="`}bg-white p-4 rounded-2xl flex items-center border border-slate-100 shadow-sm mb-2 transition-all">
+                    <div ${isPending ? `onclick="reShowQR('${id}')" class="cursor-pointer active:scale-[0.99] ` : `class="`}${cardStyle} p-4 rounded-2xl flex items-center border shadow-sm mb-2 transition-all">
                         <div class="flex-1">
                             <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
                             <p class="text-[10px] text-slate-500 uppercase">${v.carPlate}</p>
                         </div>
-                        <div class="text-right">
-                            <span class="px-3 py-1 rounded-full text-[9px] font-black ${isE?'bg-emerald-100 text-emerald-600':isC?'bg-red-100 text-red-600':'bg-amber-100 text-amber-600'}">${(v.status||'PENDING').toUpperCase()}</span>
-                            <p class="text-[8px] text-slate-300 mt-1">${dt}</p>
+                        <div class="text-right flex flex-col items-end">
+                            <span class="px-2 py-0.5 rounded text-white text-[8px] font-black uppercase tracking-widest ${badgeStyle}">${statusStr}</span>
+                            <p class="text-[8px] text-slate-400 mt-1 font-bold">${dt}</p>
                         </div>
                         ${cancelBtn}
                     </div>`;
                     
-                    if (isP && !isC) pH += card; 
+                    if (isPending) pH += card; 
                     else hH += card;
                 });
                 
