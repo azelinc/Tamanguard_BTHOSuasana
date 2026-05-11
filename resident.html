@@ -330,7 +330,7 @@ function updatePaymasterUI(count, total, hasI) {
             if (count > 3) {
                 chatStatus.innerText = "🔒 READ ONLY"; 
                 chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
-                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Chat locked due to severe outstanding payment (4+ months)</div>`;
+                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Chat enabled for Resident with no outstanding payment only </div>`;
             } else {
                 chatStatus.innerText = "✅ CHAT ACTIVE"; 
                 chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
