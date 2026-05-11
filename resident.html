@@ -318,12 +318,12 @@ function updatePaymasterUI(count, total, hasI) {
                 // Behind 1 to 3 months (Mild Warning)
                 card.classList.add('bg-amber-400', 'text-slate-800'); 
                 emo.innerText = "⚠️"; 
-                msg.innerText = `Pending: RM${total.toFixed(2)}. We need your help to contribute so that we can have a safe home! `; 
+                msg.innerText = `Pending: RM${total.toFixed(2)}. We need your help to continue to contribute so that we can have a safe home! `; 
             } else { 
                 // Exceeds 3 months (Severe Warning)
                 card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
                 emo.innerText = "🚨"; 
-                msg.innerText = `Outstanding: RM${total.toFixed(2)}. Please help. We are counting on you to help and contribute so that we can have a safe home!`; 
+                msg.innerText = `Outstanding: RM${total.toFixed(2)}. We are counting on you to help and contribute so that we can have a safe home!`; 
             }
 
             // Chat Gate Logic (Locks ONLY if they owe 4 or more months)
