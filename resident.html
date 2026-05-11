@@ -366,11 +366,101 @@ function watchChatStatus() {
             });
         }
 
-        async function generateGuestPass() {
-            const n = document.getElementById('guest-name').value, ph = document.getElementById('guest-phone').value, pl = document.getElementById('guest-plate').value;
+        async function shareQRCode() {
+            const qrCanvas = document.querySelector('#qrcode canvas');
+            const qrImg = document.querySelector('#qrcode img');
+            
+            let dataUrl = null;
+            
+            // Get image data correctly from the qrcodejs library output
+            if (qrImg && qrImg.src && qrImg.src.startsWith('data:image')) {
+                dataUrl = qrImg.src;
+            } else if (qrCanvas) {
+                dataUrl = qrCanvas.toDataURL('image/png');
+            }
+
+            if (!dataUrl) return showToast("QR Code is not ready yet", "error");
+            
+            const textToShare = `Here is your visitor pass for ${myUnit}, ${localStorage.getItem('myRoad')}. Please present this at the guardhouse.`;
+            
+            try {
+                const response = await fetch(dataUrl);
+                const blob = await response.blob();
+                const file = new File([blob], 'visitor-pass.png', { type: blob.type });
+
+                // Try sharing the Image natively (iOS/Android Share Sheet)
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        title: 'Visitor Pass',
+                        text: textToShare,
+                        files: [file]
+                    });
+                } 
+                // Fallback 1: Share as Text only if Image isn't supported
+                else if (navigator.share) {
+                    await navigator.share({
+                        title: 'Visitor Pass',
+                        text: textToShare
+                    });
+                } 
+                // Fallback 2: Direct download image if accessed via Desktop
+                else {
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = 'visitor-pass.png';
+                    link.click();
+                    showToast("Downloaded QR Code");
+                }
+            } catch (error) {
+                // Ignore the AbortError (this is triggered when a user closes the share sheet without sharing)
+                if (error.name !== 'AbortError') {
+                    showToast("Sharing failed or not supported on this device", "error");
+                }
+            }
+        }
+        
+async function generateGuestPass() {
+            const btn = document.getElementById('guest-btn');
+            // 1. Check if button is already disabled to prevent double clicks
+            if (btn.disabled) return;
+
+            const n = document.getElementById('guest-name').value.trim();
+            const ph = document.getElementById('guest-phone').value.trim();
+            const pl = document.getElementById('guest-plate').value.trim();
+            
             if(!n || !ph || !pl) return showToast("Fill all details", "error");
-            const docRef = await db.collection("visits").add({ visitorName: n, visitorPhone: ph, carPlate: pl.toUpperCase(), unitNumber: myUnit, road: localStorage.getItem('myRoad'), status: "pending", entryTime: firebase.firestore.FieldValue.serverTimestamp() });
-            document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(docRef.id);
+
+            // 2. Disable the button and show a loading state
+            btn.disabled = true;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = "Creating...";
+
+            try {
+                const docRef = await db.collection("visits").add({ 
+                    visitorName: n, 
+                    visitorPhone: ph, 
+                    carPlate: pl.toUpperCase(), 
+                    unitNumber: myUnit, 
+                    road: localStorage.getItem('myRoad'), 
+                    status: "pending", 
+                    entryTime: firebase.firestore.FieldValue.serverTimestamp() 
+                });
+                
+                document.getElementById('qr-result').classList.remove('hidden'); 
+                qrObj.clear(); 
+                qrObj.makeCode(docRef.id);
+
+                // 3. Clear inputs to ensure they don't accidentally recreate the same guest again
+                document.getElementById('guest-name').value = '';
+                document.getElementById('guest-phone').value = '';
+                document.getElementById('guest-plate').value = '';
+            } catch (err) {
+                showToast("Failed to create visitor pass", "error");
+            } finally {
+                // 4. Re-enable the button
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         }
 
         function reShowQR(id) { document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(id); window.scrollTo(0,0); }
