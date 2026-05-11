@@ -22,6 +22,23 @@
     <div id="toast-container" class="fixed top-5 left-1/2 -translate-x-1/2 z-[300] w-full max-w-xs transition-all pointer-events-none"></div>
     
     <!-- MODALS -->
+    
+    <!-- Cancel Visitor Modal -->
+    <div id="cancel-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden transition-opacity">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
+            <div class="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-red-500 text-2xl">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <h3 class="text-lg font-black text-slate-800 uppercase mb-2">Cancel Pass?</h3>
+            <p class="text-[10px] text-slate-400 font-bold uppercase mb-8">This action cannot be undone.</p>
+            <div class="flex gap-3">
+                <button onclick="closeCancelModal()" class="flex-1 bg-slate-100 text-slate-500 font-bold py-4 rounded-2xl uppercase tracking-widest text-[10px]">Keep It</button>
+                <button id="confirm-cancel-btn" onclick="confirmCancelVisitor()" class="flex-1 bg-red-500 text-white font-bold py-4 rounded-2xl shadow-lg uppercase tracking-widest text-[10px]">Cancel Pass</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
     <div id="payment-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
         <div class="bg-white w-full max-w-sm rounded-3xl p-8 text-center shadow-2xl">
             <div class="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600 text-2xl">💳</div>
@@ -35,6 +52,7 @@
         </div>
     </div>
 
+    <!-- Receipt Modal -->
     <div id="receipt-modal" class="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4 hidden">
         <div id="receipt-modal-content" class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
             <div class="p-8 text-center border-b border-dashed border-slate-200"><h1 class="text-xl font-black text-indigo-600 uppercase">Official Receipt</h1></div>
@@ -88,25 +106,25 @@
         </section>
 
         <!-- VIEW: NEWS & CHAT -->
-<section id="view-news" class="flex flex-col h-[70vh]">
-    <!-- NEWS CONTAINER -->
-    <div id="news-container" class="flex-none mb-2 transition-all duration-500">
-        <h3 class="font-bold text-sm uppercase tracking-widest text-indigo-600 mb-2">📢 Taman News</h3>
-        <div id="news-list" class="space-y-3 overflow-y-auto pr-1 no-scrollbar transition-all duration-500" style="max-height: 22vh;">
-            <!-- News items -->
-        </div>
-    </div>
+        <section id="view-news" class="flex flex-col h-[70vh]">
+            <!-- NEWS CONTAINER -->
+            <div id="news-container" class="flex-none mb-2 transition-all duration-500">
+                <h3 class="font-bold text-sm uppercase tracking-widest text-indigo-600 mb-2">📢 Taman News</h3>
+                <div id="news-list" class="space-y-3 overflow-y-auto pr-1 no-scrollbar transition-all duration-500" style="max-height: 22vh;">
+                    <!-- News items -->
+                </div>
+            </div>
 
-    <!-- CHAT CONTAINER -->
-    <div id="chat-container" class="flex-1 flex flex-col bg-white rounded-3xl shadow-inner border border-slate-100 overflow-hidden mt-2 transition-all duration-500">
-        <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-            <h3 class="font-bold text-xs uppercase tracking-widest text-slate-400">💬 Resident Chat</h3>
-            <span id="chat-status-tag" class="text-[8px] font-black px-2 py-0.5 rounded-full">Checking...</span>
-        </div>
-        <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-white"></div>
-        <div id="chat-input-container" class="p-3 bg-slate-50 border-t border-slate-100"><div id="chat-gate-box"></div></div>
-    </div>
-</section>
+            <!-- CHAT CONTAINER -->
+            <div id="chat-container" class="flex-1 flex flex-col bg-white rounded-3xl shadow-inner border border-slate-100 overflow-hidden mt-2 transition-all duration-500">
+                <div class="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                    <h3 class="font-bold text-xs uppercase tracking-widest text-slate-400">💬 Resident Chat</h3>
+                    <span id="chat-status-tag" class="text-[8px] font-black px-2 py-0.5 rounded-full">Checking...</span>
+                </div>
+                <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar bg-white"></div>
+                <div id="chat-input-container" class="p-3 bg-slate-50 border-t border-slate-100"><div id="chat-gate-box"></div></div>
+            </div>
+        </section>
         
         <!-- VIEW: BILLS -->
         <section id="view-bills" class="hidden">
@@ -158,7 +176,8 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
-        let invoiceCache = {}, myBillsRaw = [], currentBillFilter = 'all';
+        // Added pendingCancelId state for the modal
+        let invoiceCache = {}, myBillsRaw =[], currentBillFilter = 'all', pendingCancelId = null;
         let myUnit = localStorage.getItem('myUnit'), unsubBills, unsubNews, unsubVisits, unsubChat, qrObj = null;
 
         function showToast(msg, type = 'info') {
@@ -173,7 +192,7 @@
         async function fetchRoads() {
             const doc = await db.collection("settings").doc("taman_config").get();
             if(doc.exists) {
-                const r = doc.data().roads || [];
+                const r = doc.data().roads ||[];
                 document.getElementById('login-road').innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
                 document.getElementById('taman-display').innerText = doc.data().name || "TamanGuard";
             }
@@ -206,8 +225,7 @@
         }
 
         function setBillFilter(f) {
-            currentBillFilter = f;
-            ['all', 'unpaid', 'paid'].forEach(id => {
+            currentBillFilter = f;['all', 'unpaid', 'paid'].forEach(id => {
                 const btn = document.getElementById('f-' + id);
                 if(id === f) {
                     btn.className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600 transition-all";
@@ -229,10 +247,10 @@
         }
 
         function loadBills() {
-            const myRoad = localStorage.getItem('myRoad'), monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const myRoad = localStorage.getItem('myRoad'), monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
             unsubBills = db.collection("invoices").where("unitNumber", "==", myUnit).where("road", "==", myRoad).onSnapshot(snap => {
-                myBillsRaw = []; let uC = 0, uT = 0;
+                myBillsRaw =[]; let uC = 0, uT = 0;
                 snap.forEach(doc => {
                     const b = doc.data(); b.id = doc.id; myBillsRaw.push(b);
                     const isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
@@ -245,7 +263,7 @@
 
         function renderBillList() {
             const list = document.getElementById('bill-list'); list.innerHTML = "";
-            const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+            const monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
             const filtered = myBillsRaw.filter(b => currentBillFilter === 'all' ? true : currentBillFilter === 'paid' ? b.status === 'paid' : b.status !== 'paid');
             
@@ -293,35 +311,32 @@
         }
 
         function loadChat() {
-    unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
-        const box = document.getElementById('chat-messages'); 
-        if(!box) return;
-        
-        let html = ""; 
-        const docs = snap.docs.reverse();
-        
-        docs.forEach(doc => {
-            const m = doc.data(); 
-            const isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
-            
-            // Shorten "JALAN" to "JLN" for better fit if you like, 
-            // or just use m.road directly as shown below:
-            const roadHandle = m.road || 'Unknown';
+            unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
+                const box = document.getElementById('chat-messages'); 
+                if(!box) return;
+                
+                let html = ""; 
+                const docs = snap.docs.reverse();
+                
+                docs.forEach(doc => {
+                    const m = doc.data(); 
+                    const isMe = m.unit === myUnit && m.road === localStorage.getItem('myRoad');
+                    const roadHandle = m.road || 'Unknown';
 
-            html += `
-                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
-                    <span class="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">
-                        No ${m.unit} • ${roadHandle}
-                    </span>
-                    <div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">
-                        ${m.text}
-                    </div>
-                </div>`;
-        });
-        box.innerHTML = html; 
-        box.scrollTop = box.scrollHeight;
-    });
-}
+                    html += `
+                        <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'}">
+                            <span class="text-[8px] font-bold text-slate-400 mb-1 uppercase tracking-tighter">
+                                No ${m.unit} • ${roadHandle}
+                            </span>
+                            <div class="${isMe ? 'bg-indigo-600 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-slate-100 text-slate-700 rounded-r-2xl rounded-tl-2xl'} px-4 py-2 max-w-[85%] shadow-sm text-sm">
+                                ${m.text}
+                            </div>
+                        </div>`;
+                });
+                box.innerHTML = html; 
+                box.scrollTop = box.scrollHeight;
+            });
+        }
 
         async function sendChatMessage() {
             const input = document.getElementById('chat-input-field'), text = input.value.trim();
@@ -330,27 +345,24 @@
             catch(e) { showToast("Error", "error"); }
         }
         
-function watchChatStatus() {
-    db.collection("settings").doc("taman_config").onSnapshot(doc => {
-        if (!doc.exists) return;
-        const data = doc.data();
-        const chatContainer = document.getElementById('chat-container');
-        const newsList = document.getElementById('news-list');
-        
-        // Check if chat is enabled in DB (default to true)
-        const isEnabled = data.isChatEnabled ?? true;
+        function watchChatStatus() {
+            db.collection("settings").doc("taman_config").onSnapshot(doc => {
+                if (!doc.exists) return;
+                const data = doc.data();
+                const chatContainer = document.getElementById('chat-container');
+                const newsList = document.getElementById('news-list');
+                
+                const isEnabled = data.isChatEnabled ?? true;
 
-        if (isEnabled) {
-            // SHOW CHAT: Split view
-            chatContainer.style.display = 'flex';
-            newsList.style.maxHeight = '22vh'; 
-        } else {
-            // HIDE CHAT: News takes full height
-            chatContainer.style.display = 'none';
-            newsList.style.maxHeight = '70vh'; 
+                if (isEnabled) {
+                    chatContainer.style.display = 'flex';
+                    newsList.style.maxHeight = '22vh'; 
+                } else {
+                    chatContainer.style.display = 'none';
+                    newsList.style.maxHeight = '70vh'; 
+                }
+            });
         }
-    });
-}
         
         function loadMyVisitors() {
             db.collection("visits").where("unitNumber", "==", myUnit).where("road", "==", localStorage.getItem('myRoad')).onSnapshot(snapshot => {
@@ -367,9 +379,9 @@ function watchChatStatus() {
                     const isP = v.status === 'pending' || !v.status;
                     const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
                     
-                    // Add a Cancel (X) button for Pending passes only
+                    // Add a Cancel (X) button for Pending passes only - Now calls openCancelModal
                     const cancelBtn = (isP && !isC) ? 
-                        `<button onclick="event.stopPropagation(); cancelVisitor('${id}')" class="ml-4 w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center shrink-0 active:scale-95 transition-all"><i class="fas fa-times"></i></button>` : '';
+                        `<button onclick="event.stopPropagation(); openCancelModal('${id}')" class="ml-4 w-8 h-8 rounded-full bg-red-50 text-red-400 flex items-center justify-center shrink-0 active:scale-95 transition-all hover:bg-red-100 hover:text-red-600"><i class="fas fa-trash-alt text-[10px]"></i></button>` : '';
 
                     const card = `
                     <div ${isP && !isC ? `onclick="reShowQR('${id}')" class="cursor-pointer active:scale-[0.99] ` : `class="`}bg-white p-4 rounded-2xl flex items-center border border-slate-100 shadow-sm mb-2 transition-all">
@@ -393,24 +405,45 @@ function watchChatStatus() {
             });
         }
 
-        // Add this missing function right after loadMyVisitors()
-        async function cancelVisitor(id) {
-            if (confirm("Are you sure you want to cancel this visitor pass?")) {
-                try {
-                    await db.collection("visits").doc(id).update({ 
-                        status: 'cancelled' 
-                    });
-                    
-                    showToast("Visitor pass cancelled");
-                    
-                    // Hide the QR code area in case the resident had it open
-                    document.getElementById('qr-result').classList.add('hidden'); 
-                    
-                } catch (error) {
-                    showToast("Failed to cancel pass", "error");
-                }
+        // --- NEW CUSTOM CANCEL MODAL LOGIC ---
+        function openCancelModal(id) {
+            pendingCancelId = id;
+            document.getElementById('cancel-modal').classList.remove('hidden');
+        }
+
+        function closeCancelModal() {
+            pendingCancelId = null;
+            document.getElementById('cancel-modal').classList.add('hidden');
+        }
+
+        async function confirmCancelVisitor() {
+            if (!pendingCancelId) return;
+
+            const btn = document.getElementById('confirm-cancel-btn');
+            const originalText = btn.innerHTML;
+            
+            // Show loading state
+            btn.innerHTML = `<span class="spinner"></span>`;
+            btn.disabled = true;
+
+            try {
+                await db.collection("visits").doc(pendingCancelId).update({ 
+                    status: 'cancelled' 
+                });
+                
+                showToast("Visitor pass cancelled");
+                document.getElementById('qr-result').classList.add('hidden'); 
+                
+            } catch (error) {
+                showToast("Failed to cancel pass", "error");
+            } finally {
+                // Restore button and close modal
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                closeCancelModal();
             }
         }
+        // -------------------------------------
 
         async function shareQRCode() {
             const qrCanvas = document.querySelector('#qrcode canvas');
@@ -418,7 +451,6 @@ function watchChatStatus() {
             
             let dataUrl = null;
             
-            // Get image data correctly from the qrcodejs library output
             if (qrImg && qrImg.src && qrImg.src.startsWith('data:image')) {
                 dataUrl = qrImg.src;
             } else if (qrCanvas) {
@@ -434,22 +466,12 @@ function watchChatStatus() {
                 const blob = await response.blob();
                 const file = new File([blob], 'visitor-pass.png', { type: blob.type });
 
-                // Try sharing the Image natively (iOS/Android Share Sheet)
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        title: 'Visitor Pass',
-                        text: textToShare,
-                        files: [file]
-                    });
+                    await navigator.share({ title: 'Visitor Pass', text: textToShare, files: [file] });
                 } 
-                // Fallback 1: Share as Text only if Image isn't supported
                 else if (navigator.share) {
-                    await navigator.share({
-                        title: 'Visitor Pass',
-                        text: textToShare
-                    });
+                    await navigator.share({ title: 'Visitor Pass', text: textToShare });
                 } 
-                // Fallback 2: Direct download image if accessed via Desktop
                 else {
                     const link = document.createElement('a');
                     link.href = dataUrl;
@@ -458,16 +480,14 @@ function watchChatStatus() {
                     showToast("Downloaded QR Code");
                 }
             } catch (error) {
-                // Ignore the AbortError (this is triggered when a user closes the share sheet without sharing)
                 if (error.name !== 'AbortError') {
                     showToast("Sharing failed or not supported on this device", "error");
                 }
             }
         }
         
-async function generateGuestPass() {
+        async function generateGuestPass() {
             const btn = document.getElementById('guest-btn');
-            // 1. Check if button is already disabled to prevent double clicks
             if (btn.disabled) return;
 
             const n = document.getElementById('guest-name').value.trim();
@@ -476,7 +496,6 @@ async function generateGuestPass() {
             
             if(!n || !ph || !pl) return showToast("Fill all details", "error");
 
-            // 2. Disable the button and show a loading state
             btn.disabled = true;
             const originalText = btn.innerHTML;
             btn.innerHTML = "Creating...";
@@ -496,14 +515,12 @@ async function generateGuestPass() {
                 qrObj.clear(); 
                 qrObj.makeCode(docRef.id);
 
-                // 3. Clear inputs to ensure they don't accidentally recreate the same guest again
                 document.getElementById('guest-name').value = '';
                 document.getElementById('guest-phone').value = '';
                 document.getElementById('guest-plate').value = '';
             } catch (err) {
                 showToast("Failed to create visitor pass", "error");
             } finally {
-                // 4. Re-enable the button
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }
