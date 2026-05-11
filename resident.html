@@ -293,20 +293,50 @@
             });
         }
 
-        function updatePaymasterUI(count, total, hasI) {
-            const card = document.getElementById('paymaster-status-card'), emo = document.getElementById('paymaster-emoji'), msg = document.getElementById('paymaster-message'), chatGate = document.getElementById('chat-gate-box'), chatStatus = document.getElementById('chat-status-tag');
+function updatePaymasterUI(count, total, hasI) {
+            const card = document.getElementById('paymaster-status-card');
+            const emo = document.getElementById('paymaster-emoji');
+            const msg = document.getElementById('paymaster-message');
+            const chatGate = document.getElementById('chat-gate-box');
+            const chatStatus = document.getElementById('chat-status-tag');
+            
             if(!card || !chatGate) return;
+            
+            // Clean up previous states
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
-            if (!hasI) { card.classList.add('bg-slate-200'); emo.innerText = "👋"; msg.innerText = "No bills found."; }
-            else if (count === 0) { card.classList.add('bg-emerald-500', 'text-white'); emo.innerText = "🏆"; msg.innerText = "Up to date! Thank you!"; }
-            else { card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); emo.innerText = "⚠️"; msg.innerText = `Outstanding: RM${total.toFixed(2)}`; }
+            
+            // UI State Logic
+            if (!hasI) { 
+                card.classList.add('bg-slate-200', 'text-slate-800'); 
+                emo.innerText = "👋"; 
+                msg.innerText = "No bills found."; 
+            } else if (count === 0) { 
+                card.classList.add('bg-emerald-500', 'text-white'); 
+                emo.innerText = "🏆"; 
+                msg.innerText = "Up to date! Thank you! Your contributions have made our Taman safe!"; 
+            } else if (count > 0 && count <= 3) { 
+                // Behind 1 to 3 months (Mild Warning)
+                card.classList.add('bg-amber-400', 'text-slate-800'); 
+                emo.innerText = "⚠️"; 
+                msg.innerText = `Pending: RM${total.toFixed(2)}. We need your help to contribute so that we can have a safe home! `; 
+            } else { 
+                // Exceeds 3 months (Severe Warning)
+                card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
+                emo.innerText = "🚨"; 
+                msg.innerText = `Outstanding: RM${total.toFixed(2)}. Please help. We are counting on you to help and contribute so that we can have a safe home!`; 
+            }
 
-            if (count > 0) {
-                chatStatus.innerText = "🔒 READ ONLY"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
-                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Chat enabled for Resident with no outstanding payment only</div>`;
+            // Chat Gate Logic (Locks ONLY if they owe 4 or more months)
+            if (count > 3) {
+                chatStatus.innerText = "🔒 READ ONLY"; 
+                chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-600";
+                chatGate.innerHTML = `<div class="py-2 px-4 bg-red-50 rounded-2xl border border-red-100 text-center text-[10px] text-red-600 font-bold uppercase italic">⚠️ Chat locked due to severe outstanding payment (4+ months)</div>`;
             } else {
-                chatStatus.innerText = "✅ CHAT ACTIVE"; chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
-                if(!chatGate.querySelector('input')) chatGate.innerHTML = `<div class="flex gap-2"><input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white rounded-2xl px-4 py-3 text-sm outline-none shadow-sm"><button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button></div>`;
+                chatStatus.innerText = "✅ CHAT ACTIVE"; 
+                chatStatus.className = "text-[8px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600";
+                if(!chatGate.querySelector('input')) {
+                    chatGate.innerHTML = `<div class="flex gap-2"><input id="chat-input-field" type="text" placeholder="Type a message..." class="flex-1 bg-white rounded-2xl px-4 py-3 text-sm outline-none shadow-sm"><button onclick="sendChatMessage()" class="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg"><i class="fas fa-paper-plane"></i></button></div>`;
+                }
             }
         }
 
