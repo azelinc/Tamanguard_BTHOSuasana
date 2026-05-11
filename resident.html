@@ -354,16 +354,62 @@ function watchChatStatus() {
         
         function loadMyVisitors() {
             db.collection("visits").where("unitNumber", "==", myUnit).where("road", "==", localStorage.getItem('myRoad')).onSnapshot(snapshot => {
-                const pList = document.getElementById('visitor-pending-list'), hList = document.getElementById('visitor-history-list');
-                let pH = "", hH = ""; const now = new Date().getTime();
+                const pList = document.getElementById('visitor-pending-list');
+                const hList = document.getElementById('visitor-history-list');
+                let pH = "", hH = ""; 
+                const now = new Date().getTime();
+                
                 snapshot.forEach(doc => {
-                    const v = doc.data(), id = doc.id, isE = v.status === 'entered', isC = v.status === 'cancelled', isP = v.status === 'pending' || !v.status;
-                    const timeMs = v.entryTime ? v.entryTime.toDate().getTime() : now, dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
-                    const card = `<div ${isP && !isC ? `onclick="reShowQR('${id}')"` : ''} class="bg-white p-4 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm mb-2"><div><p class="text-sm font-bold text-slate-800">${v.visitorName}</p><p class="text-[10px] text-slate-500 uppercase">${v.carPlate}</p></div><div class="text-right"><span class="px-3 py-1 rounded-full text-[9px] font-black ${isE?'bg-emerald-100 text-emerald-600':isC?'bg-red-100 text-red-600':'bg-amber-100 text-amber-600'}">${(v.status||'PENDING').toUpperCase()}</span><p class="text-[8px] text-slate-300 mt-1">${dt}</p></div></div>`;
-                    if (isP && !isC) pH += card; else hH += card;
+                    const v = doc.data();
+                    const id = doc.id;
+                    const isE = v.status === 'entered';
+                    const isC = v.status === 'cancelled';
+                    const isP = v.status === 'pending' || !v.status;
+                    const dt = v.entryTime ? v.entryTime.toDate().toLocaleDateString() : 'Just now';
+                    
+                    // Add a Cancel (X) button for Pending passes only
+                    const cancelBtn = (isP && !isC) ? 
+                        `<button onclick="event.stopPropagation(); cancelVisitor('${id}')" class="ml-4 w-8 h-8 rounded-full bg-red-100 text-red-500 flex items-center justify-center shrink-0 active:scale-95 transition-all"><i class="fas fa-times"></i></button>` : '';
+
+                    const card = `
+                    <div ${isP && !isC ? `onclick="reShowQR('${id}')" class="cursor-pointer active:scale-[0.99] ` : `class="`}bg-white p-4 rounded-2xl flex items-center border border-slate-100 shadow-sm mb-2 transition-all">
+                        <div class="flex-1">
+                            <p class="text-sm font-bold text-slate-800">${v.visitorName}</p>
+                            <p class="text-[10px] text-slate-500 uppercase">${v.carPlate}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-3 py-1 rounded-full text-[9px] font-black ${isE?'bg-emerald-100 text-emerald-600':isC?'bg-red-100 text-red-600':'bg-amber-100 text-amber-600'}">${(v.status||'PENDING').toUpperCase()}</span>
+                            <p class="text-[8px] text-slate-300 mt-1">${dt}</p>
+                        </div>
+                        ${cancelBtn}
+                    </div>`;
+                    
+                    if (isP && !isC) pH += card; 
+                    else hH += card;
                 });
-                pList.innerHTML = pH; hList.innerHTML = hH;
+                
+                pList.innerHTML = pH; 
+                hList.innerHTML = hH;
             });
+        }
+
+        // Add this missing function right after loadMyVisitors()
+        async function cancelVisitor(id) {
+            if (confirm("Are you sure you want to cancel this visitor pass?")) {
+                try {
+                    await db.collection("visits").doc(id).update({ 
+                        status: 'cancelled' 
+                    });
+                    
+                    showToast("Visitor pass cancelled");
+                    
+                    // Hide the QR code area in case the resident had it open
+                    document.getElementById('qr-result').classList.add('hidden'); 
+                    
+                } catch (error) {
+                    showToast("Failed to cancel pass", "error");
+                }
+            }
         }
 
         async function shareQRCode() {
