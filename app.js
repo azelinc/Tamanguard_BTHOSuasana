@@ -12,7 +12,9 @@ let userProfile = null;
 let userRole = null;
 let tamanConfig = { name: "", roads: [], monthlyFee: 80 };
 const allResidents = [];
+window.allResidents = allResidents;
 let allInvoices = []; 
+window.allInvoices = allInvoices;
 
 function qs(s, p = document) { return p.querySelector(s); }
 function qsa(s, p = document) { return p.querySelectorAll(s); }
@@ -86,7 +88,7 @@ function showTab(name) {
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
   if (name === "analytics") { 
     Promise.all([preloadResidentData(), loadBilling(true)])
-      .then(() => loadAnalytics()); 
+      .then(() => window.loadAnalytics()); 
   }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
