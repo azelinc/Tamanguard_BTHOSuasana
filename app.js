@@ -84,7 +84,10 @@ function showTab(name) {
   if (name === "residents") loadResidents();
   if (name === "visitors") loadVisitors();
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
-  if (name === "analytics") { preloadResidentData().then(() => loadAnalytics()); }
+  if (name === "analytics") { 
+    Promise.all([preloadResidentData(), loadBilling(true)])
+      .then(() => loadAnalytics()); 
+  }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
@@ -740,7 +743,6 @@ qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => clo
 
 /* ANALYTICS */
 function loadAnalytics() {
-  if (!allResidents.length || !allInvoices.length) return;
   renderOverallStats();
   renderLedger();
   renderTrends();
