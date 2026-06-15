@@ -2,7 +2,10 @@
 const CACHE = 'tamanguard-v1';
 const SHELL = [
   '/resident.html',
+  '/guard.html',
+  '/guard/index.html',
   '/manifest.json',
+  '/manifest-guard.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/icon-512-maskable.png',
