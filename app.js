@@ -84,6 +84,7 @@ function showTab(name) {
   if (name === "residents") loadResidents();
   if (name === "visitors") loadVisitors();
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
+  if (name === "analytics") { preloadResidentData().then(() => loadAnalytics()); }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
@@ -736,6 +737,117 @@ qs("#addInvoiceBtn").addEventListener("click", () => {
 });
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
+
+/* ANALYTICS */
+function loadAnalytics() {
+  if (!allResidents.length || !allInvoices.length) return;
+  renderOverallStats();
+  renderLedger();
+  renderTrends();
+}
+
+function switchAnalyticsView(view) {
+  qsa(".an-view").forEach(v => v.classList.add("hidden"));
+  const el = qs(`#an-view-${view}`);
+  if (el) el.classList.remove("hidden");
+  qsa(".an-btn").forEach(b => {
+    b.classList.remove("bg-blue-600/20", "text-blue-400", "border-blue-600/30");
+    b.classList.add("text-slate-400", "border-slate-700/50", "bg-slate-800/50");
+  });
+  const btn = qs(`#an-btn-${view}`);
+  if (btn) {
+    btn.classList.add("bg-blue-600/20", "text-blue-400", "border-blue-600/30");
+    btn.classList.remove("text-slate-400", "border-slate-700/50", "bg-slate-800/50");
+  }
+}
+
+function renderOverallStats() {
+  let paid = 0, unpaid = 0;
+  allInvoices.forEach(inv => {
+    const amt = parseFloat(inv.amount) || 0;
+    if (inv.status === 'paid') paid += amt;
+    else unpaid += amt;
+  });
+  qs("#an-total-collected").textContent = "RM " + paid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
+  qs("#an-total-outstanding").textContent = "RM " + unpaid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const rate = (paid + unpaid) > 0 ? (paid / (paid + unpaid)) * 100 : 0;
+  const rateEl = qs("#an-collection-rate");
+  rateEl.textContent = rate.toFixed(1) + "%";
+  rateEl.className = "text-4xl font-black " + (rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-400" : "text-rose-400");
+}
+
+function renderLedger() {
+  const tbody = qs("#an-ledger-body");
+  tbody.innerHTML = "";
+  const sorted = [...allResidents].sort((a, b) => (a.unitNumber || "").localeCompare(b.unitNumber || ""));
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No residents found.</td></tr>';
+    return;
+  }
+  sorted.forEach(res => {
+    const resInvoices = allInvoices.filter(i => i.unitNumber === res.unitNumber && i.road === res.road);
+    let resPaid = 0, resTotal = 0;
+    resInvoices.forEach(i => {
+      const a = parseFloat(i.amount) || 0;
+      resTotal += a;
+      if (i.status === 'paid') resPaid += a;
+    });
+    const isClear = resPaid >= resTotal && resTotal > 0;
+    const tr = document.createElement("tr");
+    tr.className = "hover:bg-slate-800/30 transition-colors " + (!isClear && resTotal > 0 ? "bg-rose-900/10" : "");
+    tr.innerHTML = `
+      <td class="p-3 font-bold text-white">${res.unitNumber}</td>
+      <td class="p-3 text-slate-400 text-[10px]">${res.name || '-'}</td>
+      <td class="p-3 font-mono text-sm text-slate-300">RM ${resPaid.toFixed(2)} / ${resTotal.toFixed(2)}</td>
+      <td class="p-3">
+        <span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-700/50 text-slate-500'}">
+          ${isClear ? 'CLEAR' : resTotal > 0 ? 'DEBT' : 'N/A'}
+        </span>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderTrends() {
+  const container = qs("#an-trends-container");
+  container.innerHTML = "";
+  const months = {};
+  allInvoices.forEach(inv => {
+    if (!inv.month) return;
+    if (!months[inv.month]) months[inv.month] = { p: 0, t: 0 };
+    const a = parseFloat(inv.amount) || 0;
+    months[inv.month].t += a;
+    if (inv.status === 'paid') months[inv.month].p += a;
+  });
+  const sortedMonths = Object.keys(months).sort((a, b) => {
+    const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    return names.indexOf(a) - names.indexOf(b);
+  });
+  if (!sortedMonths.length) {
+    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No billing data found.</p>';
+    return;
+  }
+  sortedMonths.forEach(m => {
+    const s = months[m];
+    const pct = s.t > 0 ? Math.round((s.p / s.t) * 100) : 0;
+    const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
+    const card = document.createElement("div");
+    card.className = "glass rounded-xl p-5 border border-slate-700/50";
+    card.innerHTML = `
+      <div class="flex justify-between items-center mb-3">
+        <span class="text-xs font-black uppercase text-white tracking-wider">${m}</span>
+        <span class="text-[10px] font-bold ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-rose-400'}">${pct}% Collected</span>
+      </div>
+      <div class="w-full bg-slate-700/50 h-3 rounded-full overflow-hidden">
+        <div class="${barColor} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+      </div>
+      <div class="flex justify-between mt-2 text-[10px] font-bold">
+        <span class="text-emerald-400">Paid: RM ${s.p.toFixed(2)}</span>
+        <span class="text-rose-400">Due: RM ${(s.t - s.p).toFixed(2)}</span>
+      </div>`;
+    container.appendChild(card);
+  });
+}
 
 function init() { 
     initAuth(); const y = new Date().getFullYear();

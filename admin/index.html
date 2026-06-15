@@ -190,8 +190,48 @@
 
       <!-- Analytics Tab -->
       <div id="tab-analytics" class="tab-pane hidden">
-        <div class="glass rounded-xl p-1 h-[75vh]">
-          <iframe src="../report.html" class="w-full h-full rounded-lg border-0 bg-slate-900"></iframe>
+        <div class="flex gap-2 mb-4 flex-wrap">
+          <button onclick="switchAnalyticsView('overall')" id="an-btn-overall" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase bg-blue-600/20 text-blue-400 border border-blue-600/30">📊 Overall Status</button>
+          <button onclick="switchAnalyticsView('ledger')" id="an-btn-ledger" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase text-slate-400 border border-slate-700/50 bg-slate-800/50">📋 Resident Ledger</button>
+          <button onclick="switchAnalyticsView('trends')" id="an-btn-trends" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase text-slate-400 border border-slate-700/50 bg-slate-800/50">📈 Monthly Trends</button>
+        </div>
+
+        <!-- Overall View -->
+        <div id="an-view-overall" class="an-view grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="glass rounded-xl p-6 border border-emerald-500/20">
+            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Total Collected</p>
+            <h2 id="an-total-collected" class="text-3xl font-black text-white">RM 0</h2>
+          </div>
+          <div class="glass rounded-xl p-6 border border-rose-500/20">
+            <p class="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Outstanding</p>
+            <h2 id="an-total-outstanding" class="text-3xl font-black text-white">RM 0</h2>
+          </div>
+          <div class="glass rounded-xl p-6 border border-blue-500/20 text-center">
+            <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Collection Efficiency</p>
+            <h2 id="an-collection-rate" class="text-4xl font-black text-white">0%</h2>
+          </div>
+        </div>
+
+        <!-- Ledger View -->
+        <div id="an-view-ledger" class="an-view hidden">
+          <div class="glass rounded-xl overflow-hidden border border-slate-700/50">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-800/50 border-b border-slate-700/50">
+                <tr>
+                  <th class="p-3 text-slate-400 uppercase font-bold text-[10px]">Unit</th>
+                  <th class="p-3 text-slate-400 uppercase font-bold text-[10px]">Resident</th>
+                  <th class="p-3 text-slate-400 uppercase font-bold text-[10px]">Paid / Total</th>
+                  <th class="p-3 text-slate-400 uppercase font-bold text-[10px]">Status</th>
+                </tr>
+              </thead>
+              <tbody id="an-ledger-body" class="divide-y divide-slate-700/30"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Trends View -->
+        <div id="an-view-trends" class="an-view hidden space-y-3">
+          <div id="an-trends-container" class="space-y-2"></div>
         </div>
       </div>
 
