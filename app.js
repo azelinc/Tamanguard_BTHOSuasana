@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
-import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, writeBatch, serverTimestamp, addDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, writeBatch, serverTimestamp, addDoc, startAfter, documentId } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -12,9 +12,16 @@ let userProfile = null;
 let userRole = null;
 let tamanConfig = { name: "", roads: [], monthlyFee: 80 };
 const allResidents = [];
-window.allResidents = allResidents;
 let allInvoices = []; 
-window.allInvoices = allInvoices;
+/* Live bindings, NOT snapshots.
+   admin/index.html renders analytics from window.allInvoices / window.allResidents.
+   Assigning the array objects once made window.* point at the ORIGINAL empty
+   arrays forever, because loadBilling() and deleteInvoice() REBIND allInvoices
+   (allInvoices = []) instead of mutating it. Analytics then always rendered
+   RM 0 / 0% / "No billing data found". Getters always resolve to the current
+   binding, so every rebind site is covered without touching them. */
+Object.defineProperty(window, "allResidents", { get: () => allResidents, configurable: true });
+Object.defineProperty(window, "allInvoices", { get: () => allInvoices, configurable: true });
 
 function qs(s, p = document) { return p.querySelector(s); }
 function qsa(s, p = document) { return p.querySelectorAll(s); }
@@ -87,8 +94,17 @@ function showTab(name) {
   if (name === "visitors") loadVisitors();
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
   if (name === "analytics") { 
-    Promise.all([preloadResidentData(), loadBilling(true)])
-      .then(() => window.loadAnalytics()); 
+    Promise.all([preloadResidentData(), fetchAllInvoices()])
+      .then(([, invoices]) => {
+        allInvoices.length = 0;
+        invoices.forEach(i => allInvoices.push(i));
+        if (typeof window.loadAnalytics === "function") window.loadAnalytics();
+        else console.error("window.loadAnalytics is not defined — admin/index.html inline analytics module missing");
+      })
+      .catch(err => {
+        console.error("Analytics load failed:", err);
+        toast("Analytics failed to load", "error");
+      });
   }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
@@ -323,6 +339,26 @@ async function loadBilling(reset = true) {
   const snap = await getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(PAGE_SIZE)));
   snap.forEach(d => allInvoices.push({ id: d.id, ...d.data() }));
   renderInvoices(); loadStats();
+}
+
+/* Analytics must aggregate EVERY invoice, not the newest PAGE_SIZE.
+   Paged by document id so totals don't silently truncate once the taman
+   passes 250 bills, and so invoices missing createdAt are still counted. */
+async function fetchAllInvoices() {
+  const out = [];
+  const CHUNK = 500;
+  let cursor = null;
+  for (;;) {
+    const base = collection(db, "invoices");
+    const q = cursor
+      ? query(base, orderBy(documentId()), startAfter(cursor), limit(CHUNK))
+      : query(base, orderBy(documentId()), limit(CHUNK));
+    const snap = await getDocs(q);
+    snap.forEach(d => out.push({ id: d.id, ...d.data() }));
+    if (snap.size < CHUNK) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return out;
 }
 
 function updateBillingDefaults() {

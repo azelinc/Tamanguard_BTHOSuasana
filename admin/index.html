@@ -195,6 +195,7 @@
           <button onclick="switchAnalyticsView('ledger')" id="an-btn-ledger" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase text-slate-400 border border-slate-700/50 bg-slate-800/50">📋 Resident Ledger</button>
           <button onclick="switchAnalyticsView('trends')" id="an-btn-trends" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase text-slate-400 border border-slate-700/50 bg-slate-800/50">📈 Monthly Trends</button>
         </div>
+        <p id="an-source-note" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Loading…</p>
 
         <!-- Overall View -->
         <div id="an-view-overall" class="an-view grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -525,6 +526,13 @@ window.renderOverallStats = function() {
   const rateEl = document.querySelector("#an-collection-rate");
   rateEl.textContent = rate.toFixed(1) + "%";
   rateEl.className = "text-4xl font-black " + (rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-400" : "text-rose-400");
+  const note = document.querySelector("#an-source-note");
+  if (note) {
+    const n = window.allInvoices.length;
+    note.textContent = n === 0
+      ? "No invoices loaded — check that the invoices collection is readable"
+      : "Aggregated from all " + n + " invoice" + (n === 1 ? "" : "s");
+  }
 };
 window.renderLedger = function() {
   const tbody = document.querySelector("#an-ledger-body");
@@ -568,6 +576,6 @@ window.renderTrends = function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=99999"></script>
+  <script type="module" src="../app.js?v=20261020"></script>
 </body>
 </html>
