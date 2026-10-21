@@ -122,6 +122,10 @@ async function loadSettings() {
     tamanConfig = snap.data();
     if(qs("#defaultMonthlyFee")) qs("#defaultMonthlyFee").value = tamanConfig.monthlyFee || 80;
     if(qs("#chatEnabledToggle")) qs("#chatEnabledToggle").checked = tamanConfig.isChatEnabled ?? true;
+    if(qs("#residentDefaultTab")) {
+      const allowed = ["news", "bills", "invite"];
+      qs("#residentDefaultTab").value = allowed.includes(tamanConfig.defaultTab) ? tamanConfig.defaultTab : "news";
+    }
   }
   qs("#tamanNameDisplay").textContent = tamanConfig.name || "TamanGuard";
   if(qs("#tamanNameInput")) qs("#tamanNameInput").value = tamanConfig.name || "";
@@ -163,8 +167,9 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
     const name = qs("#tamanNameInput").value.trim();
     const fee = parseFloat(qs("#defaultMonthlyFee").value) || 80;
     const isChatEnabled = qs("#chatEnabledToggle").checked; // Get toggle state
+    const defaultTab = qs("#residentDefaultTab") ? qs("#residentDefaultTab").value : "news";
   if(!name) return;
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, isChatEnabled: isChatEnabled, updatedAt: serverTimestamp() });
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, isChatEnabled: isChatEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
     toast("Config updated!", "success"); loadSettings();
 });
 

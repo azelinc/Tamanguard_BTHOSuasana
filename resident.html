@@ -232,6 +232,18 @@
             });
         }
 
+        const VALID_TABS = ['news', 'invite', 'bills'];
+
+        async function applyDefaultTab() {
+            let t = 'news';
+            try {
+                const snap = await db.collection("settings").doc("taman_config").get();
+                const saved = snap.exists ? snap.data().defaultTab : null;
+                if (VALID_TABS.includes(saved)) t = saved;
+            } catch (e) { console.warn("Default tab fetch failed, using news", e); }
+            switchTab(t);
+        }
+
         function setBillFilter(f) {
             currentBillFilter = f;['all', 'unpaid', 'paid'].forEach(id => {
                 const btn = document.getElementById('f-' + id);
@@ -620,7 +632,7 @@ function updatePaymasterUI(count, total, hasI) {
                 }
             }
             if (!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); } 
-            else { document.getElementById('app-header').style.display = 'flex'; document.getElementById('app-main').style.display = 'block'; document.getElementById('app-nav').style.display = 'flex'; initApp(); }
+            else { await applyDefaultTab(); document.getElementById('app-header').style.display = 'flex'; document.getElementById('app-main').style.display = 'block'; document.getElementById('app-nav').style.display = 'flex'; initApp(); }
         };
     </script>
     <script>
