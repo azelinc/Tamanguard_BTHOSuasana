@@ -105,9 +105,10 @@
         <section id="paymaster-card-container">
             <div id="paymaster-status-card" onclick="switchTab('bills')" class="p-4 rounded-2xl transition-all duration-500 shadow-sm border border-white flex items-center gap-4 cursor-pointer active:scale-[0.98]">
                <div class="text-2xl" id="paymaster-emoji">🧐</div>
-               <div class="flex-1">
-                   <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-0.5">Status Overview</h4>
-                   <p id="paymaster-message" class="text-xs font-bold leading-tight">Syncing data...</p>
+               <div class="flex-1 min-w-0">
+                   <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
+                   <p id="paymaster-amount" class="text-[28px] font-black leading-none tracking-tight">—</p>
+                   <p id="paymaster-message" class="text-[10px] font-bold leading-tight opacity-75 mt-1.5">Syncing data...</p>
                </div>
                <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
             </div>
@@ -316,34 +317,39 @@
 function updatePaymasterUI(count, total, hasI) {
             const card = document.getElementById('paymaster-status-card');
             const emo = document.getElementById('paymaster-emoji');
+            const amt = document.getElementById('paymaster-amount');
             const msg = document.getElementById('paymaster-message');
             const chatGate = document.getElementById('chat-gate-box');
             const chatStatus = document.getElementById('chat-status-tag');
             
-            if(!card || !chatGate) return;
+            if(!card || !chatGate || !amt) return;
             
             // Clean up previous states
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
             
             // UI State Logic
-            if (!hasI) { 
-                card.classList.add('bg-slate-200', 'text-slate-800'); 
-                emo.innerText = "👋"; 
-                msg.innerText = "No bills found."; 
+            if (!hasI) {
+                card.classList.add('bg-slate-200', 'text-slate-800');
+                emo.innerText = "👋";
+                amt.innerText = "—";
+                msg.innerText = "No bills issued to your unit yet.";
             } else if (count === 0) { 
                 card.classList.add('bg-emerald-500', 'text-white'); 
                 emo.innerText = "🏆"; 
-                msg.innerText = "Up to date! Thank you! Your contributions have made our Taman safe!"; 
+                amt.innerText = "All Clear";
+                msg.innerText = "Thank you! Your contributions keep our Taman safe.";
             } else if (count > 0 && count <= 3) { 
                 // Behind 1 to 3 months (Mild Warning)
                 card.classList.add('bg-amber-400', 'text-slate-800'); 
                 emo.innerText = "⚠️"; 
-                msg.innerText = `Pending: RM${total.toFixed(2)}. We need your help to continue to contribute so that we can have a safe home! `; 
+                amt.innerText = `RM${total.toFixed(2)}`;
+                msg.innerText = "Pending · help us keep our Taman safe";
             } else { 
                 // Exceeds 3 months (Severe Warning)
                 card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
                 emo.innerText = "🚨"; 
-                msg.innerText = `Outstanding: RM${total.toFixed(2)}. We are counting on you to help and contribute so that we can have a safe home!`; 
+                amt.innerText = `RM${total.toFixed(2)}`;
+                msg.innerText = "Outstanding · we are counting on you to contribute";
             }
 
             // Chat Gate Logic (Locks ONLY if they owe 4 or more months)
