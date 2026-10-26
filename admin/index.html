@@ -151,9 +151,19 @@
 
       <!-- Billing Tab -->
       <div id="tab-billing" class="tab-pane hidden">
-        <div class="glass rounded-xl p-6 mb-6">
-          <h3 class="font-bold mb-4 flex items-center gap-2"><i class="fas fa-file-invoice text-purple-400"></i>Monthly Billing Tool</h3>
-          <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
+        <div class="glass rounded-xl mb-3 overflow-hidden" id="billingToolCard">
+          <button type="button" id="billingToolToggle" class="w-full px-4 py-3.5 flex items-center justify-between text-left">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <i class="fas fa-file-invoice text-purple-400 text-sm"></i>
+              <div class="min-w-0">
+                <div class="font-bold text-[13px] leading-tight">Monthly Billing Tool</div>
+                <div id="billingToolSummary" class="text-[9px] text-slate-500 uppercase tracking-wide mt-0.5 truncate">Tap to generate bills</div>
+              </div>
+            </div>
+            <i id="billingToolChevron" class="fas fa-chevron-down text-slate-500 text-xs transition-transform"></i>
+          </button>
+          <div id="billingToolBody" class="px-4 pb-4 hidden">
+          <div class="grid grid-cols-1 md:grid-cols-6 gap-3 mb-3">
             <select id="bulkMonth" class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white">
                 <option value="">Month</option><option>January</option><option>February</option><option>March</option><option>April</option><option>May</option><option>June</option><option>July</option><option>August</option><option>September</option><option>October</option><option>November</option><option>December</option>
             </select>
@@ -163,18 +173,23 @@
             <input type="text" id="bulkRemarks" placeholder="Remarks" class="md:col-span-2 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
           </div>
           <button id="generateBulkBtn" class="w-full bg-purple-600 hover:bg-purple-500 py-3 rounded-lg font-bold">GENERATE BULK BILLS</button>
+          </div>
         </div>
 
-        <div class="flex flex-col md:flex-row gap-4 mb-4 items-center">
-          <div class="relative flex-1 w-full">
-            <i class="fas fa-search absolute left-3 top-3.5 text-slate-500"></i>
-            <input type="text" id="invoiceSearch" placeholder="Search Unit, Name or Phone..." class="w-full bg-slate-800 border border-slate-700 rounded-lg py-3 pl-10 pr-4 outline-none focus:border-purple-500">
+        <div class="flex items-center gap-1.5 mb-3">
+          <div class="relative flex-1 min-w-0">
+            <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="invoiceSearch" placeholder="Search unit, name, phone…" autocomplete="off"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-lg h-[38px] pl-9 pr-8 text-sm outline-none focus:border-purple-500">
+            <button type="button" id="invoiceSearchClear" class="hidden absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white text-base leading-none px-1">×</button>
           </div>
-          <label class="flex items-center gap-2 cursor-pointer bg-slate-800 px-4 py-3 rounded-lg border border-slate-700">
-            <input type="checkbox" id="hidePaidToggle" class="w-4 h-4 accent-purple-500" checked>
-            <span class="text-sm text-slate-300">Unpaid Only</span>
+          <label id="hidePaidChip" title="Show only bills that still need action"
+                 class="h-[38px] flex items-center gap-1.5 px-3 rounded-lg border cursor-pointer whitespace-nowrap text-[10px] font-black uppercase tracking-wide bg-purple-500/20 border-purple-500/50 text-purple-300">
+            <input type="checkbox" id="hidePaidToggle" class="sr-only" checked>
+            <span id="hidePaidChipIcon">☑</span><span>Unpaid</span>
           </label>
-          <button id="addInvoiceBtn" class="bg-purple-600 hover:bg-purple-500 px-6 py-3 rounded-lg font-bold shadow-lg">Custom Bill</button>
+          <button id="addInvoiceBtn" title="Custom Bill" aria-label="Custom Bill"
+                  class="h-[38px] w-[38px] shrink-0 flex items-center justify-center rounded-lg bg-purple-600 hover:bg-purple-500 font-bold text-lg">＋</button>
         </div>
 
         <div class="glass rounded-xl overflow-hidden">
@@ -711,6 +726,6 @@ window.renderTrends = async function() {
 };
 </script>
   <div class="text-center text-[9px] text-slate-600 font-mono pb-2">build <span id="buildStamp">—</span></div>
-  <script type="module" src="../app.js?v=20261027n"></script>
+  <script type="module" src="../app.js?v=20261027p"></script>
 </body>
 </html>

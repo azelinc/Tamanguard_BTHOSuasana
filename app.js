@@ -694,17 +694,76 @@ function updateBillingDefaults() {
 qs("#bulkMonth")?.addEventListener("change", updateBillingDefaults);
 qs("#bulkYear")?.addEventListener("change", updateBillingDefaults);
 
+/* ---- Monthly Billing Tool: collapsible so the bill list owns the screen ----
+   Collapsed is the resting state; the open choice is remembered so a billing run
+   is not interrupted by re-collapsing on every tab switch. */
+function billingToolSummary() {
+  const el = qs("#billingToolSummary"); if (!el) return;
+  const m = qs("#bulkMonth")?.value || "";
+  const y = qs("#bulkYear")?.value || "";
+  const a = parseFloat(qs("#bulkAmount")?.value || 0);
+  if (!m || !y) { el.textContent = "Tap to generate bills"; el.className = "text-[9px] text-slate-500 uppercase tracking-wide mt-0.5 truncate"; return; }
+  el.textContent = m.slice(0, 3).toUpperCase() + " " + y + (a > 0 ? " · RM" + a : "");
+  el.className = "text-[9px] font-mono text-purple-300 mt-0.5 truncate";
+}
+
+function setBillingToolOpen(open) {
+  const body = qs("#billingToolBody"), chev = qs("#billingToolChevron");
+  if (!body) return;
+  body.classList.toggle("hidden", !open);
+  if (chev) chev.style.transform = open ? "rotate(180deg)" : "";
+  try { localStorage.setItem("billingToolOpen", open ? "1" : "0"); } catch (e) {}
+}
+
+function initBillingTool() {
+  if (!qs("#billingToolToggle")) return;
+  let open = false;
+  try { open = localStorage.getItem("billingToolOpen") === "1"; } catch (e) {}
+  setBillingToolOpen(open);
+  qs("#billingToolToggle").addEventListener("click", () => {
+    setBillingToolOpen(qs("#billingToolBody").classList.contains("hidden"));
+  });
+  ["#bulkMonth", "#bulkYear", "#bulkAmount"].forEach(sel => {
+    qs(sel)?.addEventListener("change", billingToolSummary);
+    qs(sel)?.addEventListener("input", billingToolSummary);
+  });
+  billingToolSummary();
+}
+initBillingTool();
+
 function renderInvoices() {
   const tbody = qs("#invoicesTableBody"); if(!tbody) return;
   const rawTerm = qs("#invoiceSearch").value.toLowerCase().trim();
   const hidePaid = qs("#hidePaidToggle").checked;
 
   tbody.innerHTML = "";
+  /* One index built once per render instead of a find() per invoice: 300 bills used
+     to mean 300 full scans of 342 residents. Matching now covers what the committee
+     actually types — unit, name, phone, road, payer reference and the bill title —
+     and typed digits ignore the dashes/spaces people put in phone numbers. */
+  const residentsByKey = new Map();
+  allResidents.forEach(r => residentsByKey.set((r.road || "") + "|" + (r.unitNumber || ""), r));
+  const digitsOnly = rawTerm.replace(/[^0-9]/g, "");
+  const terms = rawTerm.split(/\s+/).filter(Boolean);
+
   const filtered = allInvoices.filter(inv => {
     if (hidePaid && inv.status === "paid") return false;
     if (!rawTerm) return true;
-    const res = allResidents.find(r => r.unitNumber === inv.unitNumber && r.road === inv.road);
-    return inv.unitNumber.toLowerCase().startsWith(rawTerm) || (res?.name || "").toLowerCase().includes(rawTerm);
+    const res = residentsByKey.get((inv.road || "") + "|" + (inv.unitNumber || ""));
+    const unit = String(inv.unitNumber || "").toLowerCase();
+    const road = String(inv.road || "").toLowerCase();
+    const name = String(res?.name || "").toLowerCase();
+    const phone = String(res?.phone || "").replace(/[^0-9]/g, "");
+    const payRef = String(res?.payRef || "").toLowerCase();
+    const title = String(inv.remarks || inv.title || "").toLowerCase();  // backfilled bills store the title in remarks
+    const amount = String(inv.amount || "");
+
+    // every word must match somewhere, so "5/3 azly" narrows instead of widening
+    return terms.every(t => {
+      const td = t.replace(/[^0-9]/g, "");
+      return unit.includes(t) || name.includes(t) || road.includes(t) || payRef.includes(t) ||
+             title.includes(t) || amount.includes(t) || (td.length >= 3 && phone.includes(td));
+    });
   });
 
   if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-slate-500 text-xs">No matching bills.</td></tr>'; return; }
@@ -800,8 +859,27 @@ async function deleteInvoice(id) {
     } catch(e) { toast("Error deleting", "error"); }
 }
 
-qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50));
-qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
+function syncHidePaidChip() {
+  const on = qs("#hidePaidToggle")?.checked;
+  const chip = qs("#hidePaidChip"), icon = qs("#hidePaidChipIcon");
+  if (chip) chip.className = "h-[38px] flex items-center gap-1.5 px-3 rounded-lg border cursor-pointer whitespace-nowrap text-[10px] font-black uppercase tracking-wide " +
+    (on ? "bg-purple-500/20 border-purple-500/50 text-purple-300" : "bg-slate-800 border-slate-700 text-slate-400");
+  if (icon) icon.textContent = on ? "☑" : "☐";
+}
+
+qs("#invoiceSearch").addEventListener("input", debounce(() => {
+  const btn = qs("#invoiceSearchClear");
+  if (btn) btn.classList.toggle("hidden", !qs("#invoiceSearch").value);
+  renderInvoices();
+}, 50));
+qs("#hidePaidToggle").addEventListener("change", () => { syncHidePaidChip(); renderInvoices(); });
+qs("#invoiceSearchClear")?.addEventListener("click", () => {
+  qs("#invoiceSearch").value = "";
+  qs("#invoiceSearchClear").classList.add("hidden");
+  qs("#invoiceSearch").focus();
+  renderInvoices();
+});
+syncHidePaidChip();
 
 async function showHouseHistoryModal(unit, road) {
     const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `${unit} — ${road}`;
