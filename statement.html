@@ -6,6 +6,7 @@
 <title>Statement of Account — TamanGuard</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
+  .payref{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
   :root { --ink: #111; --muted: #6b7280; --line: #d1d5db; }
   * { box-sizing: border-box; }
   body {
@@ -259,6 +260,7 @@ function render(res, invoices) {
         <tr><td class="k">Resident</td><td>${esc(res.name)}</td></tr>
         <tr><td class="k">Contact</td><td>${esc(fmtPhone(res.phone))}</td></tr>
         <tr><td class="k">Monthly Fee</td><td>RM ${money(rate)}</td></tr>
+        <tr><td class="k">Payment Ref</td><td><b class="payref">${esc(res.payRef || "not assigned")}</b> <span class="k" style="display:inline;border:0;padding:0">— quote this on every transfer</span></td></tr>
         <tr><td class="k">Status</td><td>${res.isJoined ? "Registered on portal" : "Not registered on portal"}</td></tr>
       </table>
       <div class="summary">

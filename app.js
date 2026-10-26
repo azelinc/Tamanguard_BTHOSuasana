@@ -485,7 +485,7 @@ function renderResidents() {
     const rows = allResidents.filter(r => {
         if (residentRoad !== "All" && (r.road || "") !== residentRoad) return false;
         if (!term) return true;
-        return `${r.name} ${r.unitNumber} ${r.phone} ${r.road || ""}`.toLowerCase().includes(term);
+        return `${r.name} ${r.unitNumber} ${r.phone} ${r.road || ""} ${r.payRef || ""}`.toLowerCase().includes(term);
     });
 
     if (residentView === "list") {
@@ -578,6 +578,7 @@ async function showResidentProfile(res) {
     const balCls = pos.balance > 0.004 ? "text-rose-400" : pos.balance < -0.004 ? "text-emerald-400" : "text-slate-400";
     const balTxt = pos.balance < -0.004 ? `(${money2(pos.balance)})` : money2(pos.balance);
     qs("#profSummary").innerHTML =
+        cell("Payment Ref", res.payRef || "not assigned", "text-indigo-300") +
         cell("Charged", "RM " + money2(pos.charged), "text-slate-200") +
         cell("Paid", "RM " + money2(pos.paid), "text-emerald-400") +
         cell("Balance", "RM " + balTxt, balCls) +

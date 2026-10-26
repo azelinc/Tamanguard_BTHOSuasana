@@ -54,7 +54,16 @@
             <div class="bg-slate-50 p-4 rounded-2xl text-left space-y-3 my-6 border border-slate-100">
                 <div><p class="text-[9px] text-slate-400 font-bold uppercase">Bank Name</p><p class="font-bold text-slate-800">MAYBANK</p></div>
                 <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Name</p><p class="font-bold text-slate-800">PERSATUAN PENDUDUK ZON C</p></div>
-                <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Number</p><p class="font-bold text-indigo-600 tracking-wider">5123 8963 2240</p></div>
+                <div class="flex items-start justify-between gap-2">
+                    <div><p class="text-[9px] text-slate-400 font-bold uppercase">Account Number</p><p id="pay-acct-no" class="font-bold text-indigo-600 tracking-wider">5123 8963 2240</p></div>
+                    <button onclick="copyAcctNo()" class="shrink-0 bg-slate-200 text-slate-700 text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg">Copy</button>
+                </div>
+            </div>
+            <div class="rounded-2xl border-2 border-dashed border-indigo-300 bg-indigo-50/70 p-4 text-left relative">
+                <button onclick="copyPayRef()" class="absolute top-3 right-3 bg-indigo-600 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg">Copy</button>
+                <p class="text-[9px] text-indigo-500 font-bold uppercase tracking-widest">Transfer remark — put this exactly</p>
+                <p id="pay-ref-code" class="font-mono text-2xl font-black tracking-[0.15em] text-indigo-900 my-1">--</p>
+                <p class="text-[10px] text-slate-500 leading-snug">This reference is yours permanently. Without it the committee cannot tell whose payment it is.</p>
             </div>
             <button onclick="closePayment()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-2xl uppercase tracking-widest text-xs">Got it</button>
         </div>
@@ -675,7 +684,47 @@ function updatePaymasterUI(count, total, hasI) {
             document.getElementById('receipt-modal').classList.remove('hidden');
         }
         function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
-        function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
+        function openPayment() {
+            document.getElementById('payment-modal').classList.remove('hidden');
+            loadPayRef();
+        }
+
+        /* The committee matches a bank transfer by this code, so it must be visible
+           before the resident leaves to pay. Cached in localStorage; 1 read on first use. */
+        async function loadPayRef() {
+            const el = document.getElementById('pay-ref-code');
+            if (!el) return;
+            const houseKey = `${localStorage.getItem('myRoad')}|${myUnit}`;
+            let ref = localStorage.getItem('myPayRefFor') === houseKey ? localStorage.getItem('myPayRef') : null;
+            if (ref) { el.innerText = ref; return; }
+            try {
+                const snap = await db.collection("residents")
+                    .where("unitNumber", "==", myUnit)
+                    .where("road", "==", localStorage.getItem('myRoad')).limit(1).get();
+                if (!snap.empty) {
+                    ref = snap.docs[0].data().payRef || '';
+                    if (ref) { localStorage.setItem('myPayRef', ref); localStorage.setItem('myPayRefFor', houseKey); el.innerText = ref; }
+                    else el.innerText = 'ASK COMMITTEE';
+                } else el.innerText = 'ASK COMMITTEE';
+            } catch (e) { el.innerText = 'ASK COMMITTEE'; }
+        }
+
+        /* Bank apps want digits, so copy without the display spaces. */
+        function copyAcctNo() {
+            const shown = document.getElementById('pay-acct-no');
+            const digits = (shown ? shown.innerText : '512389632240').replace(/\D/g, '');
+            const done = () => showToast("Copied: " + digits, "success");
+            if (navigator.clipboard?.writeText) navigator.clipboard.writeText(digits).then(done).catch(done);
+            else { const t = document.createElement('textarea'); t.value = digits; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
+        }
+
+        function copyPayRef() {
+            const ref = localStorage.getItem('myPayRef') || document.getElementById('pay-ref-code').innerText;
+            if (!ref || ref === '--' || ref === 'ASK COMMITTEE') return showToast("Reference not loaded", "error");
+            const done = () => showToast("Copied: " + ref, "success");
+            if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ref).then(done).catch(done);
+            else { const t = document.createElement('textarea'); t.value = ref; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
+        }
         function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
 
         window.onload = async () => {
