@@ -75,5 +75,26 @@ const cachedPortfolio = portfolio([cached], null, null);
 assert("portfolio from cache, no invoices", cachedPortfolio.charged, 1920);
 assert("portfolio cache arrears", cachedPortfolio.arrears, 1440);
 
+/* ---- recorded-but-unverified money -------------------------------------
+   Provisional bills are NOT collected: they must not raise `paid`, must not
+   lower `balance`, and must be reported separately as `pending`. */
+const mix = aggregate([I("F","1","paid"), I("F","1","provisional"), I("F","1","pending")]);
+assert("provisional excluded from paid", mix.soaPaid, 80);
+assert("provisional counted as pending", mix.soaPending, 80);
+assert("provisional keeps balance outstanding", mix.soaBalance, 160);
+
+const houseP = position({ soaCharged: 1920, soaPaid: 480, soaPending: 1280 }, null, null);
+assert("position exposes pending", houseP.pending, 1280);
+assert("position balance still includes pending", houseP.balance, 1440);
+
+const portP = portfolio([
+  { soaCharged: 1920, soaPaid: 480, soaPending: 1280 },
+  { soaCharged: 1920, soaPaid: 0 }
+], null, null);
+assert("portfolio pending", portP.pending, 1280);
+assert("portfolio paid excludes pending", portP.paid, 480);
+assert("portfolio stillDue removes pending", portP.stillDue, 2080);
+assert("portfolio arrears keeps pending", portP.arrears, 3360);
+
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);

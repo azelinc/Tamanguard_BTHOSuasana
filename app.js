@@ -336,11 +336,14 @@ function bumpResidentAggregate(road, unit, delta = {}) {
     res.soaPaid = Number(res.soaPaid || 0) + (delta.paid || 0);
     res.soaBills = Number(res.soaBills || 0) + (delta.bills || 0);
     res.soaPaidCount = Number(res.soaPaidCount || 0) + (delta.paidCount || 0);
+    res.soaPending = Math.max(0, Number(res.soaPending || 0) + (delta.pending || 0));
+    res.soaPendingCount = Math.max(0, Number(res.soaPendingCount || 0) + (delta.pendingCount || 0));
     res.soaBalance = res.soaCharged - res.soaPaid - Number(res.soaAdvance || 0);
     if (res.id) {
         updateDoc(doc(db, "residents", res.id), {
             soaCharged: res.soaCharged, soaPaid: res.soaPaid, soaBalance: res.soaBalance,
-            soaBills: res.soaBills, soaPaidCount: res.soaPaidCount
+            soaBills: res.soaBills, soaPaidCount: res.soaPaidCount,
+            soaPending: res.soaPending, soaPendingCount: res.soaPendingCount
         }).catch(() => {});
     }
     return res;
@@ -823,6 +826,28 @@ async function showHouseHistoryModal(unit, road) {
 
 function isVerifier() { return userRole === "treasurer" || userRole === "super_admin"; }
 
+/* Keep the 24 monthly summaries in step with the ledger. One extra write per
+   payment transition; the trend chart then costs 24 reads instead of 8,184. */
+async function bumpMonthly(month, year, delta = {}) {
+    const MONTHS = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"];
+    const idx = MONTHS.indexOf(month);
+    if (idx < 0 || !year) return;
+    const ym = year + "-" + String(idx + 1).padStart(2, "0");
+    try {
+        const ref = doc(db, "stats_monthly", ym);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        const cur = snap.data();
+        await updateDoc(ref, {
+            paid: Number(cur.paid || 0) + (delta.paid || 0),
+            paidCount: Math.max(0, Number(cur.paidCount || 0) + (delta.paidCount || 0)),
+            pending: Math.max(0, Number(cur.pending || 0) + (delta.pending || 0)),
+            pendingCount: Math.max(0, Number(cur.pendingCount || 0) + (delta.pendingCount || 0))
+        });
+    } catch (e) { console.error("monthly summary bump failed", e); }
+}
+
 async function logPaymentEvent(invoiceId, action, from, to, note) {
     try {
         await addDoc(collection(db, "payment_events"), {
@@ -848,10 +873,13 @@ async function recordPayment(id, opts = {}) {
     });
     await logPaymentEvent(id, "recorded", "pending", "provisional", opts.method || "cash");
 
+    const amt = parseFloat(inv.amount) || 0;
     if (inv.id) {
         Object.assign(inv, { status: "provisional", receiptNumber: rcpt, recordedBy: auth.currentUser.uid });
+        bumpResidentAggregate(inv.road, inv.unitNumber, { pending: amt, pendingCount: 1 });
+        bumpMonthly(inv.month, inv.year, { pending: amt, pendingCount: 1 });
     }
-    // deliberately no aggregate bump: provisional money is not collected money
+    // soaPaid is untouched on purpose: provisional money is not collected money
     toast("Recorded — awaiting Treasurer verification", "info");
     loadBilling(true); loadStats(); renderResidents();
 }
@@ -869,9 +897,12 @@ async function verifyPayment(id, note) {
         selfVerified: self
     });
     await logPaymentEvent(id, "verified", "provisional", "paid", (note + (self ? " [self-verified]" : "")));
+    const amt = parseFloat(inv.amount) || 0;
     if (inv.id) {
         Object.assign(inv, { status: "paid", verification: "verified", verifiedBy: auth.currentUser.uid });
-        bumpResidentAggregate(inv.road, inv.unitNumber, { paid: parseFloat(inv.amount) || 0, paidCount: 1 });
+        bumpResidentAggregate(inv.road, inv.unitNumber,
+            { paid: amt, paidCount: 1, pending: -amt, pendingCount: -1 });
+        bumpMonthly(inv.month, inv.year, { paid: amt, paidCount: 1, pending: -amt, pendingCount: -1 });
     }
     return true;
 }
@@ -885,8 +916,13 @@ async function voidPayment(id, reason) {
         voidedAt: serverTimestamp()
     });
     await logPaymentEvent(id, "voided", inv.status || "?", "void", reason);
+    const amt = parseFloat(inv.amount) || 0;
     if (inv.status === "paid") {
-        bumpResidentAggregate(inv.road, inv.unitNumber, { paid: -(parseFloat(inv.amount) || 0), paidCount: -1 });
+        bumpResidentAggregate(inv.road, inv.unitNumber, { paid: -amt, paidCount: -1 });
+        bumpMonthly(inv.month, inv.year, { paid: -amt, paidCount: -1 });
+    } else if (inv.status === "provisional") {
+        bumpResidentAggregate(inv.road, inv.unitNumber, { pending: -amt, pendingCount: -1 });
+        bumpMonthly(inv.month, inv.year, { pending: -amt, pendingCount: -1 });
     }
     if (inv.id) Object.assign(inv, { status: "void", voidReason: reason });
     toast("Payment voided", "info");
@@ -1289,106 +1325,10 @@ qs("#addInvoiceBtn").addEventListener("click", () => {
 qs("#createAdminShowBtn").addEventListener("click", () => qs("#adminModal").classList.remove("hidden"));
 qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => closeModal(btn.dataset.closeModal)));
 
-/* ANALYTICS */
-function loadAnalytics() {
-  renderOverallStats();
-  renderLedger();
-  renderTrends();
-}
-
-function switchAnalyticsView(view) {
-  qsa(".an-view").forEach(v => v.classList.add("hidden"));
-  const el = qs(`#an-view-${view}`);
-  if (el) el.classList.remove("hidden");
-  qsa(".an-btn").forEach(b => {
-    b.classList.remove("bg-blue-600/20", "text-blue-400", "border-blue-600/30");
-    b.classList.add("text-slate-400", "border-slate-700/50", "bg-slate-800/50");
-  });
-  const btn = qs(`#an-btn-${view}`);
-  if (btn) {
-    btn.classList.add("bg-blue-600/20", "text-blue-400", "border-blue-600/30");
-    btn.classList.remove("text-slate-400", "border-slate-700/50", "bg-slate-800/50");
-  }
-}
-
-function renderOverallStats() {
-  const t = portfolioTotals();
-  qs("#an-total-collected").textContent = "RM " + money2(t.paid);
-  qs("#an-total-outstanding").textContent = "RM " + money2(t.arrears);
-  const rateEl = qs("#an-collection-rate");
-  rateEl.textContent = t.rate.toFixed(1) + "%";
-  rateEl.className = "text-4xl font-black " + (t.rate >= 80 ? "text-emerald-400" : t.rate >= 50 ? "text-amber-400" : "text-rose-400");
-  const note = qs("#an-source-note");
-  if (note) note.textContent = `${t.houses} houses · opening position to ${allResidents[0]?.soaOpeningAsOf || "31 Oct 2026"} + ${allInvoices.length} invoice(s) recorded in app`;
-}
-
-function renderLedger() {
-  const tbody = qs("#an-ledger-body");
-  tbody.innerHTML = "";
-  const sorted = [...allResidents].sort((a, b) => (a.unitNumber || "").localeCompare(b.unitNumber || ""));
-  if (!sorted.length) {
-    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No residents found.</td></tr>';
-    return;
-  }
-  sorted.forEach(res => {
-    const pos = residentPosition(res);
-    const resPaid = pos.paid, resTotal = pos.charged;
-    const isClear = Math.abs(pos.balance) < 0.005 && resTotal > 0;
-    const tr = document.createElement("tr");
-    tr.className = "hover:bg-slate-800/30 transition-colors " + (!isClear && resTotal > 0 ? "bg-rose-900/10" : "");
-    tr.innerHTML = `
-      <td class="p-3 font-bold text-white">${res.unitNumber}</td>
-      <td class="p-3 text-slate-400 text-[10px]">${res.name || '-'}</td>
-      <td class="p-3 font-mono text-sm text-slate-300">RM ${resPaid.toFixed(2)} / ${resTotal.toFixed(2)}</td>
-      <td class="p-3">
-        <span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ${isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-700/50 text-slate-500'}">
-          ${isClear ? 'CLEAR' : resTotal > 0 ? 'DEBT' : 'N/A'}
-        </span>
-      </td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function renderTrends() {
-  const container = qs("#an-trends-container");
-  container.innerHTML = "";
-  const months = {};
-  allInvoices.forEach(inv => {
-    if (!inv.month) return;
-    if (!months[inv.month]) months[inv.month] = { p: 0, t: 0 };
-    const a = parseFloat(inv.amount) || 0;
-    months[inv.month].t += a;
-    if (inv.status === 'paid') months[inv.month].p += a;
-  });
-  const sortedMonths = Object.keys(months).sort((a, b) => {
-    const names = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-    return names.indexOf(a) - names.indexOf(b);
-  });
-  if (!sortedMonths.length) {
-    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No month-by-month data yet.<br>History before 31 Oct 2026 is carried as a single opening position per house — see Overall Status.</p>';
-    return;
-  }
-  sortedMonths.forEach(m => {
-    const s = months[m];
-    const pct = s.t > 0 ? Math.round((s.p / s.t) * 100) : 0;
-    const barColor = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
-    const card = document.createElement("div");
-    card.className = "glass rounded-xl p-5 border border-slate-700/50";
-    card.innerHTML = `
-      <div class="flex justify-between items-center mb-3">
-        <span class="text-xs font-black uppercase text-white tracking-wider">${m}</span>
-        <span class="text-[10px] font-bold ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-rose-400'}">${pct}% Collected</span>
-      </div>
-      <div class="w-full bg-slate-700/50 h-3 rounded-full overflow-hidden">
-        <div class="${barColor} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
-      </div>
-      <div class="flex justify-between mt-2 text-[10px] font-bold">
-        <span class="text-emerald-400">Paid: RM ${s.p.toFixed(2)}</span>
-        <span class="text-rose-400">Due: RM ${(s.t - s.p).toFixed(2)}</span>
-      </div>`;
-    container.appendChild(card);
-  });
-}
+/* Analytics rendering lives in admin/index.html (window.renderOverallStats /
+   renderLedger / renderTrends). The module-scope copies that used to sit here read
+   allInvoices — a 300-row page, not the ledger — and were never called; keeping two
+   renderers meant the wrong one could win a race. Deleted deliberately. */
 
 function init() { 
     initAuth(); const y = new Date().getFullYear();

@@ -239,18 +239,25 @@
         <p id="an-source-note" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Loading…</p>
 
         <!-- Overall View -->
-        <div id="an-view-overall" class="an-view grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div class="glass rounded-xl p-6 border border-emerald-500/20">
-            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Total Collected <span class="text-slate-500 normal-case tracking-normal">(all years)</span></p>
-            <h2 id="an-total-collected" class="text-3xl font-black text-white">RM 0</h2>
+        <div id="an-view-overall" class="an-view grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          <div class="glass rounded-xl p-4 border border-emerald-500/20">
+            <p class="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Verified collected</p>
+            <h2 id="an-total-collected" class="text-lg font-black text-white whitespace-nowrap tabular-nums">RM 0</h2>
+            <p id="an-collected-sub" class="text-[9px] text-slate-500 mt-0.5">—</p>
           </div>
-          <div class="glass rounded-xl p-6 border border-rose-500/20">
-            <p class="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Outstanding <span class="text-slate-500 normal-case tracking-normal">(all houses)</span></p>
-            <h2 id="an-total-outstanding" class="text-3xl font-black text-white">RM 0</h2>
+          <div class="glass rounded-xl p-4 border border-indigo-500/25">
+            <p class="text-[9px] font-bold text-indigo-400 uppercase tracking-widest mb-1">Recorded, unverified</p>
+            <h2 id="an-total-pending" class="text-lg font-black text-indigo-300 whitespace-nowrap tabular-nums">RM 0</h2>
+            <p id="an-pending-sub" class="text-[9px] text-slate-500 mt-0.5">waiting for Treasurer</p>
           </div>
-          <div class="glass rounded-xl p-6 border border-blue-500/20 text-center">
-            <p class="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Collection Efficiency</p>
-            <h2 id="an-collection-rate" class="text-4xl font-black text-white">0%</h2>
+          <div class="glass rounded-xl p-4 border border-rose-500/20">
+            <p class="text-[9px] font-bold text-rose-400 uppercase tracking-widest mb-1">Still due</p>
+            <h2 id="an-total-outstanding" class="text-lg font-black text-white whitespace-nowrap tabular-nums">RM 0</h2>
+            <p id="an-outstanding-sub" class="text-[9px] text-slate-500 mt-0.5">—</p>
+          </div>
+          <div class="glass rounded-xl p-4 border border-blue-500/20">
+            <p class="text-[9px] font-bold text-blue-400 uppercase tracking-widest mb-1">Collection efficiency</p>
+            <h2 id="an-collection-rate" class="text-2xl font-black text-white tabular-nums">0%</h2>
           </div>
         </div>
 
@@ -590,8 +597,19 @@ window.switchAnalyticsView = function(view) {
 window.renderOverallStats = function() {
   const fmt = v => Math.abs(v).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
   const t = window.tgPortfolio ? window.tgPortfolio() : { paid: 0, arrears: 0, rate: 0, houses: 0, withOpening: 0 };
+  const pending = Number(t.pending || 0);
+  const stillDue = Number(t.stillDue != null ? t.stillDue : t.arrears);
   document.querySelector("#an-total-collected").textContent = "RM " + fmt(t.paid);
-  document.querySelector("#an-total-outstanding").textContent = "RM " + fmt(t.arrears);
+  document.querySelector("#an-total-pending").textContent = "RM " + fmt(pending);
+  document.querySelector("#an-total-outstanding").textContent = "RM " + fmt(stillDue);
+  const cSub = document.querySelector("#an-collected-sub");
+  if (cSub) cSub.textContent = Number(t.paidCount || 0).toLocaleString("en-MY") + " bill(s) confirmed";
+  const pSub = document.querySelector("#an-pending-sub");
+  if (pSub) pSub.textContent = pending > 0
+    ? Number(t.pendingCount || 0).toLocaleString("en-MY") + " bill(s) · not yet confirmed"
+    : "nothing waiting";
+  const oSub = document.querySelector("#an-outstanding-sub");
+  if (oSub) oSub.textContent = "of RM " + fmt(t.charged) + " billed";
   const rateEl = document.querySelector("#an-collection-rate");
   rateEl.textContent = (t.rate || 0).toFixed(1) + "%";
   rateEl.className = "text-4xl font-black " + ((t.rate||0) >= 80 ? "text-emerald-400" : (t.rate||0) >= 50 ? "text-amber-400" : "text-rose-400");
@@ -615,11 +633,23 @@ window.renderLedger = function() {
       ? window.tgPosition(res)
       : { paid: 0, charged: 0, balance: 0 };
     const resPaid = pos.paid, resTotal = pos.charged, resBal = pos.balance;
+    const resPending = Number(pos.pending || 0);
     const isClear = Math.abs(resBal) < 0.005 && resTotal > 0;
     const isCredit = resBal < -0.005;
+    // nothing left to chase once recorded money is counted, but nothing confirmed either
+    const isPending = resPending > 0 && resBal > 0.005 && !isCredit;
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-800/30 transition-colors " + (!isClear && resTotal > 0 ? "bg-rose-900/10" : "");
-    tr.innerHTML = '<td class="p-3 font-bold text-white">' + res.unitNumber + '</td><td class="p-3 text-slate-400 text-[10px]">' + (res.name || '-') + '</td><td class="p-3 font-mono text-sm text-slate-300">RM ' + resPaid.toFixed(2) + ' / ' + resTotal.toFixed(2) + '</td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ' + (isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : isCredit ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-700/50 text-slate-500') + '">' + (isClear ? 'CLEAR' : isCredit ? 'CREDIT' : resTotal > 0 ? 'DEBT' : 'N/A') + '</span></td>';
+    const pendingLine = resPending > 0
+      ? '<div class="font-mono text-[9px] text-indigo-400 mt-0.5">+' + resPending.toFixed(2) + ' recorded</div>'
+      : '';
+    const badge = isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+      : isCredit ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+      : isPending ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40'
+      : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+      : 'bg-slate-700/50 text-slate-500';
+    const badgeText = isClear ? 'CLEAR' : isCredit ? 'CREDIT' : isPending ? 'PENDING' : resTotal > 0 ? 'DEBT' : 'N/A';
+    tr.innerHTML = '<td class="p-3 font-bold text-white">' + res.unitNumber + '</td><td class="p-3 text-slate-400 text-[10px]">' + (res.name || '-') + '</td><td class="p-3 font-mono text-sm text-slate-300">RM ' + resPaid.toFixed(2) + ' / ' + resTotal.toFixed(2) + pendingLine + '</td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ' + badge + '">' + badgeText + '</span></td>';
     tbody.appendChild(tr);
   });
 };
@@ -637,22 +667,38 @@ window.renderTrends = async function() {
   }
 
   container.innerHTML = "";
+  const money = v => Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   rows.forEach(r => {
     const charged = Number(r.charged || 0), paid = Number(r.paid || 0);
-    const pct = charged > 0 ? Math.round((paid / charged) * 100) : 0;
-    const bar = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
+    const pending = Number(r.pending || 0), pendingCount = Number(r.pendingCount || 0);
+    const paidPct = charged > 0 ? (paid / charged) * 100 : 0;
+    const pendPct = charged > 0 ? (pending / charged) * 100 : 0;
+    const due = Math.max(0, charged - paid - pending);
+    const bar = paidPct >= 80 ? "bg-emerald-500" : paidPct >= 50 ? "bg-amber-500" : "bg-rose-500";
     const label = (r.month || "").slice(0, 3) + " " + String(r.year || "").slice(2);
+    const chip = pendingCount > 0
+      ? '<span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[8px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 align-middle">'
+        + pendingCount + ' recorded</span>'
+      : "";
+    // recorded money is a hatched sliver so a single RM80 out of RM27k is still visible
+    const pendSeg = pending > 0
+      ? '<span class="h-full block" style="width:' + pendPct.toFixed(3) + '%;min-width:4px;'
+        + 'background:repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px);'
+        + 'border-left:1px solid #0b1220"></span>'
+      : "";
     const card = document.createElement("div");
     card.className = "glass rounded-xl p-5 border border-slate-700/50";
-    card.innerHTML = '<div class="flex justify-between items-center mb-3"><span class="text-xs font-black uppercase text-white tracking-wider">' + label +
-      '</span><span class="text-[10px] font-bold ' + (pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-rose-400') + '">' + pct + '% Collected</span></div>' +
-      '<div class="w-full bg-slate-700/50 h-3 rounded-full overflow-hidden"><div class="' + bar + ' h-full rounded-full transition-all duration-500" style="width:' + pct + '%"></div></div>' +
-      '<div class="flex justify-between mt-2 text-[10px] font-bold"><span class="text-emerald-400">Paid: RM ' + paid.toFixed(2) +
-      '</span><span class="text-rose-400">Due: RM ' + (charged - paid).toFixed(2) + '</span><span class="text-slate-500">' + (r.paidCount || 0) + '/' + (r.bills || 0) + ' houses</span></div>';
+    card.innerHTML = '<div class="flex justify-between items-center mb-3"><span class="text-xs font-black uppercase text-white tracking-wider">' + label + chip +
+      '</span><span class="text-[10px] font-bold ' + (paidPct >= 80 ? 'text-emerald-400' : paidPct >= 50 ? 'text-amber-400' : 'text-rose-400') + '">' + paidPct.toFixed(1) + '% verified</span></div>' +
+      '<div class="w-full bg-slate-700/50 h-3 rounded-full overflow-hidden flex"><div class="' + bar + ' h-full transition-all duration-500" style="width:' + paidPct.toFixed(3) + '%"></div>' + pendSeg + '</div>' +
+      '<div class="flex justify-between mt-2 text-[10px] font-bold"><span class="text-emerald-400">Verified RM ' + money(paid) +
+      '</span>' + (pending > 0 ? '<span class="text-indigo-400">Recorded RM ' + money(pending) + '</span>' : '') +
+      '<span class="text-rose-400">Due RM ' + money(due) + '</span>' +
+      '<span class="text-slate-500">' + (r.paidCount || 0) + '/' + (r.bills || 0) + '</span></div>';
     container.appendChild(card);
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261027k"></script>
+  <script type="module" src="../app.js?v=20261027l"></script>
 </body>
 </html>
