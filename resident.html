@@ -116,9 +116,11 @@
                <div class="text-2xl" id="paymaster-emoji">🧐</div>
                <div class="flex-1 min-w-0">
                    <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
-                   <p id="paymaster-amount" class="text-[28px] font-black leading-none tracking-tight">—</p>
+                   <div class="flex items-baseline gap-2 flex-wrap">
+                       <p id="paymaster-amount" class="text-[28px] font-black leading-none tracking-tight">—</p>
+                       <span id="paymaster-provisional" class="text-[11px] font-bold leading-none border rounded px-1.5 py-0.5 hidden"></span>
+                   </div>
                    <p id="paymaster-message" class="text-[10px] font-bold leading-tight opacity-75 mt-1.5">Syncing data...</p>
-                   <p id="paymaster-provisional" class="text-[10px] font-bold leading-tight mt-1 hidden"></p>
                </div>
                <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
             </div>
@@ -383,19 +385,15 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
             const provEl = document.getElementById('paymaster-provisional');
             if (provEl) {
                 if (pCount > 0) {
-                    // When nothing else is owed, the headline IS the recorded money, so the
-                    // sub-line explains the count instead of repeating the amount.
-                    provEl.innerText = (count === 0)
-                        ? `${pCount} month${pCount > 1 ? 's' : ''} received · waiting for the committee to confirm`
-                        : `RM${pTotal.toFixed(2)} recorded · awaiting verification (${pCount} month${pCount > 1 ? 's' : ''})`;
+                    // headline is always what is actually owed; the pill carries the money
+                    // that has been recorded but not yet confirmed
+                    provEl.innerText = `(RM${pTotal.toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})} being verified)`;
                     provEl.classList.remove('hidden');
                 } else { provEl.classList.add('hidden'); provEl.innerText = ''; }
             }
 
             // Clean up previous states
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'bg-indigo-500', 'text-white', 'text-slate-800', 'animate-pulse');
-            provEl?.classList.toggle('text-white', count === 0 && pCount > 0);
-            provEl?.classList.toggle('text-indigo-600', !(count === 0 && pCount > 0));
             
             // UI State Logic
             if (!hasI) {
@@ -404,10 +402,10 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                 amt.innerText = "—";
                 msg.innerText = statusMessages.noBills;
             } else if (count === 0 && pCount > 0) {
-                // paid, but the committee has not confirmed it yet — never show All Clear here
+                // nothing outstanding — but nothing confirmed either, so this is not All Clear
                 card.classList.add('bg-indigo-500', 'text-white');
                 emo.innerText = "⏳";
-                amt.innerText = `RM${pTotal.toFixed(2)}`;
+                amt.innerText = "RM0.00";
                 msg.innerText = statusMessages.provisional;
             } else if (count === 0) { 
                 card.classList.add('bg-emerald-500', 'text-white'); 
@@ -426,6 +424,14 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                 emo.innerText = "🚨"; 
                 amt.innerText = `RM${total.toFixed(2)}`;
                 msg.innerText = statusMessages.outstanding;
+            }
+
+            // the pill follows the card it sits on (must run after the colour is chosen)
+            if (provEl) {
+                provEl.classList.remove('text-white', 'text-slate-700', 'border-white/50', 'border-slate-400');
+                const dark = card.classList.contains('text-white');
+                provEl.classList.add(dark ? 'text-white' : 'text-slate-700');
+                provEl.classList.add(dark ? 'border-white/50' : 'border-slate-400');
             }
 
             // Chat Gate Logic (Locks ONLY if they owe 4 or more months)
