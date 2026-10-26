@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebas
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, writeBatch, serverTimestamp, addDoc, startAfter, documentId } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
+import { indexInvoices, position as libPosition, portfolio as libPortfolio } from "./lib/position.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -284,59 +285,21 @@ function buildRoadChips() {
    (residents.soa*) + live invoices. Single source of truth for the
    residents list, dashboard and analytics.
    ------------------------------------------------------------------ */
-/* index allInvoices by house once per load — 342 houses x ~7.5k invoices is too
-   much to rescan per resident on every render */
 let _invIdx = null, _invIdxKey = "";
 function invoiceIndex() {
     const key = allInvoices.length + ":" + (allInvoices[allInvoices.length - 1]?.id || "");
     if (_invIdx && _invIdxKey === key) return _invIdx;
-    const m = new Map();
-    allInvoices.forEach(i => {
-        const k = `${i.road}|${i.unitNumber}`;
-        if (!m.has(k)) m.set(k, []);
-        m.get(k).push(i);
-    });
-    _invIdx = m; _invIdxKey = key;
-    return m;
+    _invIdx = indexInvoices(allInvoices);
+    _invIdxKey = key;
+    return _invIdx;
 }
 
-/* Position = the invoice ledger when the house has bills (source of truth),
-   otherwise the carried-forward opening position from residents.soa*.
-   Invoices are itemised from Jan 2025, so a backfilled house never double-counts. */
 function residentPosition(res) {
-    const held = invoiceIndex().get(`${res.road}|${res.unitNumber}`) || [];
-    if (held.length) {
-        let charged = 0, paid = 0;
-        held.forEach(i => {
-            const a = parseFloat(i.amount) || 0;
-            charged += a;
-            if (i.status === "paid") paid += a;
-        });
-        return { openCharged: 0, openPaid: 0, liveCharged: charged, livePaid: paid,
-                 liveCount: held.length, charged, paid, balance: charged - paid,
-                 openingAsOf: null, itemised: true };
-    }
-    const openCharged = Number(res.soaCharged || 0);
-    const openPaid = Number(res.soaPaid || 0);
-    return { openCharged, openPaid, liveCharged: 0, livePaid: 0, liveCount: 0,
-             charged: openCharged, paid: openPaid, balance: openCharged - openPaid,
-             openingAsOf: res.soaOpeningAsOf || null, itemised: false };
+    return libPosition(res, allInvoices, invoiceIndex());
 }
 
 function portfolioTotals(list = allResidents) {
-    let charged = 0, paid = 0, arrears = 0, credit = 0;
-    let debtors = 0, creditors = 0, settled = 0, withOpening = 0;
-    list.forEach(r => {
-        const p = residentPosition(r);
-        charged += p.charged; paid += p.paid;
-        if (p.openingAsOf) withOpening++;
-        if (p.balance > 0.004) { arrears += p.balance; debtors++; }
-        else if (p.balance < -0.004) { credit += -p.balance; creditors++; }
-        else settled++;
-    });
-    return { charged, paid, net: charged - paid, arrears, credit, debtors, creditors,
-             settled, withOpening, houses: list.length,
-             rate: charged > 0 ? (paid / charged) * 100 : 0 };
+    return libPortfolio(list, allInvoices, invoiceIndex());
 }
 
 window.tgPosition = residentPosition;

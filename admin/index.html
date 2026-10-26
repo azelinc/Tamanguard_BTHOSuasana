@@ -546,8 +546,8 @@ window.renderOverallStats = function() {
   const note = document.querySelector("#an-source-note");
   if (note) {
     const asOf = (window.allResidents || []).find(r => r.soaOpeningAsOf)?.soaOpeningAsOf || "31 Oct 2026";
-    note.textContent = t.houses + " houses · opening position to " + asOf
-      + " + " + window.allInvoices.length + " invoice(s) recorded in app";
+    note.textContent = t.houses + " houses · " + (t.itemised || 0) + " itemised ledgers · "
+      + window.allInvoices.length.toLocaleString("en-MY") + " invoices · itemised from Jan 2025";
   }
 };
 window.renderLedger = function() {
@@ -594,6 +594,6 @@ window.renderTrends = function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261026h"></script>
+  <script type="module" src="../app.js?v=20261027a"></script>
 </body>
 </html>

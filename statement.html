@@ -146,9 +146,13 @@ function render(res, invoices) {
   const openCharged = Number(res.soaCharged || 0);
   const openPaid = Number(res.soaPaid || 0);
   const monthsBilled = Number(res.soaMonthsBilled || 0);
+  // itemised ledger (bills backfilled from Jan 2025) => all figures come from invoices
+  const hasOpening = !invoices.length && !!res.soaOpeningAsOf;
+  const baseCharged = hasOpening ? openCharged : 0;
+  const basePaid = hasOpening ? openPaid : 0;
 
   // ---- live transactions (after the cut-over) ----
-  let balance = openCharged - openPaid;
+  let balance = baseCharged - basePaid;
   const liveRows = invoices.map(inv => {
     const amt = parseFloat(inv.amount || 0);
     const paid = inv.status === "paid" ? amt : 0;
@@ -161,8 +165,8 @@ function render(res, invoices) {
 
   const liveCharged = liveRows.reduce((s, r) => s + r.amt, 0);
   const livePaid = liveRows.reduce((s, r) => s + r.paid, 0);
-  const totalCharged = openCharged + liveCharged;
-  const totalPaid = openPaid + livePaid;
+  const totalCharged = baseCharged + liveCharged;
+  const totalPaid = basePaid + livePaid;
   const closing = totalCharged - totalPaid;
 
   const isCredit = closing < 0;
@@ -194,7 +198,6 @@ function render(res, invoices) {
 
   // A house with an itemised ledger (bills backfilled from Jan 2025) needs no
   // carried-forward opening block — the invoices are the statement.
-  const hasOpening = !invoices.length && !!res.soaOpeningAsOf;
   const openingDetail = hasOpening ? `
       <tr class="section"><td colspan="5">Opening position carried forward — ${esc(res.soaMonthsPaid || 0)} months paid${res.soaPaidThrough ? ", paid through " + esc(res.soaPaidThrough) : ""}</td></tr>
       <tr class="opening">
