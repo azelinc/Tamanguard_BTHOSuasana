@@ -220,7 +220,7 @@ function loadNews() {
                 <button class="del-news text-slate-600 hover:text-red-400 transition-colors"><i class="fas fa-trash-alt"></i></button>
             </div>
             <p class="text-slate-300 text-sm leading-relaxed">${data.content}</p>
-            <div class="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest"><i class="far fa-clock mr-1"></i>${data.createdAt?.toDate().toLocaleString("en-MY") || 'JUST NOW'}</div>`;
+            <div class="mt-4 text-[10px] text-slate-500 font-bold uppercase tracking-widest"><i class="far fa-clock mr-1"></i>${tsMillis(data.createdAt) ? new Date(tsMillis(data.createdAt)).toLocaleString("en-MY") : 'JUST NOW'}</div>`;
         card.querySelector(".del-news").onclick = async () => { if(confirm("Delete this news?")) await deleteDoc(doc(db, "announcements", d.id)); };
         box.appendChild(card);
     });
@@ -352,6 +352,16 @@ window.tgMonthlyStats = async function () {
     const snap = await getDocs(query(collection(db, "stats_monthly"), orderBy("ym")));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };
+
+/* createdAt can be a Timestamp, {seconds}, ISO string or number — never assume. */
+function tsMillis(v) {
+    if (!v) return 0;
+    if (typeof v.toMillis === "function") return v.toMillis();
+    if (typeof v.seconds === "number") return v.seconds * 1000;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+    return 0;
+}
 
 function escHtml(v) {
     return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

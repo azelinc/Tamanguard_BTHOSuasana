@@ -190,6 +190,18 @@
 
         // Added pendingCancelId state for the modal
         let invoiceCache = {}, myBillsRaw =[], currentBillFilter = 'all', pendingCancelId = null;
+
+        /* createdAt can be a Firestore Timestamp, a {seconds} object, an ISO string
+           (imported/backfilled rows) or a number. `.toMillis()` on a string throws and
+           used to take the whole bills render down with it. */
+        function tsMillis(v) {
+            if (!v) return 0;
+            if (typeof v.toMillis === 'function') return v.toMillis();
+            if (typeof v.seconds === 'number') return v.seconds * 1000;
+            if (typeof v === 'number') return v;
+            if (typeof v === 'string') { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+            return 0;
+        }
         let myUnit = localStorage.getItem('myUnit'), unsubBills, unsubNews, unsubVisits, unsubChat, qrObj = null;
 
         function showToast(msg, type = 'info') {
@@ -286,8 +298,13 @@
                     const isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
                     if(b.status !== 'paid' && !isF) { uC++; uT += (parseFloat(b.amount) || 0); }
                 });
-                myBillsRaw.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-                updatePaymasterUI(uC, uT, !snap.empty); renderBillList();
+                myBillsRaw.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
+                // render regardless: a single malformed field must not blank the screen
+                try { updatePaymasterUI(uC, uT, !snap.empty); }
+                catch (e) { console.error("status card failed", e); }
+                try { renderBillList(); }
+                catch (e) { console.error("bill list failed", e); document.getElementById('bill-list').innerHTML =
+                    '<p class="text-center py-10 text-xs text-rose-500">Could not draw the bill list. Pull to refresh.</p>'; }
             });
         }
 
