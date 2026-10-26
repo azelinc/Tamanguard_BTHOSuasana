@@ -319,6 +319,7 @@ function portfolioTotals(list = allResidents) {
 
 window.tgPosition = residentPosition;
 window.tgPortfolio = portfolioTotals;
+window.tgShowProfile = showResidentProfile;
 
 function money2(v) {
     return Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
