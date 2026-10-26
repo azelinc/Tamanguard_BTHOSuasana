@@ -118,6 +118,7 @@
                    <h4 class="text-[9px] font-bold uppercase tracking-widest opacity-60 mb-1">Status Overview</h4>
                    <p id="paymaster-amount" class="text-[28px] font-black leading-none tracking-tight">—</p>
                    <p id="paymaster-message" class="text-[10px] font-bold leading-tight opacity-75 mt-1.5">Syncing data...</p>
+                   <p id="paymaster-provisional" class="text-[10px] font-bold leading-tight mt-1 hidden"></p>
                </div>
                <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
             </div>
@@ -151,6 +152,7 @@
                 <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
                     <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600 transition-all">All</button>
                     <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500 transition-all">Unpaid</button>
+                    <button onclick="setBillFilter('recorded')" id="f-recorded" class="px-3 py-1 rounded-md text-slate-500 transition-all hidden">Recorded</button>
                     <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500 transition-all">Paid</button>
                 </div>
             </div>
@@ -277,7 +279,7 @@
         }
 
         function setBillFilter(f) {
-            currentBillFilter = f;['all', 'unpaid', 'paid'].forEach(id => {
+            currentBillFilter = f;['all', 'unpaid', 'recorded', 'paid'].forEach(id => {
                 const btn = document.getElementById('f-' + id);
                 if(id === f) {
                     btn.className = "px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600 transition-all";
@@ -306,15 +308,19 @@
             const myRoad = localStorage.getItem('myRoad'), monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
             unsubBills = db.collection("invoices").where("unitNumber", "==", myUnit).where("road", "==", myRoad).onSnapshot(snap => {
-                myBillsRaw =[]; let uC = 0, uT = 0;
+                myBillsRaw =[]; let uC = 0, uT = 0, pC = 0, pT = 0;
                 snap.forEach(doc => {
                     const b = doc.data(); b.id = doc.id; myBillsRaw.push(b);
                     const isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
-                    if(b.status !== 'paid' && !isF) { uC++; uT += (parseFloat(b.amount) || 0); }
+                    const amt = parseFloat(b.amount) || 0;
+                    // money already recorded is not "outstanding" any more — it is waiting
+                    // for the Treasurer, and showing it as arrears is what residents complained about
+                    if (b.status === 'provisional' && !isF) { pC++; pT += amt; }
+                    else if (b.status !== 'paid' && !isF) { uC++; uT += amt; }
                 });
                 myBillsRaw.sort((a, b) => tsMillis(b.createdAt) - tsMillis(a.createdAt));
                 // render regardless: a single malformed field must not blank the screen
-                try { updatePaymasterUI(uC, uT, !snap.empty); }
+                try { updatePaymasterUI(uC, uT, !snap.empty, pC, pT); }
                 catch (e) { console.error("status card failed", e); }
                 try { renderBillList(); }
                 catch (e) { console.error("bill list failed", e); document.getElementById('bill-list').innerHTML =
@@ -326,7 +332,13 @@
             const list = document.getElementById('bill-list'); list.innerHTML = "";
             const monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
             const now = new Date(), curM = now.getMonth(), curY = now.getFullYear();
-            const filtered = myBillsRaw.filter(b => currentBillFilter === 'all' ? true : currentBillFilter === 'paid' ? b.status === 'paid' : b.status !== 'paid');
+            const filtered = myBillsRaw.filter(b =>
+                currentBillFilter === 'all'      ? true
+              : currentBillFilter === 'paid'     ? b.status === 'paid'
+              : currentBillFilter === 'recorded' ? b.status === 'provisional'
+              :                                    (b.status !== 'paid' && b.status !== 'provisional'));
+            const recBtn = document.getElementById('f-recorded');
+            if (recBtn) recBtn.classList.toggle('hidden', !myBillsRaw.some(b => b.status === 'provisional'));
             
             if(filtered.length === 0) return list.innerHTML = `<p class="text-center py-10 text-xs text-slate-400">No records found.</p>`;
             
@@ -357,28 +369,33 @@
             });
         }
 
-function updatePaymasterUI(count, total, hasI) {
+function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
             const card = document.getElementById('paymaster-status-card');
             const emo = document.getElementById('paymaster-emoji');
             const amt = document.getElementById('paymaster-amount');
             const msg = document.getElementById('paymaster-message');
             const chatGate = document.getElementById('chat-gate-box');
             const chatStatus = document.getElementById('chat-status-tag');
-            
+
             if(!card || !chatGate || !amt) return;
-            lastStatus = { count, total, hasI };
+            lastStatus = { count, total, hasI, pCount, pTotal };
+
             const provEl = document.getElementById('paymaster-provisional');
             if (provEl) {
-                const provBills = (myBillsRaw || []).filter(b => b.status === 'provisional');
-                if (provBills.length) {
-                    const sum = provBills.reduce((t, b) => t + (parseFloat(b.amount) || 0), 0);
-                    provEl.innerText = `${statusMessages.provisional} · RM${sum.toFixed(2)} (${provBills.length} month${provBills.length > 1 ? 's' : ''})`;
+                if (pCount > 0) {
+                    // When nothing else is owed, the headline IS the recorded money, so the
+                    // sub-line explains the count instead of repeating the amount.
+                    provEl.innerText = (count === 0)
+                        ? `${pCount} month${pCount > 1 ? 's' : ''} received · waiting for the committee to confirm`
+                        : `RM${pTotal.toFixed(2)} recorded · awaiting verification (${pCount} month${pCount > 1 ? 's' : ''})`;
                     provEl.classList.remove('hidden');
-                } else provEl.classList.add('hidden');
+                } else { provEl.classList.add('hidden'); provEl.innerText = ''; }
             }
-            
+
             // Clean up previous states
-            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
+            card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'bg-indigo-500', 'text-white', 'text-slate-800', 'animate-pulse');
+            provEl?.classList.toggle('text-white', count === 0 && pCount > 0);
+            provEl?.classList.toggle('text-indigo-600', !(count === 0 && pCount > 0));
             
             // UI State Logic
             if (!hasI) {
@@ -386,6 +403,12 @@ function updatePaymasterUI(count, total, hasI) {
                 emo.innerText = "👋";
                 amt.innerText = "—";
                 msg.innerText = statusMessages.noBills;
+            } else if (count === 0 && pCount > 0) {
+                // paid, but the committee has not confirmed it yet — never show All Clear here
+                card.classList.add('bg-indigo-500', 'text-white');
+                emo.innerText = "⏳";
+                amt.innerText = `RM${pTotal.toFixed(2)}`;
+                msg.innerText = statusMessages.provisional;
             } else if (count === 0) { 
                 card.classList.add('bg-emerald-500', 'text-white'); 
                 emo.innerText = "🏆"; 
@@ -464,7 +487,8 @@ function updatePaymasterUI(count, total, hasI) {
                 provisional: pick("msgProvisional", statusMessages.provisional)
             };
             // repaint with whatever the bills listener last computed
-            if (lastStatus) updatePaymasterUI(lastStatus.count, lastStatus.total, lastStatus.hasI);
+            if (lastStatus) updatePaymasterUI(lastStatus.count, lastStatus.total, lastStatus.hasI,
+                                               lastStatus.pCount, lastStatus.pTotal);
         }
 
         function watchChatStatus() {
