@@ -103,9 +103,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    /* ---------- everything else: committee only ---------- */
+    /* ---------- everything else: committee read only ----------
+       This used to allow write, which silently overrode every scoped rule above —
+       Firestore ORs all matching rules, so one blanket `allow write: if isAdmin()`
+       let any committee member do anything anywhere, including verify payments.
+       Writes must stay on explicitly matched paths. */
     match /{document=**} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
     }
   }
 }
