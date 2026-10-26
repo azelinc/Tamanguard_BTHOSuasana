@@ -91,14 +91,14 @@ function showTab(name) {
   qsa(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   qsa(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== `tab-${name}`));
   if (name === "news") loadNews();
-  if (name === "residents") { loadResidents(); if (!allInvoices.length) loadBilling(true); }
+  if (name === "residents") { loadResidents(); }
   if (name === "visitors") loadVisitors();
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
-  if (name === "analytics") { 
-    Promise.all([preloadResidentData(), fetchAllInvoices()])
-      .then(([, invoices]) => {
-        allInvoices.length = 0;
-        invoices.forEach(i => allInvoices.push(i));
+  if (name === "analytics") {
+    preloadResidentData()
+      .then(() => {
+        /* figures come from the per-resident aggregates; scanning 8k invoices here
+           was the single largest read cost in the app */
         if (typeof window.loadAnalytics === "function") window.loadAnalytics();
         else console.error("window.loadAnalytics is not defined — admin/index.html inline analytics module missing");
       })
@@ -111,9 +111,18 @@ function showTab(name) {
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
 
-async function preloadResidentData() {
+/* Spark budget: 50k reads/day. A realtime listener + a fresh getDocs on every tab
+   open cost 342 reads each time. Cache the roster for five minutes instead; every
+   write path below refreshes the specific resident it touches. */
+const RES_TTL_MS = 5 * 60 * 1000;
+let _resLoadedAt = 0;
+
+async function preloadResidentData(force = false) {
+    if (!force && allResidents.length && Date.now() - _resLoadedAt < RES_TTL_MS) return;
     const snap = await getDocs(collection(db, "residents"));
-    allResidents.length = 0; snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
+    allResidents.length = 0;
+    snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
+    _resLoadedAt = Date.now();
 }
 
 /* SETTINGS */
@@ -228,11 +237,11 @@ qs("#postNewsBtn").addEventListener("click", async () => {
 });
 
 /* RESIDENTS */
-function loadResidents() {
-    onSnapshot(query(collection(db, "residents"), orderBy("unitNumber")), (snap) => {
-        allResidents.length = 0; snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
+async function loadResidents(force = false) {
+    try {
+        await preloadResidentData(force);
         buildRoadChips(); renderResidents(); loadStats();
-    });
+    } catch (e) { console.error("residents load failed", e); }
 }
 
 /* RESIDENTS — view mode + road filter */
@@ -294,17 +303,52 @@ function invoiceIndex() {
     return _invIdx;
 }
 
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+/* Keep the aggregate on the resident document in step with the ledger. One extra
+   write per payment/generation buys analytics with zero invoice scans. */
+function bumpResidentAggregate(road, unit, delta = {}) {
+    const res = allResidents.find(r => r.road === road && r.unitNumber === unit);
+    if (!res) return null;
+    res.soaCharged = Number(res.soaCharged || 0) + (delta.charged || 0);
+    res.soaPaid = Number(res.soaPaid || 0) + (delta.paid || 0);
+    res.soaBills = Number(res.soaBills || 0) + (delta.bills || 0);
+    res.soaPaidCount = Number(res.soaPaidCount || 0) + (delta.paidCount || 0);
+    res.soaBalance = res.soaCharged - res.soaPaid - Number(res.soaAdvance || 0);
+    if (res.id) {
+        updateDoc(doc(db, "residents", res.id), {
+            soaCharged: res.soaCharged, soaPaid: res.soaPaid, soaBalance: res.soaBalance,
+            soaBills: res.soaBills, soaPaidCount: res.soaPaidCount
+        }).catch(() => {});
+    }
+    return res;
+}
+
+/* Position from the cached aggregate only. Never from allInvoices: that array holds
+   a 300-row slice of the ledger, and one bill for a house is not its full history. */
 function residentPosition(res) {
-    return libPosition(res, allInvoices, invoiceIndex());
+    return libPosition(res, null, null);
+}
+
+/* Position from a house's COMPLETE bill list (profile / statement call this after
+   querying that one house). */
+function housePosition(res, invoices) {
+    return libPosition(res, invoices || [], indexInvoices(invoices || []));
 }
 
 function portfolioTotals(list = allResidents) {
-    return libPortfolio(list, allInvoices, invoiceIndex());
+    /* cache only — allInvoices holds one page of the ledger, which is not a house's
+       full history and would understate every balance it touched */
+    return libPortfolio(list, null, null);
 }
 
 window.tgPosition = residentPosition;
 window.tgPortfolio = portfolioTotals;
 window.tgShowProfile = showResidentProfile;
+
+function escHtml(v) {
+    return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 function money2(v) {
     return Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -476,11 +520,22 @@ async function showResidentProfile(res) {
     const soaBtn = qs("#profSoaBtn");
     if (soaBtn) soaBtn.onclick = () => openStatement(res);
 
-    /* Position summary — opening carried forward + live invoices.
-       Payment history used to read the invoices collection only, so a house that
-       paid 24 months showed "No payment history found" once bills were cleared. */
-    const pos = residentPosition(res);
-    const sum = qs("#profSummary");
+    const tbody = qs("#profHistoryBody");
+    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500"><span class="spinner"></span></td></tr>';
+    modal.classList.remove("hidden");
+
+    // one query for this house only (~24 docs). Unit numbers repeat across roads,
+    // so both fields are filtered — a unit-only query reads 11 houses' bills.
+    let history = [];
+    try {
+        const snap = await getDocs(query(collection(db, "invoices"),
+            where("road", "==", res.road), where("unitNumber", "==", res.unitNumber)));
+        history = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.year - a.year) || (MONTH_NAMES.indexOf(b.month) - MONTH_NAMES.indexOf(a.month)));
+    } catch (e) { console.error("profile bills failed", e); }
+
+    const pos = history.length ? housePosition(res, history) : residentPosition(res);
+
     const cell = (label, value, cls) => `
         <div class="bg-slate-800/30 border border-slate-700/50 rounded-lg px-3 py-2">
             <p class="text-[9px] uppercase font-bold tracking-widest text-slate-500">${label}</p>
@@ -488,46 +543,31 @@ async function showResidentProfile(res) {
         </div>`;
     const balCls = pos.balance > 0.004 ? "text-rose-400" : pos.balance < -0.004 ? "text-emerald-400" : "text-slate-400";
     const balTxt = pos.balance < -0.004 ? `(${money2(pos.balance)})` : money2(pos.balance);
-    sum.innerHTML =
+    qs("#profSummary").innerHTML =
         cell("Charged", "RM " + money2(pos.charged), "text-slate-200") +
         cell("Paid", "RM " + money2(pos.paid), "text-emerald-400") +
         cell("Balance", "RM " + balTxt, balCls) +
         cell("Paid through", res.soaPaidThrough || (pos.paid > 0 ? "—" : "never"), "text-slate-300");
 
-    const tbody = qs("#profHistoryBody");
-    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500"><span class="spinner"></span></td></tr>';
-    modal.classList.remove("hidden");
+    tbody.innerHTML = "";
 
-    try {
-        const snap = await getDocs(query(collection(db, "invoices"), where("unitNumber", "==", res.unitNumber)));
-        const history = snap.docs.map(d => d.data()).filter(i => i.road === res.road)
-            .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+    if (!history.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No bills raised for this house yet.</td></tr>';
+        return;
+    }
 
-        tbody.innerHTML = "";
-
-        // carried-forward opening position — only when the house has no itemised ledger
-        if (!pos.itemised && res.soaOpeningAsOf) {
-            const months = Number(res.soaMonthsPaid || 0);
-            const tr = document.createElement("tr");
-            tr.className = "border-b border-slate-700/20 bg-slate-800/20";
-            tr.innerHTML = `<td class="py-4 px-4 text-white">Opening position<br><span class="text-[9px] text-slate-500 uppercase tracking-widest">to ${res.soaOpeningAsOf}</span></td>
-                <td class="py-4 px-4 text-slate-300 font-mono">RM ${money2(Number(res.soaPaid || 0))}</td>
-                <td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${months > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">${months > 0 ? months + " MONTHS PAID" : "NEVER PAID"}</span></td>
-                <td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${res.soaLatestReceipt || '-'}${res.soaLatestReceiptDate ? `<br><span class="text-slate-600">${res.soaLatestReceiptDate}</span>` : ""}</td>`;
-            tbody.appendChild(tr);
-        }
-
-        history.forEach(inv => {
-            const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20";
-            const isPaid = inv.status === 'paid';
-            tr.innerHTML = `<td class="py-4 px-4 text-white">${inv.month || '-'} ${inv.year || ''}</td><td class="py-4 px-4 text-slate-300 font-mono">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid?'bg-emerald-500/10 text-emerald-400':'bg-amber-500/10 text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || '-'}</td>`;
-            tbody.appendChild(tr);
-        });
-
-        if (!tbody.children.length) {
-            tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No records for this house yet.</td></tr>';
-        }
-    } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400">Failed to load bills.</td></tr>'; }
+    history.forEach(inv => {
+        const isPaid = inv.status === "paid";
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-700/20";
+        tr.innerHTML = `
+            <td class="py-4 px-4 text-white">${inv.month || "-"} ${inv.year || ""}
+                <span class="block text-[9px] text-slate-500">${escHtml(inv.remarks || "")}</span></td>
+            <td class="py-4 px-4 text-slate-300 font-mono">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>
+            <td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${(inv.status || "").toUpperCase()}</span></td>
+            <td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || (inv.inferred ? "coverage" : "-")}</td>`;
+        tbody.appendChild(tr);
+    });
 }
 
 qs("#residentSearch").addEventListener("input", debounce(() => renderResidents(), 100));
@@ -542,39 +582,26 @@ document.querySelectorAll(".res-view-btn").forEach(btn => {
 });
 
 /* BILLING */
+let billingCursor = null;
 async function loadBilling(reset = true) {
-  /* Load the WHOLE ledger, not the newest PAGE_SIZE: balances, analytics and the
-     residents list all read this array, so a truncated load silently corrupts them. */
-  const invoices = await fetchAllInvoices();
-  allInvoices.length = 0;
-  invoices.forEach(i => allInvoices.push(i));
-  allInvoices.sort((a, b) => {
-    const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.parse(a.createdAt || 0) || 0;
-    const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.parse(b.createdAt || 0) || 0;
-    return tb - ta;
-  });
-  renderInvoices(); loadStats();
+  /* 300 newest bills per page, newest first. The ledger is far too big to scan on
+     a free-tier project (8k+ reads per open), and balances no longer depend on it:
+     they come from the aggregates cached on each resident. */
+  try {
+    const base = collection(db, "invoices");
+    const q = (!reset && billingCursor)
+      ? query(base, orderBy("createdAt", "desc"), startAfter(billingCursor), limit(300))
+      : query(base, orderBy("createdAt", "desc"), limit(300));
+    const snap = await getDocs(q);
+    if (reset) { allInvoices.length = 0; billingCursor = null; }
+    snap.forEach(d => allInvoices.push({ id: d.id, ...d.data() }));
+    billingCursor = snap.docs.length ? snap.docs[snap.docs.length - 1] : null;
+    renderInvoices(); loadStats();
+  } catch (e) { console.error("billing load failed", e); }
 }
 
-/* Analytics must aggregate EVERY invoice, not the newest PAGE_SIZE.
-   Paged by document id so totals don't silently truncate once the taman
-   passes 250 bills, and so invoices missing createdAt are still counted. */
-async function fetchAllInvoices() {
-  const out = [];
-  const CHUNK = 500;
-  let cursor = null;
-  for (;;) {
-    const base = collection(db, "invoices");
-    const q = cursor
-      ? query(base, orderBy(documentId()), startAfter(cursor), limit(CHUNK))
-      : query(base, orderBy(documentId()), limit(CHUNK));
-    const snap = await getDocs(q);
-    snap.forEach(d => out.push({ id: d.id, ...d.data() }));
-    if (snap.size < CHUNK) break;
-    cursor = snap.docs[snap.docs.length - 1];
-  }
-  return out;
-}
+/* The ledger is never scanned wholesale. All estate-wide figures come from the
+   aggregates cached on the resident documents (see lib/position.js). */
 
 function updateBillingDefaults() {
     const month = qs("#bulkMonth").value;
@@ -637,6 +664,13 @@ function renderInvoices() {
     tr.querySelector(".del-b").onclick = () => deleteInvoice(inv.id);
     tbody.appendChild(tr);
   });
+
+  if (!rawTerm && shown.length >= 300 && billingCursor) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="7" class="py-4 text-center"><button id="loadMoreBills" class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300">Load 300 older bills</button></td>';
+    tr.querySelector("#loadMoreBills").onclick = (e) => { e.target.disabled = true; e.target.textContent = "Loading…"; loadBilling(false); };
+    tbody.appendChild(tr);
+  }
 }
 
 function showReceipt(inv) {
@@ -652,8 +686,14 @@ function showReceipt(inv) {
 async function deleteInvoice(id) {
     if(!confirm("Are you sure you want to delete this bill?")) return;
     try {
+        const gone = allInvoices.find(i => i.id === id);
         await deleteDoc(doc(db, "invoices", id));
         allInvoices = allInvoices.filter(i => i.id !== id);
+        if (gone) bumpResidentAggregate(gone.road, gone.unitNumber, {
+            charged: -(parseFloat(gone.amount) || 0), bills: -1,
+            paid: gone.status === "paid" ? -(parseFloat(gone.amount) || 0) : 0,
+            paidCount: gone.status === "paid" ? -1 : 0
+        });
         renderInvoices(); loadStats();
         toast("Bill deleted", "info");
     } catch(e) { toast("Error deleting", "error"); }
@@ -662,10 +702,15 @@ async function deleteInvoice(id) {
 qs("#invoiceSearch").addEventListener("input", debounce(() => renderInvoices(), 50));
 qs("#hidePaidToggle").addEventListener("change", () => renderInvoices());
 
-function showHouseHistoryModal(unit, road) {
+async function showHouseHistoryModal(unit, road) {
     const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `${unit} — ${road}`;
+    tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500"><span class="spinner"></span></td></tr>';
+    const snap = await getDocs(query(collection(db, "invoices"),
+        where("road", "==", road), where("unitNumber", "==", unit)));
+    const history = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => (b.year - a.year) || (MONTH_NAMES.indexOf(b.month) - MONTH_NAMES.indexOf(a.month)));
     tbody.innerHTML = "";
-    const history = allInvoices.filter(i => i.unitNumber === unit && i.road === road).sort((a,b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+    if (!history.length) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs">No bills for this house.</td></tr>'; }
     history.forEach(inv => {
         const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors";
         const isPaid = inv.status === 'paid';
@@ -687,7 +732,8 @@ async function payInvoice(id, fullRefresh = true) {
     await updateDoc(doc(db, "invoices", id), { status: "paid", receiptNumber: rcpt, paidAt: serverTimestamp() });
     const local = allInvoices.find(i => i.id === id);
     if(local) { local.status = "paid"; local.receiptNumber = rcpt; local.paidAt = new Date(); }
-    toast("Payment recorded!", "success"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats();
+    if (local) bumpResidentAggregate(local.road, local.unitNumber, { paid: parseFloat(local.amount) || 0, paidCount: 1 });
+    toast("Payment recorded!", "success"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats(); renderResidents();
 }
 
 /* GENERATE ALL (FIXED ID SANITIZATION) */
@@ -702,6 +748,13 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
     try {
         const batch = writeBatch(db);
         allResidents.forEach(r => {
+            // keep the cached aggregate in step with the bill being raised
+            r.soaCharged = Number(r.soaCharged || 0) + a;
+            r.soaBills = Number(r.soaBills || 0) + 1;
+            r.soaBalance = r.soaCharged - Number(r.soaPaid || 0) - Number(r.soaAdvance || 0);
+            if (r.id) batch.update(doc(db, "residents", r.id), {
+                soaCharged: r.soaCharged, soaBills: r.soaBills, soaBalance: r.soaBalance
+            });
             const safeRoad = r.road.replace(/[\s/]+/g, '-');
             const safeUnit = r.unitNumber.replace(/[\s/]+/g, '-');
             const id = `INV-${safeUnit}-${safeRoad}-${m}-${y}`;
@@ -748,6 +801,7 @@ qs("#invoiceForm").addEventListener("submit", async (e) => {
             createdAt: serverTimestamp() 
         });
         
+        bumpResidentAggregate(qs("#invRoad").value, unit, { charged: amount, bills: 1 });
         toast("Custom bill created", "success"); 
         closeModal("invoiceModal"); 
         qs("#invoiceForm").reset(); 
@@ -862,10 +916,12 @@ function showVisitDetails(data) {
 
 async function loadStats() {
     try {
-        const resSnap = await getDocs(collection(db, "residents")); qs("#statResidents").textContent = resSnap.size;
-        const billSnap = await getDocs(query(collection(db, "invoices"), where("status", "==", "pending")));
-        qs("#statBills").textContent = billSnap.size;
+        /* no queries here on purpose: the old version pulled every resident AND
+           every pending invoice on each render (≈6k reads per dashboard load). */
+        qs("#statResidents").textContent = allResidents.length;
         const t = portfolioTotals();
+        const billsEl = qs("#statBills");
+        if (billsEl) billsEl.textContent = t.debtors;
         const amtEl = qs("#statArrearsAmt");
         if (amtEl) amtEl.textContent = `${t.debtors} houses · RM ${money2(t.arrears)}`;
     } catch(e) {}
@@ -935,7 +991,7 @@ qs("#residentForm").addEventListener("submit", async (e) => {
 
         toast("Saved successfully!", "success"); 
         closeModal("residentModal"); 
-        loadResidents(); // Refresh the list
+        loadResidents(true); // Refresh the list
     } catch(e) { 
         console.error(e);
         toast("Save failed: " + e.message, "error"); 
@@ -972,7 +1028,7 @@ qs("#executeDeleteBtn").addEventListener("click", async () => {
         closeModal("deleteConfirmModal");
         closeModal("residentModal");
         
-        loadResidents(); // Refresh the grid
+        loadResidents(true); // Refresh the grid
     } catch (e) {
         toast("Delete failed", "error");
     } finally {

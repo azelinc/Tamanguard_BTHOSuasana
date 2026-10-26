@@ -1,6 +1,6 @@
 /* Position maths — run with:  node tests/position.test.mjs
  * No dependencies, no Firestore: fixtures only. */
-import { portfolio, indexInvoices, position } from "../lib/position.js";
+import { portfolio, indexInvoices, position, aggregate } from "../lib/position.js";
 
 const R = (road, unit, extra = {}) => ({ road, unitNumber: unit, ...extra });
 const I = (road, unit, status, amount = 80) => ({ road, unitNumber: unit, status, amount });
@@ -56,6 +56,24 @@ assert("portfolio debtors", t.debtors, 1);
 assert("portfolio creditors", t.creditors, 1);
 assert("portfolio arrears", t.arrears, 1920);
 assert("portfolio credit", t.credit, 240);
+
+// ---- cache path: no ledger in memory, figures come off the resident document ----
+const cached = R("D", "1", { soaCharged: 1920, soaPaid: 480, soaAdvance: 0, soaBills: 24, soaPaidCount: 6 });
+const pc = position(cached, null, null);
+assert("cache source", pc.source === "cache" ? 1 : 0, 1);
+assert("cache charged", pc.charged, 1920);
+assert("cache balance", pc.balance, 1440);
+assert("cache paid months", pc.paidCount, 6);
+
+const agg = aggregate([I("E", "1", "paid"), I("E", "1", "paid"), I("E", "1", "pending")]);
+assert("aggregate charged", agg.soaCharged, 240);
+assert("aggregate paid", agg.soaPaid, 160);
+assert("aggregate balance", agg.soaBalance, 80);
+assert("aggregate bills", agg.soaBills, 3);
+
+const cachedPortfolio = portfolio([cached], null, null);
+assert("portfolio from cache, no invoices", cachedPortfolio.charged, 1920);
+assert("portfolio cache arrears", cachedPortfolio.arrears, 1440);
 
 console.log(failures ? `\n${failures} FAILED` : "\nall passed");
 process.exit(failures ? 1 : 0);
