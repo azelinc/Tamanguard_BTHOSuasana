@@ -279,6 +279,58 @@ function buildRoadChips() {
     });
 }
 
+/* ------------------------------------------------------------------
+   Financial position per house = opening position carried forward
+   (residents.soa*) + live invoices. Single source of truth for the
+   residents list, dashboard and analytics.
+   ------------------------------------------------------------------ */
+function residentPosition(res) {
+    const openCharged = Number(res.soaCharged || 0);
+    const openPaid = Number(res.soaPaid || 0);
+    let liveCharged = 0, livePaid = 0, liveCount = 0;
+    allInvoices.forEach(i => {
+        if (i.unitNumber !== res.unitNumber || i.road !== res.road) return;
+        const a = parseFloat(i.amount) || 0;
+        liveCharged += a; liveCount++;
+        if (i.status === "paid") livePaid += a;
+    });
+    const charged = openCharged + liveCharged;
+    const paid = openPaid + livePaid;
+    return { openCharged, openPaid, liveCharged, livePaid, liveCount,
+             charged, paid, balance: charged - paid,
+             openingAsOf: res.soaOpeningAsOf || null };
+}
+
+function portfolioTotals() {
+    let charged = 0, paid = 0, arrears = 0, credit = 0;
+    let debtors = 0, creditors = 0, settled = 0, withOpening = 0;
+    allResidents.forEach(r => {
+        const p = residentPosition(r);
+        charged += p.charged; paid += p.paid;
+        if (p.openingAsOf) withOpening++;
+        if (p.balance > 0.004) { arrears += p.balance; debtors++; }
+        else if (p.balance < -0.004) { credit += -p.balance; creditors++; }
+        else settled++;
+    });
+    return { charged, paid, net: charged - paid, arrears, credit, debtors, creditors,
+             settled, withOpening, houses: allResidents.length,
+             rate: charged > 0 ? (paid / charged) * 100 : 0 };
+}
+
+window.tgPosition = residentPosition;
+window.tgPortfolio = portfolioTotals;
+
+function money2(v) {
+    return Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function balanceBadge(res) {
+    const b = residentPosition(res).balance;
+    if (b > 0.004) return `<span class="text-[10px] font-bold text-rose-400 font-mono">RM ${money2(b)}</span>`;
+    if (b < -0.004) return `<span class="text-[10px] font-bold text-emerald-400 font-mono">(${money2(b)})</span>`;
+    return `<span class="text-[10px] font-bold text-slate-500 font-mono">nil</span>`;
+}
+
 function openStatement(res) {
     const url = `../statement.html?road=${encodeURIComponent(res.road || "")}&unit=${encodeURIComponent(res.unitNumber || "")}`;
     window.open(url, "_blank");
@@ -311,7 +363,11 @@ function residentCard(res) {
             </div>
         </div>
         <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
-        <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>`;
+        <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>
+        <div class="mt-2 pt-2 border-t border-slate-700/50 flex justify-between items-center">
+            <span class="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Balance</span>
+            ${balanceBadge(res)}
+        </div>`;
 
     card.querySelector(".soa-btn").onclick = (e) => { e.stopPropagation(); openStatement(res); };
     card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
@@ -336,7 +392,7 @@ function residentRow(res) {
             <p class="text-[11px] text-slate-400 truncate mt-0.5">${res.road || '-'} · ${phone}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
-            ${dot}
+            ${balanceBadge(res)}
             <button class="invite-btn p-2 rounded text-emerald-400 hover:bg-emerald-600/20" title="Invite via WhatsApp">
                 <i class="fab fa-whatsapp text-xs"></i>
             </button>
@@ -772,7 +828,11 @@ function showVisitDetails(data) {
 async function loadStats() {
     try {
         const resSnap = await getDocs(collection(db, "residents")); qs("#statResidents").textContent = resSnap.size;
-        const billSnap = await getDocs(query(collection(db, "invoices"), where("status", "==", "pending"))); qs("#statBills").textContent = billSnap.size;
+        const billSnap = await getDocs(query(collection(db, "invoices"), where("status", "==", "pending")));
+        qs("#statBills").textContent = billSnap.size;
+        const t = portfolioTotals();
+        const amtEl = qs("#statArrearsAmt");
+        if (amtEl) amtEl.textContent = `${t.debtors} houses · RM ${money2(t.arrears)}`;
     } catch(e) {}
 }
 
@@ -927,18 +987,14 @@ function switchAnalyticsView(view) {
 }
 
 function renderOverallStats() {
-  let paid = 0, unpaid = 0;
-  allInvoices.forEach(inv => {
-    const amt = parseFloat(inv.amount) || 0;
-    if (inv.status === 'paid') paid += amt;
-    else unpaid += amt;
-  });
-  qs("#an-total-collected").textContent = "RM " + paid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
-  qs("#an-total-outstanding").textContent = "RM " + unpaid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const rate = (paid + unpaid) > 0 ? (paid / (paid + unpaid)) * 100 : 0;
+  const t = portfolioTotals();
+  qs("#an-total-collected").textContent = "RM " + money2(t.paid);
+  qs("#an-total-outstanding").textContent = "RM " + money2(t.arrears);
   const rateEl = qs("#an-collection-rate");
-  rateEl.textContent = rate.toFixed(1) + "%";
-  rateEl.className = "text-4xl font-black " + (rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-400" : "text-rose-400");
+  rateEl.textContent = t.rate.toFixed(1) + "%";
+  rateEl.className = "text-4xl font-black " + (t.rate >= 80 ? "text-emerald-400" : t.rate >= 50 ? "text-amber-400" : "text-rose-400");
+  const note = qs("#an-source-note");
+  if (note) note.textContent = `${t.houses} houses · opening position to ${allResidents[0]?.soaOpeningAsOf || "31 Oct 2026"} + ${allInvoices.length} invoice(s) recorded in app`;
 }
 
 function renderLedger() {
@@ -950,14 +1006,9 @@ function renderLedger() {
     return;
   }
   sorted.forEach(res => {
-    const resInvoices = allInvoices.filter(i => i.unitNumber === res.unitNumber && i.road === res.road);
-    let resPaid = 0, resTotal = 0;
-    resInvoices.forEach(i => {
-      const a = parseFloat(i.amount) || 0;
-      resTotal += a;
-      if (i.status === 'paid') resPaid += a;
-    });
-    const isClear = resPaid >= resTotal && resTotal > 0;
+    const pos = residentPosition(res);
+    const resPaid = pos.paid, resTotal = pos.charged;
+    const isClear = Math.abs(pos.balance) < 0.005 && resTotal > 0;
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-800/30 transition-colors " + (!isClear && resTotal > 0 ? "bg-rose-900/10" : "");
     tr.innerHTML = `
@@ -989,7 +1040,7 @@ function renderTrends() {
     return names.indexOf(a) - names.indexOf(b);
   });
   if (!sortedMonths.length) {
-    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No billing data found.</p>';
+    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No month-by-month data yet.<br>History before 31 Oct 2026 is carried as a single opening position per house — see Overall Status.</p>';
     return;
   }
   sortedMonths.forEach(m => {

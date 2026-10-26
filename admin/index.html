@@ -79,6 +79,7 @@
       <div class="glass rounded-xl p-4 border-l-4 border-amber-500">
         <div class="text-slate-400 text-[10px] uppercase mb-1">Unpaid Bills</div>
         <div id="statBills" class="text-2xl font-bold">0</div>
+        <div id="statArrearsAmt" class="text-[10px] text-slate-500 font-mono mt-0.5">—</div>
       </div>
     </div>
 
@@ -207,11 +208,11 @@
         <!-- Overall View -->
         <div id="an-view-overall" class="an-view grid grid-cols-1 md:grid-cols-3 gap-4">
           <div class="glass rounded-xl p-6 border border-emerald-500/20">
-            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Total Collected</p>
+            <p class="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Total Collected <span class="text-slate-500 normal-case tracking-normal">(all years)</span></p>
             <h2 id="an-total-collected" class="text-3xl font-black text-white">RM 0</h2>
           </div>
           <div class="glass rounded-xl p-6 border border-rose-500/20">
-            <p class="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Outstanding</p>
+            <p class="text-[10px] font-bold text-rose-400 uppercase tracking-widest mb-1">Total Outstanding <span class="text-slate-500 normal-case tracking-normal">(all houses)</span></p>
             <h2 id="an-total-outstanding" class="text-3xl font-black text-white">RM 0</h2>
           </div>
           <div class="glass rounded-xl p-6 border border-blue-500/20 text-center">
@@ -529,24 +530,18 @@ window.switchAnalyticsView = function(view) {
   }
 };
 window.renderOverallStats = function() {
-  let paid = 0, unpaid = 0;
-  window.allInvoices.forEach(inv => {
-    const amt = parseFloat(inv.amount) || 0;
-    if (inv.status === 'paid') paid += amt;
-    else unpaid += amt;
-  });
-  document.querySelector("#an-total-collected").textContent = "RM " + paid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
-  document.querySelector("#an-total-outstanding").textContent = "RM " + unpaid.toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const rate = (paid + unpaid) > 0 ? (paid / (paid + unpaid)) * 100 : 0;
+  const fmt = v => Math.abs(v).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const t = window.tgPortfolio ? window.tgPortfolio() : { paid: 0, arrears: 0, rate: 0, houses: 0, withOpening: 0 };
+  document.querySelector("#an-total-collected").textContent = "RM " + fmt(t.paid);
+  document.querySelector("#an-total-outstanding").textContent = "RM " + fmt(t.arrears);
   const rateEl = document.querySelector("#an-collection-rate");
-  rateEl.textContent = rate.toFixed(1) + "%";
-  rateEl.className = "text-4xl font-black " + (rate >= 80 ? "text-emerald-400" : rate >= 50 ? "text-amber-400" : "text-rose-400");
+  rateEl.textContent = (t.rate || 0).toFixed(1) + "%";
+  rateEl.className = "text-4xl font-black " + ((t.rate||0) >= 80 ? "text-emerald-400" : (t.rate||0) >= 50 ? "text-amber-400" : "text-rose-400");
   const note = document.querySelector("#an-source-note");
   if (note) {
-    const n = window.allInvoices.length;
-    note.textContent = n === 0
-      ? "No invoices loaded — check that the invoices collection is readable"
-      : "Aggregated from all " + n + " invoice" + (n === 1 ? "" : "s");
+    const asOf = (window.allResidents || []).find(r => r.soaOpeningAsOf)?.soaOpeningAsOf || "31 Oct 2026";
+    note.textContent = t.houses + " houses · opening position to " + asOf
+      + " + " + window.allInvoices.length + " invoice(s) recorded in app";
   }
 };
 window.renderLedger = function() {
@@ -558,13 +553,15 @@ window.renderLedger = function() {
     return;
   }
   sorted.forEach(res => {
-    const resInvoices = window.allInvoices.filter(i => i.unitNumber === res.unitNumber && i.road === res.road);
-    let resPaid = 0, resTotal = 0;
-    resInvoices.forEach(i => { const a = parseFloat(i.amount) || 0; resTotal += a; if (i.status === 'paid') resPaid += a; });
-    const isClear = resPaid >= resTotal && resTotal > 0;
+    const pos = window.tgPosition
+      ? window.tgPosition(res)
+      : { paid: 0, charged: 0, balance: 0 };
+    const resPaid = pos.paid, resTotal = pos.charged, resBal = pos.balance;
+    const isClear = Math.abs(resBal) < 0.005 && resTotal > 0;
+    const isCredit = resBal < -0.005;
     const tr = document.createElement("tr");
     tr.className = "hover:bg-slate-800/30 transition-colors " + (!isClear && resTotal > 0 ? "bg-rose-900/10" : "");
-    tr.innerHTML = '<td class="p-3 font-bold text-white">' + res.unitNumber + '</td><td class="p-3 text-slate-400 text-[10px]">' + (res.name || '-') + '</td><td class="p-3 font-mono text-sm text-slate-300">RM ' + resPaid.toFixed(2) + ' / ' + resTotal.toFixed(2) + '</td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ' + (isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-700/50 text-slate-500') + '">' + (isClear ? 'CLEAR' : resTotal > 0 ? 'DEBT' : 'N/A') + '</span></td>';
+    tr.innerHTML = '<td class="p-3 font-bold text-white">' + res.unitNumber + '</td><td class="p-3 text-slate-400 text-[10px]">' + (res.name || '-') + '</td><td class="p-3 font-mono text-sm text-slate-300">RM ' + resPaid.toFixed(2) + ' / ' + resTotal.toFixed(2) + '</td><td class="p-3"><span class="px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest ' + (isClear ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : isCredit ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' : resTotal > 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-700/50 text-slate-500') + '">' + (isClear ? 'CLEAR' : isCredit ? 'CREDIT' : resTotal > 0 ? 'DEBT' : 'N/A') + '</span></td>';
     tbody.appendChild(tr);
   });
 };
@@ -580,7 +577,7 @@ window.renderTrends = function() {
     if (inv.status === 'paid') months[inv.month].p += a;
   });
   const sortedMonths = Object.keys(months).sort((a, b) => names.indexOf(a) - names.indexOf(b));
-  if (!sortedMonths.length) { container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No billing data found.</p>'; return; }
+  if (!sortedMonths.length) { container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No month-by-month data yet.<br>History before 31 Oct 2026 is carried as a single opening position per house — see Overall Status.</p>'; return; }
   sortedMonths.forEach(m => {
     const s = months[m], pct = s.t > 0 ? Math.round((s.p / s.t) * 100) : 0;
     const bar = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
@@ -591,6 +588,6 @@ window.renderTrends = function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261026c"></script>
+  <script type="module" src="../app.js?v=20261026d"></script>
 </body>
 </html>
