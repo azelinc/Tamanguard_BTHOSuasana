@@ -345,6 +345,10 @@ function portfolioTotals(list = allResidents) {
 window.tgPosition = residentPosition;
 window.tgPortfolio = portfolioTotals;
 window.tgShowProfile = showResidentProfile;
+window.tgMonthlyStats = async function () {
+    const snap = await getDocs(query(collection(db, "stats_monthly"), orderBy("ym")));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
 
 function escHtml(v) {
     return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
