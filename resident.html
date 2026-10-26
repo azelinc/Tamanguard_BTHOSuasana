@@ -279,9 +279,12 @@
         }
 
         function loadNews() {
-            unsubNews = db.collection("announcements").orderBy("createdAt", "desc").limit(10).onSnapshot(s => {
+            unsubNews = db.collection("announcements").limit(20).onSnapshot(s => {
                 const list = document.getElementById('news-list'); list.innerHTML = "";
-                s.forEach(doc => { 
+                // sort client-side: orderBy("createdAt") silently drops announcements that
+                // have no createdAt (one legacy post had none and never showed up)
+                const docs = s.docs.slice().sort((a, b) => tsMillis(b.data().createdAt) - tsMillis(a.data().createdAt)).slice(0, 10);
+                docs.forEach(doc => { 
                     const n = doc.data(), d = n.createdAt?.toDate ? n.createdAt.toDate().toLocaleDateString('en-MY') : 'Update';
                     list.innerHTML += `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span class="text-[8px] font-bold text-indigo-500 uppercase">${d}</span><h4 class="font-bold text-slate-800 text-xs">${n.title}</h4><p class="text-[10px] text-slate-500 mt-1">${n.content}</p></div>`; 
                 });

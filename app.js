@@ -224,9 +224,11 @@ qs("#adminForm").addEventListener("submit", async (e) => {
 
 /* NEWS */
 function loadNews() {
-  onSnapshot(query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(20)), (snap) => {
+  onSnapshot(query(collection(db, "announcements"), limit(20)), (snap) => {
     const box = qs("#newsList"); box.innerHTML = "";
-    snap.forEach(d => {
+    // orderBy("createdAt") silently drops announcements with no createdAt — sort here instead
+    const docs = snap.docs.slice().sort((a, b) => tsMillis(b.data().createdAt) - tsMillis(a.data().createdAt));
+    docs.forEach(d => {
         const data = d.data(); const card = document.createElement("div"); 
         card.className = "glass rounded-xl p-5 relative border border-white/5";
         card.innerHTML = `
