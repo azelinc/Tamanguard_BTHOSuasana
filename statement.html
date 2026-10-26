@@ -173,6 +173,9 @@ function render(res, invoices) {
     return { inv, amt, paid, date, balance };
   });
 
+  const provisional = liveRows.filter(r => r.inv.status === "provisional");
+  const provisionalTotal = provisional.reduce((s, r) => s + r.amt, 0);
+
   const liveCharged = liveRows.reduce((s, r) => s + r.amt, 0);
   const livePaid = liveRows.reduce((s, r) => s + r.paid, 0);
   // money received for months not yet billed (paid-ahead coverage past the last bill)
@@ -267,6 +270,7 @@ function render(res, invoices) {
         ${hasOpening ? `<div class="srow"><span>Opening balance (${esc(openingAsOf)})</span><b>${fmtBal(openCharged - openPaid)}</b></div>` : ""}
         <div class="srow"><span>Total charges</span><b>${money(totalCharged)}</b></div>
         <div class="srow"><span>Total payments received</span><b>${money(totalPaid)}</b></div>
+        ${provisional.length ? `<div class="srow" style="color:#4338ca"><span>Recorded, awaiting committee verification${provisional.length > 1 ? ` (${provisional.length} months)` : ""}</span><b>${money(provisionalTotal)}</b></div>` : ""}
         ${advance > 0 ? `<div class="srow sub"><span>· of which advance for unbilled months</span><b>${money(advance)}</b></div>` : ""}
         <div class="srow total"><span>${balanceLabel}</span><b>RM ${fmtBal(closing)}</b></div>
         <div class="srow note"><span>${monthsNote}</span><b></b></div>

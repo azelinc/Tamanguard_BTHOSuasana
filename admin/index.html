@@ -89,6 +89,7 @@
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="residents"><i class="fas fa-users mr-2"></i>Residents</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="visitors"><i class="fas fa-car mr-2"></i>Visitors</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="billing"><i class="fas fa-file-invoice-dollar mr-2"></i>Billing</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all hidden" data-tab="verify" id="verifyTabBtn"><i class="fas fa-check-double mr-2"></i>Verify<span id="verifyCount" class="ml-2 hidden bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full"></span></button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="analytics"><i class="fas fa-chart-line mr-2"></i>Analytics</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="settings"><i class="fas fa-cog mr-2"></i>Settings</button>
     </div>
@@ -197,6 +198,38 @@
       </div>
 
       <!-- Analytics Tab -->
+      <div id="tab-verify" class="tab-pane hidden">
+        <div class="glass rounded-xl p-6 mb-4">
+          <h3 class="font-bold mb-1 text-white">Payments awaiting verification</h3>
+          <p class="text-[10px] text-slate-500 mb-4 uppercase tracking-wider">Recorded by the committee, not yet confirmed against the bank statement. Only a Treasurer or Super Admin can confirm.</p>
+
+          <div class="flex flex-wrap gap-2 items-end mb-4">
+            <div class="flex-1 min-w-[240px]">
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Bank reference or statement date (required)</label>
+              <input type="text" id="verifyNote" placeholder="e.g. MBB 26/10 ref 53-001" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none">
+            </div>
+            <button id="verifyAllBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-5 py-2.5 font-bold text-xs uppercase tracking-widest">Confirm selected</button>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead class="text-[10px] uppercase text-slate-500 border-b border-slate-700">
+                <tr>
+                  <th class="py-2 px-3 w-8"><input type="checkbox" id="verifySelectAll"></th>
+                  <th class="py-2 px-3">House</th>
+                  <th class="py-2 px-3">Bill</th>
+                  <th class="py-2 px-3">Amount</th>
+                  <th class="py-2 px-3">Recorded by</th>
+                  <th class="py-2 px-3 text-right">Reference</th>
+                </tr>
+              </thead>
+              <tbody id="verifyTableBody"></tbody>
+            </table>
+          </div>
+          <p id="verifyEmpty" class="hidden text-center py-10 text-slate-500 text-xs">Nothing waiting — every recorded payment has been confirmed.</p>
+        </div>
+      </div>
+
       <div id="tab-analytics" class="tab-pane hidden">
         <div class="flex gap-2 mb-4 flex-wrap">
           <button onclick="switchAnalyticsView('overall')" id="an-btn-overall" class="an-btn px-4 py-2 rounded-lg text-[10px] font-bold uppercase bg-blue-600/20 text-blue-400 border border-blue-600/30">📊 Overall Status</button>
@@ -287,6 +320,9 @@
 
               <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Outstanding (4 months or more)</label>
               <input type="text" id="msgOutstanding" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-3 text-white outline-none" placeholder="Outstanding · we are counting on you to contribute">
+
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Payment recorded, awaiting verification</label>
+              <input type="text" id="msgProvisional" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-3 text-white outline-none" placeholder="Payment recorded — awaiting committee verification">
 
               <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">No bills issued yet</label>
               <input type="text" id="msgNoBills" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none" placeholder="No bills issued to your unit yet.">
@@ -617,6 +653,6 @@ window.renderTrends = async function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261027h"></script>
+  <script type="module" src="../app.js?v=20261027i"></script>
 </body>
 </html>

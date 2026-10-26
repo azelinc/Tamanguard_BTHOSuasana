@@ -67,7 +67,8 @@ function applyRoleVisibility() {
     news: ["super_admin", "treasurer", "manager"],
     residents: ["super_admin", "manager"],
     visitors: ["super_admin", "manager"],
-    billing: ["super_admin", "treasurer"],
+    billing: ["super_admin", "treasurer", "manager"],
+    verify: ["super_admin", "treasurer"],
     analytics: ["super_admin", "treasurer", "manager"],
     settings: ["super_admin"]
   };
@@ -107,6 +108,7 @@ function showTab(name) {
         toast("Analytics failed to load", "error");
       });
   }
+  if (name === "verify") { loadVerifyQueue(); }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
@@ -142,7 +144,8 @@ async function loadSettings() {
     msgAllClear: "Thank you! Your contributions keep our Taman safe.",
     msgPending: "Pending · help us keep our Taman safe",
     msgOutstanding: "Outstanding · we are counting on you to contribute",
-    msgNoBills: "No bills issued to your unit yet."
+    msgNoBills: "No bills issued to your unit yet.",
+    msgProvisional: "Payment recorded — awaiting committee verification"
   };
   Object.entries(msgDefaults).forEach(([id, fallback]) => {
     const el = qs("#" + id);
@@ -191,7 +194,7 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
     const defaultTab = qs("#residentDefaultTab") ? qs("#residentDefaultTab").value : "news";
   if(!name) return;
     const wording = {};
-    ["msgAllClear", "msgPending", "msgOutstanding", "msgNoBills"].forEach(id => {
+    ["msgAllClear", "msgPending", "msgOutstanding", "msgNoBills", "msgProvisional"].forEach(id => {
       const el = qs("#" + id);
       if (el) wording[id] = el.value.trim();
     });
@@ -673,23 +676,36 @@ function renderInvoices() {
   const shown = filtered.slice(0, 300);
   shown.forEach(inv => {
     const isPaid = inv.status === 'paid';
+    const st = inv.status || 'pending';
+    const badge = st === 'paid'
+        ? (inv.verification === 'legacy'
+            ? `<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-slate-600/30 text-slate-400" title="Reconstructed from the committee's coverage record — no receipt evidence">PAID · LEGACY</span>`
+            : `<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400">PAID · VERIFIED</span>`)
+        : st === 'provisional'
+            ? `<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300">PROVISIONAL</span>`
+            : st === 'void'
+                ? `<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400" title="${(inv.voidReason || '').replace(/"/g, '&quot;')}">VOID</span>`
+                : `<span class="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400">PENDING</span>`;
     const tr = document.createElement("tr"); tr.className = "hover:bg-slate-800/30 group border-b border-slate-700/30 transition-colors";
-    const sClass = isPaid?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400';
-    
+
     tr.innerHTML = `
         <td class="px-4 py-4 font-mono text-[10px] text-slate-500">${inv.id.substring(0,8)}</td>
         <td class="px-4 py-4"><button class="view-h text-left hover:text-purple-400 transition-colors"><span class="block font-bold text-white">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></button></td>
         <td class="px-4 py-4 text-slate-300 text-xs">${inv.month || ''} ${inv.year || ''}</td>
         <td class="px-4 py-4 text-slate-500 text-[10px] italic max-w-[150px] truncate">${inv.remarks || '-'}</td>
         <td class="px-4 py-4 font-bold text-white">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>
-        <td class="px-4 py-4"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${sClass}">${(inv.status||'').toUpperCase()}</span></td>
+        <td class="px-4 py-4">${badge}</td>
         <td class="px-4 py-4 text-right">
             <div class="flex justify-end gap-2 items-center">
-                ${isPaid ? 
-                    (inv.receiptNumber
-                        ? `<button class="view-rcpt text-blue-400 font-mono text-[10px] hover:underline">${inv.receiptNumber}</button>`
-                        : `<span class="text-[10px] font-mono text-slate-600">NIL</span>`) : 
-                    `<button class="pay-b bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-[10px] font-bold">PAY</button>`
+                ${st === 'pending'
+                    ? `<button class="pay-b bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-[10px] font-bold">RECORD</button>`
+                    : st === 'provisional'
+                        ? (isVerifier()
+                            ? `<button class="verify-b bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded text-[10px] font-bold">VERIFY</button><button class="void-b text-slate-600 hover:text-rose-400 p-1" title="Void"><i class="fas fa-ban text-[10px]"></i></button>`
+                            : `<span class="text-[10px] text-indigo-300 font-bold">AWAITING TREASURER</span>`)
+                        : (inv.receiptNumber
+                            ? `<button class="view-rcpt text-blue-400 font-mono text-[10px] hover:underline">${inv.receiptNumber}</button>`
+                            : `<span class="text-[10px] font-mono text-slate-600">NIL</span>`)
                 }
                 <button class="del-b text-slate-600 hover:text-red-500 p-1"><i class="fas fa-trash-alt text-xs"></i></button>
             </div>
@@ -697,7 +713,19 @@ function renderInvoices() {
 
     tr.querySelector(".view-h").onclick = () => showHouseHistoryModal(inv.unitNumber, inv.road);
     if(tr.querySelector(".view-rcpt")) tr.querySelector(".view-rcpt").onclick = () => showReceipt(inv);
-    if(tr.querySelector(".pay-b")) tr.querySelector(".pay-b").onclick = () => payInvoice(inv.id);
+    if(tr.querySelector(".pay-b")) tr.querySelector(".pay-b").onclick = () => recordPayment(inv.id);
+    if(tr.querySelector(".verify-b")) tr.querySelector(".verify-b").onclick = async (e) => {
+        const note = prompt("Verify payment — bank reference or statement date:\n(e.g. MBB 26/10 ref 53-001)");
+        if (!note) return;
+        e.target.disabled = true;
+        try { await verifyPayment(inv.id, note); loadBilling(true); loadStats(); renderResidents(); }
+        catch (err) { toast("Verification failed", "error"); e.target.disabled = false; }
+    };
+    if(tr.querySelector(".void-b")) tr.querySelector(".void-b").onclick = async () => {
+        const reason = prompt("Void this recorded payment — reason:");
+        if (!reason || reason.trim().length < 3) return;
+        await voidPayment(inv.id, reason.trim());
+    };
     tr.querySelector(".del-b").onclick = () => deleteInvoice(inv.id);
     tbody.appendChild(tr);
   });
@@ -750,13 +778,35 @@ async function showHouseHistoryModal(unit, road) {
     if (!history.length) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs">No bills for this house.</td></tr>'; }
     history.forEach(inv => {
         const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors";
-        const isPaid = inv.status === 'paid';
-        tr.innerHTML = `<td class="px-4 py-4 text-white font-medium">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4"><span class="text-[10px] font-bold ${isPaid?'text-emerald-400':'text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="px-4 py-4 text-right">${isPaid?`<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber}</span>`:`<button class='h-pay-btn bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>PAY</button>`}</td>`;
-        if(tr.querySelector(".h-pay-btn")) {
+        const st = inv.status || 'pending';
+        const third = st === 'paid'
+            ? `<span class="text-[10px] font-bold text-emerald-400">PAID</span>`
+            : st === 'provisional'
+                ? `<span class="text-[10px] font-bold text-indigo-300">PROVISIONAL</span>`
+                : st === 'void'
+                    ? `<span class="text-[10px] font-bold text-rose-400">VOID</span>`
+                    : `<span class="text-[10px] font-bold text-amber-400">PENDING</span>`;
+        const action = st === 'pending'
+            ? `<button class='h-pay-btn bg-emerald-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>RECORD</button>`
+            : st === 'provisional'
+                ? (isVerifier()
+                    ? `<button class='h-verify-btn bg-indigo-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>VERIFY</button>`
+                    : `<span class='text-[10px] text-indigo-300 font-bold'>AWAITING</span>`)
+                : `<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber || 'NIL'}</span>`;
+        tr.innerHTML = `<td class="px-4 py-4 text-white font-medium">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4">${third}</td><td class="px-4 py-4 text-right">${action}</td>`;
+        if (tr.querySelector(".h-pay-btn")) {
             tr.querySelector(".h-pay-btn").onclick = async (e) => {
-                const b = e.target;
-                if(b.textContent === "PAY") { b.textContent = "CONFIRM?"; b.classList.replace("bg-emerald-600", "bg-orange-600"); setTimeout(()=> { if(b.textContent==="CONFIRM?") { b.textContent="PAY"; b.classList.replace("bg-orange-600","bg-emerald-600"); } }, 3000); }
-                else { b.disabled = true; b.innerHTML = '<span class="spinner"></span>'; await payInvoice(inv.id, false); showHouseHistoryModal(unit, road); }
+                e.target.disabled = true; e.target.innerHTML = '<span class="spinner"></span>';
+                await recordPayment(inv.id); showHouseHistoryModal(unit, road);
+            };
+        }
+        if (tr.querySelector(".h-verify-btn")) {
+            tr.querySelector(".h-verify-btn").onclick = async (e) => {
+                const note = prompt("Verify payment — bank reference or statement date:");
+                if (!note) return;
+                e.target.disabled = true; e.target.innerHTML = '<span class="spinner"></span>';
+                try { await verifyPayment(inv.id, note); } catch (err) { toast("Verification failed", "error"); }
+                showHouseHistoryModal(unit, road);
             };
         }
         tbody.appendChild(tr);
@@ -764,14 +814,161 @@ async function showHouseHistoryModal(unit, road) {
     qs("#historyModal").classList.remove("hidden");
 }
 
-async function payInvoice(id, fullRefresh = true) {
-    const rcpt = `RCP-${Date.now()}`;
-    await updateDoc(doc(db, "invoices", id), { status: "paid", receiptNumber: rcpt, paidAt: serverTimestamp() });
-    const local = allInvoices.find(i => i.id === id);
-    if(local) { local.status = "paid"; local.receiptNumber = rcpt; local.paidAt = new Date(); }
-    if (local) bumpResidentAggregate(local.road, local.unitNumber, { paid: parseFloat(local.amount) || 0, paidCount: 1 });
-    toast("Payment recorded!", "success"); if(fullRefresh) loadBilling(true); else renderInvoices(); loadStats(); renderResidents();
+/* ============================================================
+   PAYMENTS — two-person control
+   Anyone on the committee RECORDS a payment; only a Treasurer or
+   Super Admin VERIFIES it. A recorded payment is provisional: it does
+   not count as collected and the resident does not see PAID.
+   ============================================================ */
+
+function isVerifier() { return userRole === "treasurer" || userRole === "super_admin"; }
+
+async function logPaymentEvent(invoiceId, action, from, to, note) {
+    try {
+        await addDoc(collection(db, "payment_events"), {
+            invoiceId, action, from, to,
+            by: auth.currentUser.uid,
+            byName: (userProfile && userProfile.name) || "",
+            at: serverTimestamp(),
+            note: note || ""
+        });
+    } catch (e) { console.error("audit log failed", e); }
 }
+
+async function recordPayment(id, opts = {}) {
+    const inv = allInvoices.find(i => i.id === id) || {};
+    const rcpt = `RCP-${Date.now()}`;
+    await updateDoc(doc(db, "invoices", id), {
+        status: "provisional",
+        recordedBy: auth.currentUser.uid,
+        recordedAt: serverTimestamp(),
+        receiptNumber: rcpt,
+        paymentMethod: opts.method || "cash",
+        paymentReference: opts.reference || ""
+    });
+    await logPaymentEvent(id, "recorded", "pending", "provisional", opts.method || "cash");
+
+    if (inv.id) {
+        Object.assign(inv, { status: "provisional", receiptNumber: rcpt, recordedBy: auth.currentUser.uid });
+    }
+    // deliberately no aggregate bump: provisional money is not collected money
+    toast("Recorded — awaiting Treasurer verification", "info");
+    loadBilling(true); loadStats(); renderResidents();
+}
+
+async function verifyPayment(id, note) {
+    const inv = allInvoices.find(i => i.id === id) || {};
+    if (!note || note.trim().length < 3) { toast("Bank reference or date is required", "error"); return false; }
+    const self = auth.currentUser.uid === inv.recordedBy;
+    await updateDoc(doc(db, "invoices", id), {
+        status: "paid",
+        verification: "verified",
+        verifiedBy: auth.currentUser.uid,
+        verifiedAt: serverTimestamp(),
+        verifyNote: note.trim(),
+        selfVerified: self
+    });
+    await logPaymentEvent(id, "verified", "provisional", "paid", (note + (self ? " [self-verified]" : "")));
+    if (inv.id) {
+        Object.assign(inv, { status: "paid", verification: "verified", verifiedBy: auth.currentUser.uid });
+        bumpResidentAggregate(inv.road, inv.unitNumber, { paid: parseFloat(inv.amount) || 0, paidCount: 1 });
+    }
+    return true;
+}
+
+async function voidPayment(id, reason) {
+    const inv = allInvoices.find(i => i.id === id) || {};
+    await updateDoc(doc(db, "invoices", id), {
+        status: "void",
+        voidReason: reason,
+        voidedBy: auth.currentUser.uid,
+        voidedAt: serverTimestamp()
+    });
+    await logPaymentEvent(id, "voided", inv.status || "?", "void", reason);
+    if (inv.status === "paid") {
+        bumpResidentAggregate(inv.road, inv.unitNumber, { paid: -(parseFloat(inv.amount) || 0), paidCount: -1 });
+    }
+    if (inv.id) Object.assign(inv, { status: "void", voidReason: reason });
+    toast("Payment voided", "info");
+    loadBilling(true); loadStats(); renderResidents();
+}
+
+/* Batch confirm — reconciliation happens once, against the bank statement. */
+async function verifyBatch(ids, note) {
+    let ok = 0, failed = 0;
+    for (const id of ids) {
+        try { if (await verifyPayment(id, note)) ok++; else failed++; }
+        catch (e) { console.error("verify failed", id, e); failed++; }
+    }
+    toast(`${ok} verified${failed ? `, ${failed} failed` : ""}`, failed ? "error" : "success");
+    loadBilling(true); loadStats(); renderResidents(); loadVerifyQueue();
+}
+
+/* ===== Verification queue (treasurer / super_admin) ===== */
+let verifyItems = [];
+
+async function loadVerifyQueue() {
+    const btn = qs("#verifyTabBtn");
+    if (btn) btn.classList.toggle("hidden", !isVerifier());
+    if (!isVerifier()) return;
+
+    const tbody = qs("#verifyTableBody"); if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-slate-500 text-xs"><span class="spinner"></span></td></tr>';
+
+    // who recorded what — map uid to a human name
+    const names = {};
+    try {
+        // allow-full-read: a handful of committee accounts, read once when the queue opens
+        const admins = await getDocs(collection(db, "admin_accounts"));
+        admins.forEach(d => { names[d.id] = (d.data().name || d.data().email || "unknown"); });
+    } catch (e) { console.error("admin names failed", e); }
+
+    let snap;
+    try {
+        snap = await getDocs(query(collection(db, "invoices"), where("status", "==", "provisional"), limit(100)));
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-8 text-center text-rose-400 text-xs">Could not load the queue.</td></tr>';
+        return;
+    }
+
+    verifyItems = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => tsMillis(b.recordedAt) - tsMillis(a.recordedAt));
+
+    const count = qs("#verifyCount");
+    if (count) {
+        count.textContent = verifyItems.length;
+        count.classList.toggle("hidden", !verifyItems.length);
+    }
+    qs("#verifyEmpty")?.classList.toggle("hidden", verifyItems.length > 0);
+
+    tbody.innerHTML = "";
+    verifyItems.forEach(inv => {
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-700/30";
+        tr.innerHTML = `
+            <td class="py-3 px-3"><input type="checkbox" class="v-check" data-id="${inv.id}"></td>
+            <td class="py-3 px-3"><span class="block font-bold text-white text-xs">${inv.unitNumber}</span><span class="text-[10px] text-slate-500">${inv.road}</span></td>
+            <td class="py-3 px-3 text-slate-300 text-xs">${inv.month || ''} ${inv.year || ''}</td>
+            <td class="py-3 px-3 font-bold text-white text-xs">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>
+            <td class="py-3 px-3 text-slate-400 text-xs">${names[inv.recordedBy] || 'unknown'}</td>
+            <td class="py-3 px-3 text-right font-mono text-[10px] text-slate-500">${inv.receiptNumber || 'NIL'}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+qs("#verifySelectAll")?.addEventListener("change", (e) => {
+    qsa(".v-check").forEach(c => { c.checked = e.target.checked; });
+});
+
+qs("#verifyAllBtn")?.addEventListener("click", async () => {
+    const note = qs("#verifyNote").value.trim();
+    if (note.length < 3) { toast("Bank reference or statement date is required", "error"); return; }
+    const ids = qsa(".v-check").filter(c => c.checked).map(c => c.dataset.id);
+    if (!ids.length) { toast("Select at least one payment", "error"); return; }
+    if (!confirm(`Confirm ${ids.length} payment(s) against: "${note}"?`)) return;
+    const btn = qs("#verifyAllBtn"); setLoading(btn, true);
+    try { await verifyBatch(ids, note); } finally { setLoading(btn, false); qs("#verifyNote").value = ""; }
+});
 
 /* GENERATE ALL (FIXED ID SANITIZATION) */
 qs("#generateBulkBtn").addEventListener("click", async () => {

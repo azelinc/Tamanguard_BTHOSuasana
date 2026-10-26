@@ -205,7 +205,8 @@
             noBills:     "No bills issued to your unit yet.",
             allClear:    "Thank you! Your contributions keep our Taman safe.",
             pending:     "Pending · help us keep our Taman safe",
-            outstanding: "Outstanding · we are counting on you to contribute"
+            outstanding: "Outstanding · we are counting on you to contribute",
+            provisional: "Payment recorded — awaiting committee verification"
         };
         let lastStatus = null;
 
@@ -331,9 +332,10 @@
             
             filtered.forEach(b => {
                 invoiceCache[b.id] = b;
-                const isP = b.status === 'paid', isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
+                const isP = b.status === 'paid', isProv = b.status === 'provisional', isF = (parseInt(b.year) > curY) || (parseInt(b.year) === curY && monthNames.indexOf(b.month) > curM);
                 let rowStyle, badgeStyle, statusText, btnColor;
                 if (isP) { rowStyle='bg-white border-slate-100'; badgeStyle='bg-slate-400'; statusText='PAID'; btnColor='text-indigo-600'; }
+                else if (isProv) { rowStyle='bg-indigo-50/60 border-indigo-200 border-l-4 border-l-indigo-500'; badgeStyle='bg-indigo-500'; statusText='RECORDED'; btnColor='text-indigo-700'; }
                 else if (isF) { rowStyle='bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-500'; badgeStyle='bg-amber-500'; statusText='UPCOMING'; btnColor='text-amber-700'; }
                 else { rowStyle='bg-rose-50/50 border-red-200 border-l-4 border-l-red-500'; badgeStyle='bg-red-600 animate-pulse'; statusText='UNPAID'; btnColor='text-red-600'; }
 
@@ -346,7 +348,9 @@
                         <p class="font-black text-sm text-slate-900">RM${parseFloat(b.amount).toFixed(2)}</p>
                         <div class="w-20 text-right flex flex-col items-end">
                             <span class="text-[8px] font-black px-2 py-0.5 rounded text-white uppercase ${badgeStyle}">${statusText}</span>
-                            ${isP ? `<button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold ${btnColor} underline">Receipt</button>` : `<button onclick="openPayment()" class="text-[9px] font-bold ${btnColor} underline">Pay Now</button>`}
+                            ${isP ? `<button onclick="openReceipt('${b.id}')" class="text-[9px] font-bold ${btnColor} underline">Receipt</button>`
+                                   : isProv ? `<span class="text-[8px] font-bold text-indigo-600">Awaiting verification</span>`
+                                   : `<button onclick="openPayment()" class="text-[9px] font-bold ${btnColor} underline">Pay Now</button>`}
                         </div>
                     </div>
                 </div>`;
@@ -363,6 +367,15 @@ function updatePaymasterUI(count, total, hasI) {
             
             if(!card || !chatGate || !amt) return;
             lastStatus = { count, total, hasI };
+            const provEl = document.getElementById('paymaster-provisional');
+            if (provEl) {
+                const provBills = (myBillsRaw || []).filter(b => b.status === 'provisional');
+                if (provBills.length) {
+                    const sum = provBills.reduce((t, b) => t + (parseFloat(b.amount) || 0), 0);
+                    provEl.innerText = `${statusMessages.provisional} · RM${sum.toFixed(2)} (${provBills.length} month${provBills.length > 1 ? 's' : ''})`;
+                    provEl.classList.remove('hidden');
+                } else provEl.classList.add('hidden');
+            }
             
             // Clean up previous states
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
@@ -447,7 +460,8 @@ function updatePaymasterUI(count, total, hasI) {
                 noBills:     pick("msgNoBills", statusMessages.noBills),
                 allClear:    pick("msgAllClear", statusMessages.allClear),
                 pending:     pick("msgPending", statusMessages.pending),
-                outstanding: pick("msgOutstanding", statusMessages.outstanding)
+                outstanding: pick("msgOutstanding", statusMessages.outstanding),
+                provisional: pick("msgProvisional", statusMessages.provisional)
             };
             // repaint with whatever the bills listener last computed
             if (lastStatus) updatePaymasterUI(lastStatus.count, lastStatus.total, lastStatus.hasI);

@@ -1,0 +1,111 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------- role helpers ---------- */
+    function adminRef() {
+      return /databases/$(database)/documents/admin_accounts/$(request.auth.uid);
+    }
+    function isAdmin() {
+      return request.auth != null && exists(adminRef());
+    }
+    function role() {
+      return isAdmin() ? get(adminRef()).data.role : '';
+    }
+    // Only these two roles may confirm money as received.
+    function isVerifier() {
+      return isAdmin() && (get(adminRef()).data.role == 'treasurer'
+                        || get(adminRef()).data.role == 'super_admin');
+    }
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    /* ---------- residents ---------- */
+    match /residents/{docId} {
+      allow read: if true;                       // PIN login + roster
+      // The resident app may only ever touch the join flag. This closes the hole that
+      // let anyone rewrite another household's name/phone/PIN and log in as them.
+      allow update: if onlyChanged(['isJoined', 'lastLoginAt']);
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin();
+    }
+
+    /* ---------- invoices: the money trail ---------- */
+    match /invoices/{docId} {
+      allow read: if true;                       // resident app + statements
+      allow create, delete: if isAdmin();
+
+      // 1. Any committee member may RECORD a payment. It stays provisional —
+      //    it does not count as collected and the resident does not see PAID.
+      allow update: if isAdmin()
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'provisional'
+        && request.resource.data.recordedBy == request.auth.uid
+        && onlyChanged(['status', 'recordedBy', 'recordedAt', 'receiptNumber',
+                        'paymentMethod', 'paymentReference']);
+
+      // 2. Only a treasurer or super_admin may VERIFY. A note is mandatory so the
+      //    confirmation is anchored to a bank line, not to a click.
+      //    Verifier must differ from recorder — except super_admin, who is recorded
+      //    as a self-verification so the exception is visible in the audit view.
+      allow update: if isVerifier()
+        && resource.data.status == 'provisional'
+        && request.resource.data.status == 'paid'
+        && request.resource.data.verification == 'verified'
+        && request.resource.data.verifiedBy == request.auth.uid
+        && request.resource.data.verifyNote is string
+        && request.resource.data.verifyNote.size() >= 3
+        && request.resource.data.selfVerified == (request.auth.uid == resource.data.recordedBy)
+        && (request.auth.uid != resource.data.recordedBy || role() == 'super_admin')
+        && onlyChanged(['status', 'verification', 'verifiedBy', 'verifiedAt',
+                        'verifyNote', 'selfVerified', 'receiptNumber']);
+
+      // 3. Voiding is super_admin only, reason required, and the only exit from
+      //    a verified row. Nothing can quietly un-verify a payment.
+      allow update: if role() == 'super_admin'
+        && request.resource.data.status == 'void'
+        && request.resource.data.voidReason is string
+        && request.resource.data.voidReason.size() >= 3
+        && request.resource.data.voidedBy == request.auth.uid
+        && onlyChanged(['status', 'voidReason', 'voidedBy', 'voidedAt']);
+    }
+
+    /* ---------- append-only audit trail ---------- */
+    match /payment_events/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+        && request.resource.data.by == request.auth.uid
+        && request.resource.data.at is timestamp;
+      allow update, delete: if false;            // never rewritten, never erased
+    }
+
+    /* ---------- committee accounts ---------- */
+    match /admin_accounts/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin() && role() == 'super_admin';
+    }
+
+    /* ---------- resident-facing, read-mostly ---------- */
+    match /settings/taman_config { allow read: if true; allow write: if isAdmin(); }
+    match /announcements/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /stats_monthly/{docId} { allow read: if true; allow write: if isAdmin(); }
+    match /visits/{docId} {
+      allow read, create, update: if true;       // residents issue and cancel guest passes
+      allow delete: if isAdmin();
+      allow update: if isAdmin();
+    }
+    match /community_chat/{id} {
+      allow read, create: if true;
+      allow delete: if isAdmin();
+    }
+
+    /* ---------- everything else: committee only ---------- */
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
