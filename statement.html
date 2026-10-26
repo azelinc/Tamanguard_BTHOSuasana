@@ -111,6 +111,13 @@ const FEE = 80;
 
 const money = v => (v < 0 ? "-" : "") + Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtBal = v => (v < 0 ? `(${money(Math.abs(v))})` : money(v));
+const fmtPhone = p => {
+  const d = String(p ?? "").replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("01")) return `${d.slice(0,3)}-${d.slice(3,6)} ${d.slice(6)}`;
+  if (d.length === 10 && d.startsWith("01")) return `${d.slice(0,3)}-${d.slice(3,6)} ${d.slice(6)}`;
+  return p ? String(p) : "—";
+};
+
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 
 function parseParams() {
@@ -246,7 +253,7 @@ function render(res, invoices) {
       <table class="kv">
         <tr><td class="k">House / Unit</td><td><b>No. ${esc(res.unitNumber)}, ${esc(res.road)}</b></td></tr>
         <tr><td class="k">Resident</td><td>${esc(res.name)}</td></tr>
-        <tr><td class="k">Contact</td><td>${esc(res.phone || "—")}</td></tr>
+        <tr><td class="k">Contact</td><td>${esc(fmtPhone(res.phone))}</td></tr>
         <tr><td class="k">Monthly Fee</td><td>RM ${money(rate)}</td></tr>
         <tr><td class="k">Status</td><td>${res.isJoined ? "Registered on portal" : "Not registered on portal"}</td></tr>
       </table>
