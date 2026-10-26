@@ -119,6 +119,7 @@ let _resLoadedAt = 0;
 
 async function preloadResidentData(force = false) {
     if (!force && allResidents.length && Date.now() - _resLoadedAt < RES_TTL_MS) return;
+    // allow-full-read: the roster is 342 documents and every screen needs all of them
     const snap = await getDocs(collection(db, "residents"));
     allResidents.length = 0;
     snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
@@ -184,6 +185,7 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
 });
 
 async function loadAdmins() {
+  // allow-full-read: two or three committee accounts
   const snap = await getDocs(collection(db, "admin_accounts"));
   const tbody = qs("#adminTableBody"); tbody.innerHTML = "";
   snap.forEach(d => {
@@ -346,6 +348,7 @@ window.tgPosition = residentPosition;
 window.tgPortfolio = portfolioTotals;
 window.tgShowProfile = showResidentProfile;
 window.tgMonthlyStats = async function () {
+    // allow-full-read: 24 monthly summaries, one per billing month
     const snap = await getDocs(query(collection(db, "stats_monthly"), orderBy("ym")));
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 };

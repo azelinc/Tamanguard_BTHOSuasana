@@ -376,7 +376,7 @@ function updatePaymasterUI(count, total, hasI) {
         }
 
         function loadChat() {
-            unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(50).onSnapshot(snap => {
+            unsubChat = db.collection("community_chat").orderBy("createdAt", "desc").limit(20).onSnapshot(snap => {
                 const box = document.getElementById('chat-messages'); 
                 if(!box) return;
                 
