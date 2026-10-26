@@ -347,7 +347,13 @@
                 <span class="font-mono text-emerald-400 font-bold text-2xl tracking-widest" id="profPin">----</span>
             </div>
         </div>
-        <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">Payment History</h4>
+        <div id="profSummary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
+        <div class="flex items-center justify-between mb-4">
+            <h4 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Payment History</h4>
+            <button id="profSoaBtn" class="text-[10px] font-bold uppercase tracking-widest text-indigo-400 hover:text-indigo-300 transition-colors">
+                <i class="fas fa-file-invoice-dollar mr-1"></i>Print SOA
+            </button>
+        </div>
         <div class="overflow-y-auto flex-1 pr-2">
             <table class="w-full text-left text-sm">
                 <thead class="sticky top-0 bg-slate-900 text-slate-500 uppercase text-[10px] tracking-widest border-b border-slate-700/50">
@@ -588,6 +594,6 @@ window.renderTrends = function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261026e"></script>
+  <script type="module" src="../app.js?v=20261026f"></script>
 </body>
 </html>

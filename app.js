@@ -486,20 +486,61 @@ async function showResidentProfile(res) {
     qs("#profPhone").textContent = res.phone;
     qs("#profVehicle").textContent = res.vehiclePlate || '-';
     qs("#profPin").textContent = res.pin;
-    
-    const tbody = qs("#profHistoryBody"); tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500"><span class="spinner"></span></td></tr>';
+
+    const soaBtn = qs("#profSoaBtn");
+    if (soaBtn) soaBtn.onclick = () => openStatement(res);
+
+    /* Position summary — opening carried forward + live invoices.
+       Payment history used to read the invoices collection only, so a house that
+       paid 24 months showed "No payment history found" once bills were cleared. */
+    const pos = residentPosition(res);
+    const sum = qs("#profSummary");
+    const cell = (label, value, cls) => `
+        <div class="bg-slate-800/30 border border-slate-700/50 rounded-lg px-3 py-2">
+            <p class="text-[9px] uppercase font-bold tracking-widest text-slate-500">${label}</p>
+            <p class="font-mono text-sm font-bold ${cls}">${value}</p>
+        </div>`;
+    const balCls = pos.balance > 0.004 ? "text-rose-400" : pos.balance < -0.004 ? "text-emerald-400" : "text-slate-400";
+    const balTxt = pos.balance < -0.004 ? `(${money2(pos.balance)})` : money2(pos.balance);
+    sum.innerHTML =
+        cell("Charged", "RM " + money2(pos.charged), "text-slate-200") +
+        cell("Paid", "RM " + money2(pos.paid), "text-emerald-400") +
+        cell("Balance", "RM " + balTxt, balCls) +
+        cell("Paid through", res.soaPaidThrough || (pos.paid > 0 ? "—" : "never"), "text-slate-300");
+
+    const tbody = qs("#profHistoryBody");
+    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500"><span class="spinner"></span></td></tr>';
     modal.classList.remove("hidden");
-    
+
     try {
         const snap = await getDocs(query(collection(db, "invoices"), where("unitNumber", "==", res.unitNumber)));
-        const history = snap.docs.map(d => d.data()).filter(i => i.road === res.road).sort((a,b) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-        tbody.innerHTML = history.length ? "" : '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No payment history found.</td></tr>';
+        const history = snap.docs.map(d => d.data()).filter(i => i.road === res.road)
+            .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
+        tbody.innerHTML = "";
+
+        // carried-forward opening position (aggregate history from the association records)
+        if (res.soaOpeningAsOf) {
+            const months = Number(res.soaMonthsPaid || 0);
+            const tr = document.createElement("tr");
+            tr.className = "border-b border-slate-700/20 bg-slate-800/20";
+            tr.innerHTML = `<td class="py-4 px-4 text-white">Opening position<br><span class="text-[9px] text-slate-500 uppercase tracking-widest">to ${res.soaOpeningAsOf}</span></td>
+                <td class="py-4 px-4 text-slate-300 font-mono">RM ${money2(Number(res.soaPaid || 0))}</td>
+                <td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${months > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">${months > 0 ? months + " MONTHS PAID" : "NEVER PAID"}</span></td>
+                <td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${res.soaLatestReceipt || '-'}${res.soaLatestReceiptDate ? `<br><span class="text-slate-600">${res.soaLatestReceiptDate}</span>` : ""}</td>`;
+            tbody.appendChild(tr);
+        }
+
         history.forEach(inv => {
             const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20";
             const isPaid = inv.status === 'paid';
-            tr.innerHTML = `<td class="py-4 px-4 text-white">${inv.month || '-'} ${inv.year || ''}</td><td class="py-4 px-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid?'bg-emerald-500/10 text-emerald-400':'bg-amber-500/10 text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || '-'}</td>`;
+            tr.innerHTML = `<td class="py-4 px-4 text-white">${inv.month || '-'} ${inv.year || ''}</td><td class="py-4 px-4 text-slate-300 font-mono">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid?'bg-emerald-500/10 text-emerald-400':'bg-amber-500/10 text-amber-400'}">${(inv.status||'').toUpperCase()}</span></td><td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || '-'}</td>`;
             tbody.appendChild(tr);
         });
+
+        if (!tbody.children.length) {
+            tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No records for this house yet.</td></tr>';
+        }
     } catch(e) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-red-400">Failed to load bills.</td></tr>'; }
 }
 
