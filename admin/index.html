@@ -72,7 +72,7 @@
         <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Total Residents</div>
         <div id="statResidents" class="text-lg font-bold leading-none mt-1">0</div>
       </div>
-      <div class="glass rounded-xl px-2.5 py-2 border-l-[3px] border-emerald-500 flex flex-col justify-center">
+      <div id="statCardVisits" class="glass rounded-xl px-2.5 py-2 border-l-[3px] border-emerald-500 flex flex-col justify-center">
         <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Active Visits</div>
         <div id="statVisits" class="text-lg font-bold leading-none mt-1">0</div>
       </div>
@@ -303,6 +303,17 @@
         </div>
         <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox" id="chatEnabledToggle" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+        </label>
+    </div>
+
+    <div class="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 mb-3">
+        <div>
+            <h4 class="text-sm font-bold text-white">Visitor Module</h4>
+            <p class="text-[10px] text-slate-500 uppercase">Guest passes · Visitors tab · Active Visits</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="visitorsEnabledToggle" class="sr-only peer">
             <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
         </label>
     </div>
@@ -699,6 +710,7 @@ window.renderTrends = async function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261027l"></script>
+  <div class="text-center text-[9px] text-slate-600 font-mono pb-2">build <span id="buildStamp">—</span></div>
+  <script type="module" src="../app.js?v=20261027m"></script>
 </body>
 </html>

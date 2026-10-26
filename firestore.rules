@@ -6,6 +6,12 @@ service cloud.firestore {
     function adminRef() {
       return /databases/$(database)/documents/admin_accounts/$(request.auth.uid);
     }
+    /* true unless the committee explicitly turned the module off */
+    function visitorsOn() {
+      return !exists(/databases/$(database)/documents/settings/taman_config)
+        || get(/databases/$(database)/documents/settings/taman_config).data.get('visitorsEnabled', true) != false;
+    }
+
     function isAdmin() {
       return request.auth != null && exists(adminRef());
     }
@@ -94,9 +100,13 @@ service cloud.firestore {
     }
     match /stats_monthly/{docId} { allow read: if true; allow write: if isAdmin(); }
     match /visits/{docId} {
-      allow read, create, update: if true;       // residents issue and cancel guest passes
+      allow read: if true;
+      /* the committee can switch the visitor module off; that must stop NEW passes
+         at the database, not just hide the button. Existing passes stay cancellable
+         so a switch-off never strands someone who already issued one. */
+      allow create: if visitorsOn();
+      allow update: if true;                     // residents still cancel their own pass
       allow delete: if isAdmin();
-      allow update: if isAdmin();
     }
     match /community_chat/{id} {
       allow read, create: if true;

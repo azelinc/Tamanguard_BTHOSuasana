@@ -274,8 +274,11 @@
             let t = 'news';
             try {
                 const snap = await db.collection("settings").doc("taman_config").get();
-                const saved = snap.exists ? snap.data().defaultTab : null;
+                const cfg = snap.exists ? snap.data() : {};
+                visitorsEnabled = cfg.visitorsEnabled !== false;
+                const saved = cfg.defaultTab;
                 if (VALID_TABS.includes(saved)) t = saved;
+                if (t === 'invite' && !visitorsEnabled) t = 'news';
             } catch (e) { console.warn("Default tab fetch failed, using news", e); }
             switchTab(t);
         }
@@ -497,6 +500,25 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                                                lastStatus.pCount, lastStatus.pTotal);
         }
 
+        let visitorsEnabled = true;
+        let visitsUnsub = null;
+
+        /* Module switch set by the committee: when off, the Guest button, the
+           register form and the pass list all go away — no dead controls. */
+        function applyVisitorModule() {
+            const btn = document.getElementById('nav-invite');
+            const view = document.getElementById('view-invite');
+            if (btn) btn.style.display = visitorsEnabled ? '' : 'none';
+
+            if (visitorsEnabled) {
+                if (!visitsUnsub) loadMyVisitors();
+                return;
+            }
+            // stop listening to visits once the module is gone
+            if (visitsUnsub) { visitsUnsub(); visitsUnsub = null; }
+            if (view && !view.classList.contains('hidden')) switchTab('news');
+        }
+
         function watchChatStatus() {
             db.collection("settings").doc("taman_config").onSnapshot(doc => {
                 if (!doc.exists) return;
@@ -505,6 +527,9 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                 const chatContainer = document.getElementById('chat-container');
                 const newsList = document.getElementById('news-list');
                 
+                visitorsEnabled = data.visitorsEnabled !== false;
+                applyVisitorModule();
+
                 const isEnabled = data.isChatEnabled ?? true;
 
                 if (isEnabled) {
@@ -518,7 +543,8 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
         }
         
         function loadMyVisitors() {
-            db.collection("visits").where("unitNumber", "==", myUnit).where("road", "==", localStorage.getItem('myRoad')).onSnapshot(snapshot => {
+            if (visitsUnsub) return;
+            visitsUnsub = db.collection("visits").where("unitNumber", "==", myUnit).where("road", "==", localStorage.getItem('myRoad')).onSnapshot(snapshot => {
                 const pList = document.getElementById('visitor-pending-list');
                 const hList = document.getElementById('visitor-history-list');
                 let pH = "", hH = ""; 

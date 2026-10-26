@@ -73,9 +73,36 @@ function applyRoleVisibility() {
     settings: ["super_admin"]
   };
   qsa(".tab-btn").forEach(btn => {
-    const ok = (map[btn.dataset.tab] || []).includes(userRole);
-    btn.style.display = ok ? "flex" : "none";
+    const roleOk = (map[btn.dataset.tab] || []).includes(userRole);
+    const moduleOff = btn.dataset.tab === "visitors" && tamanConfig.visitorsEnabled === false;
+    btn.style.display = roleOk && !moduleOff ? "flex" : "none";
   });
+}
+
+const BUILD_STAMP = "2026-10-27-m";
+
+/* A module can be switched off for the whole Taman. The role gate decides WHO can
+   see a tab; this gate decides WHETHER the feature exists at all. Both write
+   inline `display`, so they can be applied in either order without fighting. */
+function applyModuleVisibility() {
+    const visitorsOn = tamanConfig.visitorsEnabled !== false;
+    applyRoleVisibility();
+    const card = qs("#statCardVisits");
+    if (card) {
+        card.style.display = visitorsOn ? "" : "none";
+        if (card.parentElement) {
+            card.parentElement.classList.toggle("grid-cols-3", visitorsOn);
+            card.parentElement.classList.toggle("grid-cols-2", !visitorsOn);
+        }
+    }
+    // never leave the committee parked on a tab that no longer exists
+    const pane = qs("#tab-visitors");
+    if (!visitorsOn && pane && !pane.classList.contains("hidden")) showTab("news");
+    // a default tab the resident app cannot show is a broken landing page
+    const defTab = qs("#residentDefaultTab");
+    if (defTab && !visitorsOn && defTab.value === "invite") defTab.value = "news";
+    const stamp = qs("#buildStamp");
+    if (stamp) stamp.textContent = BUILD_STAMP;
 }
 
 qs("#loginForm").addEventListener("submit", async (e) => {
@@ -135,6 +162,8 @@ async function loadSettings() {
     tamanConfig = snap.data();
     if(qs("#defaultMonthlyFee")) qs("#defaultMonthlyFee").value = tamanConfig.monthlyFee || 80;
     if(qs("#chatEnabledToggle")) qs("#chatEnabledToggle").checked = tamanConfig.isChatEnabled ?? true;
+    if(qs("#visitorsEnabledToggle")) qs("#visitorsEnabledToggle").checked = tamanConfig.visitorsEnabled !== false;
+    applyModuleVisibility();
     if(qs("#residentDefaultTab")) {
       const allowed = ["news", "bills", "invite"];
       qs("#residentDefaultTab").value = allowed.includes(tamanConfig.defaultTab) ? tamanConfig.defaultTab : "news";
@@ -191,6 +220,7 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
     const name = qs("#tamanNameInput").value.trim();
     const fee = parseFloat(qs("#defaultMonthlyFee").value) || 80;
     const isChatEnabled = qs("#chatEnabledToggle").checked; // Get toggle state
+  const visitorsEnabled = qs("#visitorsEnabledToggle") ? qs("#visitorsEnabledToggle").checked : true;
     const defaultTab = qs("#residentDefaultTab") ? qs("#residentDefaultTab").value : "news";
   if(!name) return;
     const wording = {};
@@ -198,7 +228,8 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
       const el = qs("#" + id);
       if (el) wording[id] = el.value.trim();
     });
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, ...wording, name, monthlyFee: fee, isChatEnabled: isChatEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, ...wording, name, monthlyFee: fee, isChatEnabled: isChatEnabled, visitorsEnabled: visitorsEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
+  applyModuleVisibility();
     toast("Config updated!", "success"); loadSettings();
 });
 
@@ -368,6 +399,8 @@ function portfolioTotals(list = allResidents) {
 }
 
 window.tgPosition = residentPosition;
+/* preview the module-off state without saving it (no writes, local state only) */
+window.tgPreviewVisitorModule = (on) => { tamanConfig.visitorsEnabled = on; applyModuleVisibility(); return tamanConfig.visitorsEnabled; };
 window.tgPortfolio = portfolioTotals;
 window.tgShowProfile = showResidentProfile;
 window.tgMonthlyStats = async function () {
