@@ -138,6 +138,16 @@ async function loadSettings() {
       qs("#residentDefaultTab").value = allowed.includes(tamanConfig.defaultTab) ? tamanConfig.defaultTab : "news";
     }
   }
+  const msgDefaults = {
+    msgAllClear: "Thank you! Your contributions keep our Taman safe.",
+    msgPending: "Pending · help us keep our Taman safe",
+    msgOutstanding: "Outstanding · we are counting on you to contribute",
+    msgNoBills: "No bills issued to your unit yet."
+  };
+  Object.entries(msgDefaults).forEach(([id, fallback]) => {
+    const el = qs("#" + id);
+    if (el) el.value = tamanConfig[id] || fallback;
+  });
   qs("#tamanNameDisplay").textContent = tamanConfig.name || "TamanGuard";
   if(qs("#tamanNameInput")) qs("#tamanNameInput").value = tamanConfig.name || "";
   renderRoads();
@@ -180,7 +190,12 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
     const isChatEnabled = qs("#chatEnabledToggle").checked; // Get toggle state
     const defaultTab = qs("#residentDefaultTab") ? qs("#residentDefaultTab").value : "news";
   if(!name) return;
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, name, monthlyFee: fee, isChatEnabled: isChatEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
+    const wording = {};
+    ["msgAllClear", "msgPending", "msgOutstanding", "msgNoBills"].forEach(id => {
+      const el = qs("#" + id);
+      if (el) wording[id] = el.value.trim();
+    });
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, ...wording, name, monthlyFee: fee, isChatEnabled: isChatEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
     toast("Config updated!", "success"); loadSettings();
 });
 
@@ -582,7 +597,7 @@ async function showResidentProfile(res) {
                 <span class="block text-[9px] text-slate-500">${escHtml(inv.remarks || "")}</span></td>
             <td class="py-4 px-4 text-slate-300 font-mono">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>
             <td class="py-4 px-4"><span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}">${(inv.status || "").toUpperCase()}</span></td>
-            <td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || (inv.inferred ? "coverage" : "-")}</td>`;
+            <td class="py-4 px-4 text-right text-[10px] font-mono text-slate-500">${inv.receiptNumber || "NIL"}</td>`;
         tbody.appendChild(tr);
     });
 }
@@ -668,7 +683,9 @@ function renderInvoices() {
         <td class="px-4 py-4 text-right">
             <div class="flex justify-end gap-2 items-center">
                 ${isPaid ? 
-                    `<button class="view-rcpt text-blue-400 font-mono text-[10px] hover:underline">${inv.receiptNumber}</button>` : 
+                    (inv.receiptNumber
+                        ? `<button class="view-rcpt text-blue-400 font-mono text-[10px] hover:underline">${inv.receiptNumber}</button>`
+                        : `<span class="text-[10px] font-mono text-slate-600">NIL</span>`) : 
                     `<button class="pay-b bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-[10px] font-bold">PAY</button>`
                 }
                 <button class="del-b text-slate-600 hover:text-red-500 p-1"><i class="fas fa-trash-alt text-xs"></i></button>
@@ -692,7 +709,7 @@ function renderInvoices() {
 
 function showReceipt(inv) {
     qs("#rcptTamanName").textContent = tamanConfig.name || "TAMANGUARD";
-    qs("#rcptNo").textContent = inv.receiptNumber;
+    qs("#rcptNo").textContent = inv.receiptNumber || "NIL";
     qs("#rcptDate").textContent = inv.paidAt?.toDate().toLocaleDateString('en-GB') || '-';
     qs("#rcptUnit").textContent = `${inv.unitNumber} (${inv.road})`;
     qs("#rcptRemarks").textContent = inv.remarks || `${inv.month} ${inv.year} Maintenance`;

@@ -145,9 +145,6 @@
                     <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500 transition-all">Paid</button>
                 </div>
             </div>
-            <button onclick="openStatement()" class="w-full mb-3 flex items-center justify-center gap-2 bg-white border border-indigo-200 text-indigo-600 text-[11px] font-bold uppercase tracking-wide py-2.5 rounded-xl shadow-sm">
-                <i class="fas fa-file-invoice-dollar"></i> Statement of Account
-            </button>
             <div id="bill-list" class="space-y-2"></div>
         </section>
         
@@ -194,6 +191,15 @@
         /* createdAt can be a Firestore Timestamp, a {seconds} object, an ISO string
            (imported/backfilled rows) or a number. `.toMillis()` on a string throws and
            used to take the whole bills render down with it. */
+        /* Wording comes from Settings → Residents see; these are the fallbacks. */
+        let statusMessages = {
+            noBills:     "No bills issued to your unit yet.",
+            allClear:    "Thank you! Your contributions keep our Taman safe.",
+            pending:     "Pending · help us keep our Taman safe",
+            outstanding: "Outstanding · we are counting on you to contribute"
+        };
+        let lastStatus = null;
+
         function tsMillis(v) {
             if (!v) return 0;
             if (typeof v.toMillis === 'function') return v.toMillis();
@@ -282,11 +288,6 @@
             });
         }
 
-        function openStatement() {
-            const road = localStorage.getItem('myRoad'), unit = localStorage.getItem('myUnit');
-            if (!road || !unit) return;
-            window.open(`./statement.html?road=${encodeURIComponent(road)}&unit=${encodeURIComponent(unit)}`, '_blank');
-        }
 
         function loadBills() {
             const myRoad = localStorage.getItem('myRoad'), monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -349,6 +350,7 @@ function updatePaymasterUI(count, total, hasI) {
             const chatStatus = document.getElementById('chat-status-tag');
             
             if(!card || !chatGate || !amt) return;
+            lastStatus = { count, total, hasI };
             
             // Clean up previous states
             card.classList.remove('bg-emerald-500', 'bg-amber-400', 'bg-rose-500', 'bg-slate-200', 'text-white', 'text-slate-800', 'animate-pulse');
@@ -358,24 +360,24 @@ function updatePaymasterUI(count, total, hasI) {
                 card.classList.add('bg-slate-200', 'text-slate-800');
                 emo.innerText = "👋";
                 amt.innerText = "—";
-                msg.innerText = "No bills issued to your unit yet.";
+                msg.innerText = statusMessages.noBills;
             } else if (count === 0) { 
                 card.classList.add('bg-emerald-500', 'text-white'); 
                 emo.innerText = "🏆"; 
                 amt.innerText = "All Clear";
-                msg.innerText = "Thank you! Your contributions keep our Taman safe.";
+                msg.innerText = statusMessages.allClear;
             } else if (count > 0 && count <= 3) { 
                 // Behind 1 to 3 months (Mild Warning)
                 card.classList.add('bg-amber-400', 'text-slate-800'); 
                 emo.innerText = "⚠️"; 
                 amt.innerText = `RM${total.toFixed(2)}`;
-                msg.innerText = "Pending · help us keep our Taman safe";
+                msg.innerText = statusMessages.pending;
             } else { 
                 // Exceeds 3 months (Severe Warning)
                 card.classList.add('bg-rose-500', 'text-white', 'animate-pulse'); 
                 emo.innerText = "🚨"; 
                 amt.innerText = `RM${total.toFixed(2)}`;
-                msg.innerText = "Outstanding · we are counting on you to contribute";
+                msg.innerText = statusMessages.outstanding;
             }
 
             // Chat Gate Logic (Locks ONLY if they owe 4 or more months)
@@ -427,10 +429,23 @@ function updatePaymasterUI(count, total, hasI) {
             catch(e) { showToast("Error", "error"); }
         }
         
+        function applyStatusMessages(data) {
+            const pick = (key, fallback) => (typeof data[key] === "string" && data[key].trim()) ? data[key].trim() : fallback;
+            statusMessages = {
+                noBills:     pick("msgNoBills", statusMessages.noBills),
+                allClear:    pick("msgAllClear", statusMessages.allClear),
+                pending:     pick("msgPending", statusMessages.pending),
+                outstanding: pick("msgOutstanding", statusMessages.outstanding)
+            };
+            // repaint with whatever the bills listener last computed
+            if (lastStatus) updatePaymasterUI(lastStatus.count, lastStatus.total, lastStatus.hasI);
+        }
+
         function watchChatStatus() {
             db.collection("settings").doc("taman_config").onSnapshot(doc => {
                 if (!doc.exists) return;
                 const data = doc.data();
+                applyStatusMessages(data);
                 const chatContainer = document.getElementById('chat-container');
                 const newsList = document.getElementById('news-list');
                 
@@ -647,7 +662,15 @@ function updatePaymasterUI(count, total, hasI) {
         }
 
         function reShowQR(id) { document.getElementById('qr-result').classList.remove('hidden'); qrObj.clear(); qrObj.makeCode(id); window.scrollTo(0,0); }
-        function openReceipt(id) { const d = invoiceCache[id]; document.getElementById('rcp-no').innerText = d.receiptNumber || 'N/A'; document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2); document.getElementById('rcp-unit').innerText = d.unitNumber; document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`; document.getElementById('receipt-modal').classList.remove('hidden'); }
+        function openReceipt(id) {
+            const d = invoiceCache[id];
+            // Never invent a receipt number: if the source data has none, it is NIL.
+            document.getElementById('rcp-no').innerText = d.receiptNumber || 'NIL';
+            document.getElementById('rcp-amount').innerText = parseFloat(d.amount).toFixed(2);
+            document.getElementById('rcp-unit').innerText = d.unitNumber;
+            document.getElementById('rcp-remark').innerText = `${d.month} ${d.year}`;
+            document.getElementById('receipt-modal').classList.remove('hidden');
+        }
         function closeReceipt() { document.getElementById('receipt-modal').classList.add('hidden'); }
         function openPayment() { document.getElementById('payment-modal').classList.remove('hidden'); }
         function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }

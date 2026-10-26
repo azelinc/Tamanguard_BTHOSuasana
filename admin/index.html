@@ -275,6 +275,22 @@
             </select>
             <p class="text-[10px] text-slate-500 mb-4">Tab residents land on when they open the app.</p>
 
+            <div class="glass p-4 rounded-xl mb-4 border border-slate-700/50">
+              <h4 class="text-sm font-bold text-white mb-1">Resident Status Wording</h4>
+              <p class="text-[10px] text-slate-500 mb-3">What the card on the resident's home screen says. Applies to every house, whether they owe or not.</p>
+
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">All clear (fully paid)</label>
+              <input type="text" id="msgAllClear" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-3 text-white outline-none" placeholder="Thank you! Your contributions keep our Taman safe.">
+
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Pending (1 to 3 months)</label>
+              <input type="text" id="msgPending" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-3 text-white outline-none" placeholder="Pending · help us keep our Taman safe">
+
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Outstanding (4 months or more)</label>
+              <input type="text" id="msgOutstanding" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 mb-3 text-white outline-none" placeholder="Outstanding · we are counting on you to contribute">
+
+              <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">No bills issued yet</label>
+              <input type="text" id="msgNoBills" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-2.5 text-white outline-none" placeholder="No bills issued to your unit yet.">
+            </div>
             <label class="text-[10px] text-slate-500 uppercase font-bold mb-1 block">Road / Block Management</label>
           
 
@@ -601,6 +617,6 @@ window.renderTrends = async function() {
   });
 };
 </script>
-  <script type="module" src="../app.js?v=20261027e"></script>
+  <script type="module" src="../app.js?v=20261027f"></script>
 </body>
 </html>
