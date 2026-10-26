@@ -235,7 +235,8 @@ function loadResidents() {
 }
 
 /* RESIDENTS — view mode + road filter */
-let residentView = localStorage.getItem("tg_resident_view") === "list" ? "list" : "card";
+let residentView = "card";
+try { if (localStorage.getItem("tg_resident_view") === "list") residentView = "list"; } catch (e) { /* storage blocked */ }
 let residentRoad = "All";
 
 function residentRoadCounts() {
@@ -439,7 +440,7 @@ qs("#residentSearch").addEventListener("input", debounce(() => renderResidents()
 document.querySelectorAll(".res-view-btn").forEach(btn => {
     btn.addEventListener("click", () => {
         residentView = btn.dataset.view === "list" ? "list" : "card";
-        localStorage.setItem("tg_resident_view", residentView);
+        try { localStorage.setItem("tg_resident_view", residentView); } catch (e) { /* storage blocked */ }
         renderResidents();
     });
 });
