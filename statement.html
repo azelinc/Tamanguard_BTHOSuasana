@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Statement of Account — TamanGuard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root { --ink: #111; --muted: #6b7280; --line: #d1d5db; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #e5e7eb; color: #111;
+    font-family: Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page {
+    width: 794px; min-height: 1123px; background: #fff; padding: 40px 44px 32px;
+    margin: 24px auto; position: relative; box-shadow: 0 6px 22px rgba(0,0,0,.18);
+  }
+  header { display: flex; justify-content: space-between; align-items: flex-start;
+           border-bottom: 2.5px solid var(--ink); padding-bottom: 10px; }
+  .brand h1 { font-size: 15px; letter-spacing: .02em; margin: 0 0 3px; font-weight: 800; }
+  .brand p { margin: 1px 0; font-size: 10px; color: #374151; }
+  .brand .small { font-size: 9px; color: var(--muted); }
+  .doc { text-align: right; }
+  .doc h2 { font-size: 13px; letter-spacing: .14em; margin: 0 0 6px; font-weight: 800; }
+  table.meta { font-size: 9.5px; margin-left: auto; border-collapse: collapse; }
+  table.meta td { padding: 1px 0 1px 10px; }
+  table.meta td:first-child { color: var(--muted); text-align: right; }
+  .mono { font-family: "Courier New", monospace; font-size: 9.5px; }
+
+  section.house { display: flex; gap: 18px; margin-top: 14px; }
+  table.kv { font-size: 10.5px; border-collapse: collapse; flex: 1; }
+  table.kv td { padding: 2.5px 0; vertical-align: top; }
+  table.kv td.k { color: var(--muted); width: 96px; }
+
+  .summary { width: 288px; border: 1px solid var(--ink); padding: 8px 10px; }
+  .summary .srow { display: flex; justify-content: space-between; font-size: 10.5px; padding: 2.5px 0; }
+  .summary .srow b { font-family: "Courier New", monospace; font-size: 11px; }
+  .summary .total { border-top: 1.5px solid var(--ink); margin-top: 4px; padding-top: 6px; font-weight: 800; }
+  .summary .total b { font-size: 13px; }
+  .summary .note { font-size: 9px; color: var(--muted); border-top: 1px dotted #999; margin-top: 4px; padding-top: 4px; }
+
+  table.ledger { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 10px; table-layout: fixed; }
+  col.c-date { width: 78px; } col.c-desc { width: auto; } col.c-amt { width: 96px; }
+  table.ledger thead th { background: var(--ink); color: #fff; font-size: 8.5px; letter-spacing: .08em;
+    text-transform: uppercase; padding: 6px; text-align: left; font-weight: 700; }
+  table.ledger thead th span { font-size: 7px; letter-spacing: .04em; opacity: .75; }
+  table.ledger th.num, table.ledger td.num { text-align: right; }
+  table.ledger td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; }
+  table.ledger td.date { font-family: "Courier New", monospace; font-size: 9px; color: #374151; white-space: nowrap; }
+  table.ledger td.num { font-family: "Courier New", monospace; }
+  table.ledger td.pay { color: #047857; font-weight: 700; }
+  table.ledger td.bal { font-weight: 700; }
+  table.ledger tr.opening td { background: #f9fafb; color: #374151; }
+  table.ledger tr.section td { background: #eef2ff; font-size: 8.5px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: .1em; color: #3730a3; padding: 5px 6px; }
+  table.ledger tfoot td { border-top: 2px solid var(--ink); padding: 8px 6px; font-weight: 800; font-size: 11px; }
+  table.ledger tfoot td.num { font-family: "Courier New", monospace; }
+  .rcpt { display: block; font-size: 7.5px; color: var(--muted); font-weight: 400; }
+
+  .paybox { margin-top: 18px; border: 1px solid var(--line); background: #f9fafb; padding: 8px 10px;
+            font-size: 9px; color: #374151; display: flex; flex-direction: column; gap: 2px; }
+  .paybox b { text-transform: uppercase; letter-spacing: .08em; font-size: 8px; color: #111; margin-bottom: 2px; }
+
+  section.foot { position: absolute; left: 44px; right: 44px; bottom: 32px; }
+  .notes { font-size: 8.5px; color: #374151; line-height: 1.45; border-top: 1px solid var(--line); padding-top: 8px; }
+  .notes p { margin: 0 0 2px; }
+  .sign { display: flex; gap: 60px; margin-top: 26px; }
+  .sig { flex: 1; }
+  .sig span { display: block; border-top: 1px solid var(--ink); margin-bottom: 4px; }
+  .sig p { margin: 0; font-size: 9px; color: #374151; }
+
+  .toolbar { position: fixed; top: 12px; right: 14px; display: flex; gap: 8px; z-index: 50; }
+  .toolbar button, .toolbar a {
+    font-size: 12px; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: 0;
+    cursor: pointer; text-decoration: none; display: inline-block;
+  }
+  .btn-print { background: #059669; color: #fff; }
+  .btn-back { background: #1e293b; color: #fff; }
+  .state { max-width: 794px; margin: 80px auto; background: #fff; padding: 28px; border-radius: 10px;
+           font-size: 14px; text-align: center; }
+
+  @media print {
+    @page { size: A4; margin: 12mm; }
+    body { background: #fff; }
+    .page { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+    .toolbar, .state { display: none !important; }
+    section.foot { position: static; margin-top: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <a class="btn-back" href="javascript:history.length>1?history.back():window.close()">← Back</a>
+  <button class="btn-print" onclick="window.print()">Print / Save PDF</button>
+</div>
+
+<div id="root"><div class="state">Loading statement…</div></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { firebaseConfig } from "./config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const FEE = 80;
+
+const money = v => (v < 0 ? "-" : "") + Math.abs(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtBal = v => (v < 0 ? `(${money(Math.abs(v))})` : money(v));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function parseParams() {
+  const p = new URLSearchParams(location.search);
+  return { road: p.get("road"), unit: p.get("unit"), id: p.get("id") };
+}
+
+async function loadResident({ road, unit, id }) {
+  if (id) {
+    const s = await getDoc(doc(db, "residents", id));
+    return s.exists() ? { id: s.id, ...s.data() } : null;
+  }
+  if (!road || !unit) return null;
+  const q = query(collection(db, "residents"), where("road", "==", road), where("unitNumber", "==", unit));
+  const snap = await getDocs(q);
+  return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+}
+
+async function loadInvoices(res) {
+  const q = query(collection(db, "invoices"), where("road", "==", res.road), where("unitNumber", "==", res.unitNumber));
+  const snap = await getDocs(q);
+  const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  rows.sort((a, b) => (parseInt(a.year) - parseInt(b.year)) || (MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month)));
+  return rows;
+}
+
+function monthIndex(m) { return MONTHS.indexOf(m); }
+
+function render(res, invoices) {
+  const rate = Number(res.soaRate || FEE);
+  const billStart = res.soaBillStart || "2025-01";
+  const openingAsOf = res.soaOpeningAsOf || "2026-10-31";
+  const openCharged = Number(res.soaCharged || 0);
+  const openPaid = Number(res.soaPaid || 0);
+  const monthsBilled = Number(res.soaMonthsBilled || 0);
+
+  // ---- live transactions (after the cut-over) ----
+  let balance = openCharged - openPaid;
+  const liveRows = invoices.map(inv => {
+    const amt = parseFloat(inv.amount || 0);
+    const paid = inv.status === "paid" ? amt : 0;
+    balance += amt - paid;
+    const paidAt = inv.paidAt?.toDate ? inv.paidAt.toDate() : null;
+    const date = paidAt ? paidAt.toISOString().slice(0, 10)
+                        : `${inv.year}-${String(monthIndex(inv.month) + 1).padStart(2, "0")}`;
+    return { inv, amt, paid, date, balance };
+  });
+
+  const liveCharged = liveRows.reduce((s, r) => s + r.amt, 0);
+  const livePaid = liveRows.reduce((s, r) => s + r.paid, 0);
+  const totalCharged = openCharged + liveCharged;
+  const totalPaid = openPaid + livePaid;
+  const closing = totalCharged - totalPaid;
+
+  const isCredit = closing < 0;
+  const balanceLabel = isCredit ? "CREDIT BALANCE (ADVANCE)" : `BALANCE AS AT ${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }).toUpperCase()}`;
+
+  let monthsNote = "";
+  if (closing > 0) {
+    const months = rate > 0 ? Math.round(closing / rate) : 0;
+    monthsNote = `${months} month${months === 1 ? "" : "s"} outstanding`;
+  } else if (closing < 0) {
+    monthsNote = `Paid ahead${res.soaPaidThrough ? " to " + res.soaPaidThrough : ""} — credit held on account`;
+  } else {
+    monthsNote = "No outstanding — fully settled";
+  }
+
+  const liveBlock = liveRows.length ? `
+      <tr class="section"><td colspan="5">Transactions after ${esc(openingAsOf)}</td></tr>
+      ${liveRows.map(r => `
+        <tr>
+          <td class="date">${esc(r.date)}</td>
+          <td>${esc(r.inv.remarks || `Security fee — ${r.inv.month} ${r.inv.year}`)}</td>
+          <td class="num">${money(r.amt)}</td>
+          <td class="num pay">${r.paid ? money(r.paid) + `<span class="rcpt">${esc(r.inv.receiptNumber || "")}</span>` : ""}</td>
+          <td class="num bal">${fmtBal(r.balance)}</td>
+        </tr>`).join("")}` : `
+      <tr class="section"><td colspan="5">Transactions after ${esc(openingAsOf)}</td></tr>
+      <tr><td class="date">—</td><td colspan="4" style="color:#6b7280;font-style:italic">No bills or payments recorded since the opening position.</td></tr>`;
+
+  const hasOpening = !!res.soaOpeningAsOf;
+  const openingDetail = hasOpening ? `
+      <tr class="section"><td colspan="5">Opening position carried forward — ${esc(res.soaMonthsPaid || 0)} months paid${res.soaPaidThrough ? ", paid through " + esc(res.soaPaidThrough) : ""}</td></tr>
+      <tr class="opening">
+        <td class="date">${esc(billStart)}</td>
+        <td>Security &amp; maintenance fees — ${monthsBilled} months @ RM${money(rate)} (${esc(billStart)} to ${esc(openingAsOf)})</td>
+        <td class="num">${money(openCharged)}</td>
+        <td class="num pay"></td>
+        <td class="num bal">${fmtBal(openCharged)}</td>
+      </tr>
+      <tr class="opening">
+        <td class="date">${esc(res.soaLatestReceiptDate || openingAsOf)}</td>
+        <td>Payments received to ${esc(openingAsOf)} — ${esc(res.soaMonthsPaid || 0)} months${res.soaLatestReceiptDate ? `, last receipt ${esc(res.soaLatestReceiptDate)}` : ""}</td>
+        <td class="num"></td>
+        <td class="num pay">${money(openPaid)}${res.soaLatestReceipt ? `<span class="rcpt">${esc(res.soaLatestReceipt)}</span>` : ""}</td>
+        <td class="num bal">${fmtBal(openCharged - openPaid)}</td>
+      </tr>` : "";
+
+  const now = new Date();
+  const firstInv = liveRows.length ? liveRows[0].inv : null;
+  const periodStart = hasOpening
+    ? `${MONTHS[Number(billStart.slice(5, 7)) - 1].slice(0, 3)} ${billStart.slice(0, 4)}`
+    : (firstInv ? `${String(firstInv.month).slice(0, 3)} ${firstInv.year}` : "—");
+  const periodLabel = `${periodStart} – ${now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`;
+  const roadCode = String(res.road || "").replace("Jalan Suasana ", "").replace(/\//g, "");
+  const statementNo = `SOA/${now.getFullYear()}/${roadCode}-${res.unitNumber}`;
+
+  const html = `
+  <div class="page">
+    <header>
+      <div class="brand">
+        <h1>PERSATUAN PENDUDUK ZON C BTHO</h1>
+        <p>Bandar Tun Hussein Onn, 43200 Cheras, Selangor</p>
+        <p class="small">Registered under the Societies Act 1966 (ROS)</p>
+      </div>
+      <div class="doc">
+        <h2>STATEMENT OF ACCOUNT</h2>
+        <table class="meta">
+          <tr><td>Statement No.</td><td class="mono">${statementNo}</td></tr>
+          <tr><td>Statement Date</td><td class="mono">${new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}</td></tr>
+          <tr><td>Period</td><td class="mono">${periodLabel}</td></tr>
+        </table>
+      </div>
+    </header>
+
+    <section class="house">
+      <table class="kv">
+        <tr><td class="k">House / Unit</td><td><b>No. ${esc(res.unitNumber)}, ${esc(res.road)}</b></td></tr>
+        <tr><td class="k">Resident</td><td>${esc(res.name)}</td></tr>
+        <tr><td class="k">Contact</td><td>${esc(res.phone || "—")}</td></tr>
+        <tr><td class="k">Monthly Fee</td><td>RM ${money(rate)}</td></tr>
+        <tr><td class="k">Status</td><td>${res.isJoined ? "Registered on portal" : "Not registered on portal"}</td></tr>
+      </table>
+      <div class="summary">
+        ${hasOpening ? `<div class="srow"><span>Opening balance (${esc(openingAsOf)})</span><b>${fmtBal(openCharged - openPaid)}</b></div>` : ""}
+        <div class="srow"><span>Total charges</span><b>${money(totalCharged)}</b></div>
+        <div class="srow"><span>Total payments received</span><b>${money(totalPaid)}</b></div>
+        <div class="srow total"><span>${balanceLabel}</span><b>RM ${fmtBal(closing)}</b></div>
+        <div class="srow note"><span>${monthsNote}</span><b></b></div>
+      </div>
+    </section>
+
+    <table class="ledger">
+      <colgroup><col class="c-date"><col class="c-desc"><col class="c-amt"><col class="c-amt"><col class="c-amt"></colgroup>
+      <thead>
+        <tr>
+          <th class="date">Date</th>
+          <th>Description</th>
+          <th class="num">Charges<br><span>(RM)</span></th>
+          <th class="num">Payments<br><span>(RM)</span></th>
+          <th class="num">Balance<br><span>(RM)</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${openingDetail}
+        ${liveBlock}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">${balanceLabel}</td>
+          <td class="num">${money(totalCharged)}</td>
+          <td class="num">${money(totalPaid)}</td>
+          <td class="num bal">${fmtBal(closing)}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="paybox">
+      <b>How to pay</b>
+      <span>Cash — to the appointed collector, official receipt issued on the spot.</span>
+      <span>Bank transfer — association account (details on request). Quote your house number and road.</span>
+      <span>Enquiry — Honorary Secretary, Persatuan Penduduk Zon C BTHO.</span>
+    </div>
+
+    <section class="foot">
+      <div class="notes">
+        <p><b>Notes</b></p>
+        <p>1. Charges are the monthly security &amp; maintenance fee of RM ${money(rate)} per house, raised on the 1st of each month from ${esc(billStart)}.</p>
+        <p>2. The opening position (${esc(openingAsOf)}) is carried forward from the association's records, supported by official receipts and bank statements. Detail is summarised by month count, not by individual receipt.</p>
+        <p>3. Payments after the opening position are listed individually with their receipt numbers.</p>
+        <p>4. Any discrepancy must be reported to the Honorary Secretary within 14 days of the statement date.</p>
+        <p>5. This statement is computer-generated on ${new Date().toLocaleString("en-GB")}.</p>
+      </div>
+      <div class="sign">
+        <div class="sig"><span></span><p>Honorary Treasurer</p></div>
+        <div class="sig"><span></span><p>Honorary Auditor</p></div>
+      </div>
+    </section>
+  </div>`;
+
+  document.getElementById("root").innerHTML = html;
+  document.title = `SOA — ${res.road} No ${res.unitNumber}`;
+}
+
+(async () => {
+  try {
+    const params = parseParams();
+    const res = await loadResident(params);
+    if (!res) {
+      document.getElementById("root").innerHTML =
+        `<div class="state">No resident found for this house.<br><small>Open this page from a resident record.</small></div>`;
+      return;
+    }
+    const invoices = await loadInvoices(res);
+    render(res, invoices);
+  } catch (e) {
+    document.getElementById("root").innerHTML =
+      `<div class="state">Could not build the statement.<br><small>${esc(e.message)}</small></div>`;
+  }
+})();
+</script>
+</body>
+</html>

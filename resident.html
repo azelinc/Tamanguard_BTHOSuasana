@@ -145,6 +145,9 @@
                     <button onclick="setBillFilter('paid')" id="f-paid" class="px-3 py-1 rounded-md text-slate-500 transition-all">Paid</button>
                 </div>
             </div>
+            <button onclick="openStatement()" class="w-full mb-3 flex items-center justify-center gap-2 bg-white border border-indigo-200 text-indigo-600 text-[11px] font-bold uppercase tracking-wide py-2.5 rounded-xl shadow-sm">
+                <i class="fas fa-file-invoice-dollar"></i> Statement of Account
+            </button>
             <div id="bill-list" class="space-y-2"></div>
         </section>
         
@@ -265,6 +268,12 @@
                     list.innerHTML += `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm"><span class="text-[8px] font-bold text-indigo-500 uppercase">${d}</span><h4 class="font-bold text-slate-800 text-xs">${n.title}</h4><p class="text-[10px] text-slate-500 mt-1">${n.content}</p></div>`; 
                 });
             });
+        }
+
+        function openStatement() {
+            const road = localStorage.getItem('myRoad'), unit = localStorage.getItem('myUnit');
+            if (!road || !unit) return;
+            window.open(`./statement.html?road=${encodeURIComponent(road)}&unit=${encodeURIComponent(unit)}`, '_blank');
         }
 
         function loadBills() {

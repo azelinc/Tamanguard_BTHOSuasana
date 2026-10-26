@@ -279,6 +279,11 @@ function buildRoadChips() {
     });
 }
 
+function openStatement(res) {
+    const url = `../statement.html?road=${encodeURIComponent(res.road || "")}&unit=${encodeURIComponent(res.unitNumber || "")}`;
+    window.open(url, "_blank");
+}
+
 function residentCard(res) {
     const card = document.createElement("div");
     card.className = "glass rounded-xl p-4 hover:bg-slate-800/50 cursor-pointer transition-all group relative border border-slate-700/30";
@@ -297,6 +302,9 @@ function residentCard(res) {
                 <button class="invite-btn p-2 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white" title="Invite via WhatsApp">
                     <i class="fab fa-whatsapp text-xs"></i>
                 </button>
+                <button class="soa-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-indigo-400" title="Statement of Account">
+                    <i class="fas fa-file-invoice-dollar text-xs"></i>
+                </button>
                 <button class="edit-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-blue-400">
                     <i class="fas fa-pen text-xs"></i>
                 </button>
@@ -305,6 +313,7 @@ function residentCard(res) {
         <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
         <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>`;
 
+    card.querySelector(".soa-btn").onclick = (e) => { e.stopPropagation(); openStatement(res); };
     card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
     card.querySelector(".invite-btn").onclick = (e) => { e.stopPropagation(); sendWhatsAppInvite(res); };
     card.onclick = () => showResidentProfile(res);
@@ -331,11 +340,15 @@ function residentRow(res) {
             <button class="invite-btn p-2 rounded text-emerald-400 hover:bg-emerald-600/20" title="Invite via WhatsApp">
                 <i class="fab fa-whatsapp text-xs"></i>
             </button>
+            <button class="soa-btn p-2 rounded text-slate-400 hover:text-indigo-400" title="Statement of Account">
+                <i class="fas fa-file-invoice-dollar text-xs"></i>
+            </button>
             <button class="edit-btn p-2 rounded text-slate-500 hover:text-blue-400">
                 <i class="fas fa-pen text-xs"></i>
             </button>
         </div>`;
 
+    row.querySelector(".soa-btn").onclick = (e) => { e.stopPropagation(); openStatement(res); };
     row.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
     row.querySelector(".invite-btn").onclick = (e) => { e.stopPropagation(); sendWhatsAppInvite(res); };
     row.onclick = () => showResidentProfile(res);
