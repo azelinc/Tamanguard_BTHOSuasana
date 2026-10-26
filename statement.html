@@ -34,6 +34,7 @@
   table.kv td.k { color: var(--muted); width: 96px; }
 
   .summary { width: 288px; border: 1px solid var(--ink); padding: 8px 10px; }
+  .summary .sub { opacity: .7; font-size: 10px; }
   .summary .srow { display: flex; justify-content: space-between; font-size: 10.5px; padding: 2.5px 0; }
   .summary .srow b { font-family: "Courier New", monospace; font-size: 11px; }
   .summary .total { border-top: 1.5px solid var(--ink); margin-top: 4px; padding-top: 6px; font-weight: 800; }
@@ -172,8 +173,10 @@ function render(res, invoices) {
 
   const liveCharged = liveRows.reduce((s, r) => s + r.amt, 0);
   const livePaid = liveRows.reduce((s, r) => s + r.paid, 0);
+  // money received for months not yet billed (paid-ahead coverage past the last bill)
+  const advance = Number(res.soaAdvance || 0);
   const totalCharged = baseCharged + liveCharged;
-  const totalPaid = basePaid + livePaid;
+  const totalPaid = basePaid + livePaid + advance;
   const closing = totalCharged - totalPaid;
 
   const isCredit = closing < 0;
@@ -261,6 +264,7 @@ function render(res, invoices) {
         ${hasOpening ? `<div class="srow"><span>Opening balance (${esc(openingAsOf)})</span><b>${fmtBal(openCharged - openPaid)}</b></div>` : ""}
         <div class="srow"><span>Total charges</span><b>${money(totalCharged)}</b></div>
         <div class="srow"><span>Total payments received</span><b>${money(totalPaid)}</b></div>
+        ${advance > 0 ? `<div class="srow sub"><span>· of which advance for unbilled months</span><b>${money(advance)}</b></div>` : ""}
         <div class="srow total"><span>${balanceLabel}</span><b>RM ${fmtBal(closing)}</b></div>
         <div class="srow note"><span>${monthsNote}</span><b></b></div>
       </div>
