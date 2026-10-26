@@ -90,7 +90,7 @@ function showTab(name) {
   qsa(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   qsa(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== `tab-${name}`));
   if (name === "news") loadNews();
-  if (name === "residents") loadResidents();
+  if (name === "residents") { loadResidents(); if (!allInvoices.length) loadBilling(true); }
   if (name === "visitors") loadVisitors();
   if (name === "billing") { preloadResidentData().then(() => loadBilling(true)); updateInvoiceResidentList(); }
   if (name === "analytics") { 
@@ -284,21 +284,43 @@ function buildRoadChips() {
    (residents.soa*) + live invoices. Single source of truth for the
    residents list, dashboard and analytics.
    ------------------------------------------------------------------ */
+/* index allInvoices by house once per load — 342 houses x ~7.5k invoices is too
+   much to rescan per resident on every render */
+let _invIdx = null, _invIdxKey = "";
+function invoiceIndex() {
+    const key = allInvoices.length + ":" + (allInvoices[allInvoices.length - 1]?.id || "");
+    if (_invIdx && _invIdxKey === key) return _invIdx;
+    const m = new Map();
+    allInvoices.forEach(i => {
+        const k = `${i.road}|${i.unitNumber}`;
+        if (!m.has(k)) m.set(k, []);
+        m.get(k).push(i);
+    });
+    _invIdx = m; _invIdxKey = key;
+    return m;
+}
+
+/* Position = the invoice ledger when the house has bills (source of truth),
+   otherwise the carried-forward opening position from residents.soa*.
+   Invoices are itemised from Jan 2025, so a backfilled house never double-counts. */
 function residentPosition(res) {
+    const held = invoiceIndex().get(`${res.road}|${res.unitNumber}`) || [];
+    if (held.length) {
+        let charged = 0, paid = 0;
+        held.forEach(i => {
+            const a = parseFloat(i.amount) || 0;
+            charged += a;
+            if (i.status === "paid") paid += a;
+        });
+        return { openCharged: 0, openPaid: 0, liveCharged: charged, livePaid: paid,
+                 liveCount: held.length, charged, paid, balance: charged - paid,
+                 openingAsOf: null, itemised: true };
+    }
     const openCharged = Number(res.soaCharged || 0);
     const openPaid = Number(res.soaPaid || 0);
-    let liveCharged = 0, livePaid = 0, liveCount = 0;
-    allInvoices.forEach(i => {
-        if (i.unitNumber !== res.unitNumber || i.road !== res.road) return;
-        const a = parseFloat(i.amount) || 0;
-        liveCharged += a; liveCount++;
-        if (i.status === "paid") livePaid += a;
-    });
-    const charged = openCharged + liveCharged;
-    const paid = openPaid + livePaid;
-    return { openCharged, openPaid, liveCharged, livePaid, liveCount,
-             charged, paid, balance: charged - paid,
-             openingAsOf: res.soaOpeningAsOf || null };
+    return { openCharged, openPaid, liveCharged: 0, livePaid: 0, liveCount: 0,
+             charged: openCharged, paid: openPaid, balance: openCharged - openPaid,
+             openingAsOf: res.soaOpeningAsOf || null, itemised: false };
 }
 
 function portfolioTotals(list = allResidents) {
@@ -520,8 +542,8 @@ async function showResidentProfile(res) {
 
         tbody.innerHTML = "";
 
-        // carried-forward opening position (aggregate history from the association records)
-        if (res.soaOpeningAsOf) {
+        // carried-forward opening position — only when the house has no itemised ledger
+        if (!pos.itemised && res.soaOpeningAsOf) {
             const months = Number(res.soaMonthsPaid || 0);
             const tr = document.createElement("tr");
             tr.className = "border-b border-slate-700/20 bg-slate-800/20";
@@ -558,9 +580,16 @@ document.querySelectorAll(".res-view-btn").forEach(btn => {
 
 /* BILLING */
 async function loadBilling(reset = true) {
-  if (reset) allInvoices = [];
-  const snap = await getDocs(query(collection(db, "invoices"), orderBy("createdAt", "desc"), limit(PAGE_SIZE)));
-  snap.forEach(d => allInvoices.push({ id: d.id, ...d.data() }));
+  /* Load the WHOLE ledger, not the newest PAGE_SIZE: balances, analytics and the
+     residents list all read this array, so a truncated load silently corrupts them. */
+  const invoices = await fetchAllInvoices();
+  allInvoices.length = 0;
+  invoices.forEach(i => allInvoices.push(i));
+  allInvoices.sort((a, b) => {
+    const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : Date.parse(a.createdAt || 0) || 0;
+    const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : Date.parse(b.createdAt || 0) || 0;
+    return tb - ta;
+  });
   renderInvoices(); loadStats();
 }
 
@@ -616,7 +645,8 @@ function renderInvoices() {
 
   if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-slate-500 text-xs">No matching bills.</td></tr>'; return; }
 
-  filtered.forEach(inv => {
+  const shown = filtered.slice(0, 300);
+  shown.forEach(inv => {
     const isPaid = inv.status === 'paid';
     const tr = document.createElement("tr"); tr.className = "hover:bg-slate-800/30 group border-b border-slate-700/30 transition-colors";
     const sClass = isPaid?'bg-emerald-500/20 text-emerald-400':'bg-amber-500/20 text-amber-400';

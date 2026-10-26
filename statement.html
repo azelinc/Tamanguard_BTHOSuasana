@@ -178,20 +178,23 @@ function render(res, invoices) {
     monthsNote = "No outstanding — fully settled";
   }
 
+  const ledgerHeader = hasOpening ? `Transactions after ${esc(openingAsOf)}` : "Monthly charges and payments";
   const liveBlock = liveRows.length ? `
-      <tr class="section"><td colspan="5">Transactions after ${esc(openingAsOf)}</td></tr>
+      <tr class="section"><td colspan="5">${ledgerHeader}</td></tr>
       ${liveRows.map(r => `
         <tr>
           <td class="date">${esc(r.date)}</td>
           <td>${esc(r.inv.remarks || `Security fee — ${r.inv.month} ${r.inv.year}`)}</td>
           <td class="num">${money(r.amt)}</td>
-          <td class="num pay">${r.paid ? money(r.paid) + `<span class="rcpt">${esc(r.inv.receiptNumber || "")}</span>` : ""}</td>
+          <td class="num pay">${r.paid ? money(r.paid) + `<span class="rcpt">${esc(r.inv.receiptNumber || (r.inv.inferred ? "coverage" : ""))}</span>` : ""}</td>
           <td class="num bal">${fmtBal(r.balance)}</td>
         </tr>`).join("")}` : `
-      <tr class="section"><td colspan="5">Transactions after ${esc(openingAsOf)}</td></tr>
+      <tr class="section"><td colspan="5">${ledgerHeader}</td></tr>
       <tr><td class="date">—</td><td colspan="4" style="color:#6b7280;font-style:italic">No bills or payments recorded since the opening position.</td></tr>`;
 
-  const hasOpening = !!res.soaOpeningAsOf;
+  // A house with an itemised ledger (bills backfilled from Jan 2025) needs no
+  // carried-forward opening block — the invoices are the statement.
+  const hasOpening = !invoices.length && !!res.soaOpeningAsOf;
   const openingDetail = hasOpening ? `
       <tr class="section"><td colspan="5">Opening position carried forward — ${esc(res.soaMonthsPaid || 0)} months paid${res.soaPaidThrough ? ", paid through " + esc(res.soaPaidThrough) : ""}</td></tr>
       <tr class="opening">
@@ -288,8 +291,10 @@ function render(res, invoices) {
     <section class="foot">
       <div class="notes">
         <p><b>Notes</b></p>
-        <p>1. Charges are the monthly security &amp; maintenance fee of RM ${money(rate)} per house, raised on the 1st of each month from ${esc(billStart)}.</p>
-        <p>2. The opening position (${esc(openingAsOf)}) is carried forward from the association's records, supported by official receipts and bank statements. Detail is summarised by month count, not by individual receipt.</p>
+        <p>1. Charges are the monthly security &amp; maintenance fee of RM ${money(rate)} per house, raised on the 1st of each month from ${esc(periodStart)}.</p>
+        ${invoices.length
+          ? `<p>2. Months shown as paid before 1 Nov 2026 are reconstructed from the association's months-paid coverage record. They record the month covered, not the individual receipt; receipt numbers appear only for payments recorded in this system.</p>`
+          : `<p>2. The opening position (${esc(openingAsOf)}) is carried forward from the association's records, supported by official receipts and bank statements. Detail is summarised by month count, not by individual receipt.</p>`}
         <p>3. Payments after the opening position are listed individually with their receipt numbers.</p>
         <p>4. Any discrepancy must be reported to the Honorary Secretary within 14 days of the statement date.</p>
         <p>5. This statement is computer-generated on ${new Date().toLocaleString("en-GB")}.</p>
