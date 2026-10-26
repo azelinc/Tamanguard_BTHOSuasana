@@ -301,10 +301,10 @@ function residentPosition(res) {
              openingAsOf: res.soaOpeningAsOf || null };
 }
 
-function portfolioTotals() {
+function portfolioTotals(list = allResidents) {
     let charged = 0, paid = 0, arrears = 0, credit = 0;
     let debtors = 0, creditors = 0, settled = 0, withOpening = 0;
-    allResidents.forEach(r => {
+    list.forEach(r => {
         const p = residentPosition(r);
         charged += p.charged; paid += p.paid;
         if (p.openingAsOf) withOpening++;
@@ -313,7 +313,7 @@ function portfolioTotals() {
         else settled++;
     });
     return { charged, paid, net: charged - paid, arrears, credit, debtors, creditors,
-             settled, withOpening, houses: allResidents.length,
+             settled, withOpening, houses: list.length,
              rate: charged > 0 ? (paid / charged) * 100 : 0 };
 }
 
