@@ -1363,7 +1363,9 @@ qsa("[data-close-modal]").forEach(btn => btn.addEventListener("click", () => clo
    allInvoices — a 300-row page, not the ledger — and were never called; keeping two
    renderers meant the wrong one could win a race. Deleted deliberately. */
 
-function init() { 
+function init() {
+    const stamp = qs("#buildStamp");
+    if (stamp) stamp.textContent = BUILD_STAMP;
     initAuth(); const y = new Date().getFullYear();
     const opts = [y-1, y, y+1].map(v => `<option value='${v}' ${v===y?'selected':''}>${v}</option>`).join('');
     if(qs("#bulkYear")) qs("#bulkYear").innerHTML = opts;
