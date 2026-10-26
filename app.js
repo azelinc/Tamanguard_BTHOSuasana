@@ -230,53 +230,150 @@ qs("#postNewsBtn").addEventListener("click", async () => {
 function loadResidents() {
     onSnapshot(query(collection(db, "residents"), orderBy("unitNumber")), (snap) => {
         allResidents.length = 0; snap.forEach(d => allResidents.push({ id: d.id, ...d.data() }));
-        renderResidents(); loadStats();
+        buildRoadChips(); renderResidents(); loadStats();
     });
+}
+
+/* RESIDENTS — view mode + road filter */
+let residentView = localStorage.getItem("tg_resident_view") === "list" ? "list" : "card";
+let residentRoad = "All";
+
+function residentRoadCounts() {
+    const counts = new Map();
+    allResidents.forEach(r => {
+        const k = r.road || "Unassigned";
+        counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    return counts;
+}
+
+function paintResidentViewToggle() {
+    document.querySelectorAll(".res-view-btn").forEach(b => {
+        const on = b.dataset.view === residentView;
+        b.className = "res-view-btn px-3 py-1.5 rounded-md text-xs font-bold transition-colors " +
+            (on ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white");
+    });
+}
+
+function buildRoadChips() {
+    const wrap = qs("#residentRoadChips");
+    if (!wrap) return;
+    const counts = residentRoadCounts();
+    const chip = (value, label, count, active) => `
+        <button type="button" data-road="${value}" class="res-road-chip shrink-0 px-3 py-1.5 rounded-full text-[11px] font-bold whitespace-nowrap transition-colors ${active
+            ? "bg-emerald-600 text-white"
+            : "bg-slate-800 text-slate-300 border border-slate-700 hover:border-emerald-600"}">${label} · ${count}</button>`;
+    const roads = [...counts.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    let html = chip("All", "All", allResidents.length, residentRoad === "All");
+    roads.forEach(r => {
+        html += chip(r, r.replace("Jalan Suasana ", ""), counts.get(r), residentRoad === r);
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".res-road-chip").forEach(btn => {
+        btn.onclick = () => {
+            residentRoad = btn.dataset.road;
+            buildRoadChips();
+            renderResidents();
+        };
+    });
+}
+
+function residentCard(res) {
+    const card = document.createElement("div");
+    card.className = "glass rounded-xl p-4 hover:bg-slate-800/50 cursor-pointer transition-all group relative border border-slate-700/30";
+
+    const statusBadge = res.isJoined
+        ? `<span class="flex items-center gap-1 text-[9px] text-emerald-400 font-bold uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded-full"><i class="fas fa-check-circle"></i> Joined</span>`
+        : `<span class="text-[9px] text-slate-500 font-bold uppercase tracking-tighter italic">Not Joined</span>`;
+
+    card.innerHTML = `
+        <div class="flex justify-between items-start mb-3">
+            <div class="flex flex-col gap-1">
+                <h4 class="font-bold text-white group-hover:text-emerald-400 transition-colors">${res.name}</h4>
+                ${statusBadge}
+            </div>
+            <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <button class="invite-btn p-2 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white" title="Invite via WhatsApp">
+                    <i class="fab fa-whatsapp text-xs"></i>
+                </button>
+                <button class="edit-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-blue-400">
+                    <i class="fas fa-pen text-xs"></i>
+                </button>
+            </div>
+        </div>
+        <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
+        <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>`;
+
+    card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
+    card.querySelector(".invite-btn").onclick = (e) => { e.stopPropagation(); sendWhatsAppInvite(res); };
+    card.onclick = () => showResidentProfile(res);
+    return card;
+}
+
+function residentRow(res) {
+    const row = document.createElement("div");
+    row.className = "flex items-center gap-3 px-4 py-3 border-b border-slate-800/60 hover:bg-slate-800/40 cursor-pointer transition-colors";
+    const dot = res.isJoined
+        ? '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" title="Joined"></span>'
+        : '<span class="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" title="Not joined"></span>';
+    const phone = res.phone ? res.phone : '<span class="text-slate-600">no phone</span>';
+    row.innerHTML = `
+        <div class="w-11 h-11 shrink-0 rounded-lg bg-slate-800 border border-slate-700/60 flex items-center justify-center">
+            <span class="text-[13px] font-black text-emerald-400">${res.unitNumber}</span>
+        </div>
+        <div class="min-w-0 flex-1">
+            <p class="text-[13px] font-bold text-white leading-tight truncate">${res.name}</p>
+            <p class="text-[11px] text-slate-400 truncate mt-0.5">${res.road || '-'} · ${phone}</p>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+            ${dot}
+            <button class="invite-btn p-2 rounded text-emerald-400 hover:bg-emerald-600/20" title="Invite via WhatsApp">
+                <i class="fab fa-whatsapp text-xs"></i>
+            </button>
+            <button class="edit-btn p-2 rounded text-slate-500 hover:text-blue-400">
+                <i class="fas fa-pen text-xs"></i>
+            </button>
+        </div>`;
+
+    row.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
+    row.querySelector(".invite-btn").onclick = (e) => { e.stopPropagation(); sendWhatsAppInvite(res); };
+    row.onclick = () => showResidentProfile(res);
+    return row;
 }
 
 function renderResidents() {
-    const grid = qs("#residentsGrid"); grid.innerHTML = "";
+    const grid = qs("#residentsGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    paintResidentViewToggle();
+
     const term = qs("#residentSearch").value.toLowerCase().trim();
-    
-    allResidents.filter(r => !term || `${r.name} ${r.unitNumber} ${r.phone}`.toLowerCase().includes(term)).forEach(res => {
-        const card = document.createElement("div"); 
-        card.className = "glass rounded-xl p-4 hover:bg-slate-800/50 cursor-pointer transition-all group relative border border-slate-700/30";
-        
-        // CHECK IF JOINED
-        const statusBadge = res.isJoined 
-            ? `<span class="flex items-center gap-1 text-[9px] text-emerald-400 font-bold uppercase tracking-tighter bg-emerald-500/10 px-1.5 py-0.5 rounded-full"><i class="fas fa-check-circle"></i> Joined</span>` 
-            : `<span class="text-[9px] text-slate-500 font-bold uppercase tracking-tighter italic">Not Joined</span>`;
-
-        card.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <div class="flex flex-col gap-1">
-                    <h4 class="font-bold text-white group-hover:text-emerald-400 transition-colors">${res.name}</h4>
-                    ${statusBadge}
-                </div>
-                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                    <button class="invite-btn p-2 rounded bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600 hover:text-white" title="Invite via WhatsApp">
-                        <i class="fab fa-whatsapp text-xs"></i>
-                    </button>
-                    <button class="edit-btn p-2 rounded bg-slate-800 text-slate-500 hover:text-blue-400">
-                        <i class="fas fa-pen text-xs"></i>
-                    </button>
-                </div>
-            </div>
-            <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
-            <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>`;
-
-        card.querySelector(".edit-btn").onclick = (e) => { e.stopPropagation(); openResidentModal(res.id, res); };
-        
-        // Invite via WhatsApp
-        card.querySelector(".invite-btn").onclick = (e) => {
-            e.stopPropagation();
-            sendWhatsAppInvite(res);
-        };
-
-        card.onclick = () => showResidentProfile(res);
-        grid.appendChild(card);
+    const rows = allResidents.filter(r => {
+        if (residentRoad !== "All" && (r.road || "") !== residentRoad) return false;
+        if (!term) return true;
+        return `${r.name} ${r.unitNumber} ${r.phone} ${r.road || ""}`.toLowerCase().includes(term);
     });
+
+    if (residentView === "list") {
+        grid.className = "flex flex-col";
+        const wrap = document.createElement("div");
+        wrap.className = "glass rounded-xl overflow-hidden border border-slate-700/50";
+        if (!rows.length) {
+            wrap.innerHTML = `<p class="text-center text-slate-500 text-xs py-10">No residents match.</p>`;
+        } else {
+            rows.forEach(r => wrap.appendChild(residentRow(r)));
+        }
+        grid.appendChild(wrap);
+    } else {
+        grid.className = "grid grid-cols-1 md:grid-cols-3 gap-4";
+        if (!rows.length) {
+            grid.innerHTML = `<p class="text-center text-slate-500 text-xs py-10 col-span-full">No residents match.</p>`;
+        } else {
+            rows.forEach(r => grid.appendChild(residentCard(r)));
+        }
+    }
 }
+
 
 // --- WHATSAPP INVITE LOGIC ---
 function sendWhatsAppInvite(res) {
@@ -337,6 +434,15 @@ async function showResidentProfile(res) {
 }
 
 qs("#residentSearch").addEventListener("input", debounce(() => renderResidents(), 100));
+
+/* Residents view toggle — card / list, remembered across sessions */
+document.querySelectorAll(".res-view-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+        residentView = btn.dataset.view === "list" ? "list" : "card";
+        localStorage.setItem("tg_resident_view", residentView);
+        renderResidents();
+    });
+});
 
 /* BILLING */
 async function loadBilling(reset = true) {

@@ -109,10 +109,17 @@
 
       <!-- Residents Tab -->
       <div id="tab-residents" class="tab-pane hidden">
-        <div class="flex flex-col md:flex-row gap-4 mb-4">
+        <div class="flex flex-col md:flex-row gap-3 mb-3">
           <input type="text" id="residentSearch" placeholder="Search (Name, Unit, Phone)..." class="flex-1 bg-slate-800 border border-slate-700 rounded-lg py-3 px-4 outline-none focus:border-emerald-500">
-          <button id="addResidentBtn" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-lg font-bold"><i class="fas fa-plus mr-2"></i>Add Resident</button>
+          <div class="flex gap-2 items-stretch">
+            <div id="residentViewToggle" class="flex bg-slate-800 border border-slate-700 rounded-lg p-1 shrink-0">
+              <button type="button" data-view="card" title="Card view" class="res-view-btn px-3 py-1.5 rounded-md text-xs font-bold transition-colors"><i class="fas fa-grip"></i></button>
+              <button type="button" data-view="list" title="List view" class="res-view-btn px-3 py-1.5 rounded-md text-xs font-bold transition-colors"><i class="fas fa-list"></i></button>
+            </div>
+            <button id="addResidentBtn" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-3 rounded-lg font-bold whitespace-nowrap"><i class="fas fa-plus md:mr-2"></i><span class="hidden md:inline">Add Resident</span></button>
+          </div>
         </div>
+        <div id="residentRoadChips" class="flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1" style="scrollbar-width:none;-ms-overflow-style:none;"></div>
         <div id="residentsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
       </div>
 
