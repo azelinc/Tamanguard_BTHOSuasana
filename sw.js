@@ -1,5 +1,5 @@
-/* TamanGuard Service Worker — v6 */
-const CACHE = 'tamanguard-v21';
+/* TamanGuard Service Worker — v7 */
+const CACHE = 'tamanguard-v22';
 const SHELL = [
   '/resident.html',
   '/guard.html',

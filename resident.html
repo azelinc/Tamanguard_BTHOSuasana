@@ -15,6 +15,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -221,6 +222,13 @@
         };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        /* Login is verified server-side now (see /tamanguard/auth/verify). The browser
+           never compares a PIN and never reads another household's data: it exchanges
+           house + road + PIN for a Firebase custom token, and the token's claims carry
+           this house's unit and road, which is what Firestore rules check. */
+        const AUTH_ENDPOINT = 'https://hermes.azelinc.tech/tamanguard/auth/verify';
 
         // Added pendingCancelId state for the modal
         let invoiceCache = {}, myBillsRaw =[], currentBillFilter = 'all', pendingCancelId = null;
@@ -267,15 +275,52 @@
         }
 
         async function setIdentity() {
-            const h = document.getElementById('login-house').value.trim().toUpperCase(), r = document.getElementById('login-road').value, p = document.getElementById('login-pin').value.trim();
-            if(!h || !r || !p) return showToast("Fill all fields", "error");
-            const btn = document.getElementById('login-btn'); btn.innerHTML = `<span class="spinner"></span> Verifying...`; btn.disabled = true;
-            const snap = await db.collection("residents").where("unitNumber", "==", h).where("road", "==", r).where("pin", "==", p).get();
-            if(!snap.empty) { localStorage.setItem('myUnit', h); localStorage.setItem('myRoad', r); location.reload(); }
-            else { btn.innerHTML = "Verify & Enter"; btn.disabled = false; showToast("Invalid Credentials", "error"); }
+            const h = document.getElementById('login-house').value.trim().toUpperCase(),
+                  r = document.getElementById('login-road').value,
+                  p = document.getElementById('login-pin').value.trim();
+            if (!h || !r || !p) return showToast("Fill all fields", "error");
+            const btn = document.getElementById('login-btn');
+            btn.innerHTML = `<span class="spinner"></span> Verifying...`; btn.disabled = true;
+            try {
+                const res = await fetch(AUTH_ENDPOINT, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ unit: h, road: r, pin: p })
+                });
+                if (res.status === 429) {
+                    const d = await res.json().catch(() => ({}));
+                    const mins = Math.max(1, Math.ceil((d.retryAfter || 60) / 60));
+                    throw new Error(`Too many attempts. Try again in ${mins} minute${mins > 1 ? 's' : ''}.`);
+                }
+                if (!res.ok) throw new Error("Wrong house number, road or PIN.");
+                const d = await res.json();
+                // Exchange the one-time custom token for a real Firebase session.
+                await auth.signInWithCustomToken(d.token);
+                await enterWithSession();
+            } catch (e) {
+                btn.innerHTML = "Verify & Enter"; btn.disabled = false;
+                showToast(e.message || "Could not sign in", "error");
+            }
         }
 
-        function logout() { localStorage.clear(); location.reload(); }
+        /* The session's claims are the source of truth for which house this is, so a
+           tampered localStorage cannot point the app at a neighbour's house — the
+           rules would refuse the reads anyway. */
+        async function enterWithSession() {
+            const user = auth.currentUser;
+            if (!user) throw new Error("Not signed in");
+            const tok = await user.getIdTokenResult();
+            const unit = tok.claims.unit, road = tok.claims.road;
+            if (!unit || !road) throw new Error("This account is not linked to a house");
+            localStorage.setItem('myUnit', String(unit));
+            localStorage.setItem('myRoad', road);
+            location.reload();
+        }
+
+        async function logout() {
+            try { await auth.signOut(); } catch (e) {}
+            localStorage.clear(); location.reload();
+        }
 
         function initApp() {
             document.getElementById('display-unit').innerText = `${myUnit}, ${localStorage.getItem('myRoad')}`;
@@ -792,11 +837,12 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
             let ref = localStorage.getItem('myPayRefFor') === houseKey ? localStorage.getItem('myPayRef') : null;
             if (ref) { el.innerText = ref; return; }
             try {
-                const snap = await db.collection("residents")
-                    .where("unitNumber", "==", myUnit)
-                    .where("road", "==", localStorage.getItem('myRoad')).limit(1).get();
-                if (!snap.empty) {
-                    ref = snap.docs[0].data().payRef || '';
+                /* Read our own document by uid: rules now allow a resident to read only
+                   the house they are signed in as, so a unitNumber+road query is refused. */
+                const me = auth.currentUser;
+                const snap = me ? await db.collection("residents").doc(me.uid).get() : null;
+                if (snap && snap.exists) {
+                    ref = snap.data().payRef || '';
                     if (ref) { localStorage.setItem('myPayRef', ref); localStorage.setItem('myPayRefFor', houseKey); el.innerText = ref; }
                     else el.innerText = 'ASK COMMITTEE';
                 } else el.innerText = 'ASK COMMITTEE';
@@ -828,18 +874,45 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
             // Lockdown: the backend no longer serves reads to anonymous clients, so every
             // path below would fail. Stop here and explain, rather than showing a dead form.
             if (MAINTENANCE) { document.getElementById('maintenance-screen').classList.remove('hidden'); return; }
-            const urlParams = new URLSearchParams(window.location.search), u = urlParams.get('u'), r = urlParams.get('r'), p = urlParams.get('p');
-            if (u && r && p) {
-                const snap = await db.collection("residents").where("pin", "==", p).get();
-                const m = snap.docs.find(doc => String(doc.data().unitNumber) === String(u) && String(doc.data().road).toLowerCase() === String(r).toLowerCase());
-                if (m) {
-                    await db.collection("residents").doc(m.id).update({ isJoined: true, lastLoginAt: firebase.firestore.FieldValue.serverTimestamp() });
-                    localStorage.setItem('myUnit', String(m.data().unitNumber)); localStorage.setItem('myRoad', m.data().road);
-                    window.history.replaceState({}, document.title, window.location.pathname); location.reload(); return;
-                }
+            /* Old magic links (?u=&r=&p=) carried a PIN in a URL. PINs are hashed on the
+               server now and never travel in a link, so those URLs are dead. Strip the
+               parameters rather than leaving a credential-shaped string in the address bar
+               and in the user's history. */
+            if (window.location.search.includes('p=')) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                showToast("This link is no longer valid. Please log in with your PIN.", "error");
             }
-            if (!myUnit) { document.getElementById('login-screen').classList.remove('hidden'); fetchRoads(); } 
-            else { await applyDefaultTab(); document.getElementById('app-header').style.display = 'flex'; document.getElementById('app-main').style.display = 'block'; document.getElementById('app-nav').style.display = 'flex'; initApp(); }
+
+            /* The Firebase session is the single source of truth for which house this is.
+               Claims come from the server, so editing localStorage cannot point the app at
+               a neighbour's house — and the rules would refuse the reads regardless. */
+            auth.onAuthStateChanged(async (user) => {
+                if (!user) {
+                    localStorage.removeItem('myUnit'); localStorage.removeItem('myRoad');
+                    document.getElementById('login-screen').classList.remove('hidden');
+                    fetchRoads();
+                    return;
+                }
+                try {
+                    const tok = await user.getIdTokenResult();
+                    const unit = tok.claims.unit, road = tok.claims.road;
+                    if (!unit || !road) {
+                        await auth.signOut();
+                        showToast("Committee accounts use the admin portal.", "error");
+                        return;
+                    }
+                    localStorage.setItem('myUnit', String(unit));
+                    localStorage.setItem('myRoad', road);
+                    document.getElementById('login-screen').classList.add('hidden');
+                    await applyDefaultTab();
+                    document.getElementById('app-header').style.display = 'flex';
+                    document.getElementById('app-main').style.display = 'block';
+                    document.getElementById('app-nav').style.display = 'flex';
+                    initApp();
+                } catch (e) {
+                    showToast("Could not start: " + (e.message || e), "error");
+                }
+            });
         };
     </script>
     <script>
