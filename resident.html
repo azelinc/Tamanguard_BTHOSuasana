@@ -117,6 +117,27 @@
                 <div><label class="text-[9px] font-bold text-slate-400 uppercase ml-2 tracking-widest">Secure PIN</label><input id="login-pin" type="password" inputmode="numeric" placeholder="****" class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold tracking-widest"></div>
             </div>
             <button id="login-btn" onclick="setIdentity()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg uppercase tracking-widest">Verify & Enter</button>
+
+            <!-- First-time handoff. Resident-initiated messages open WhatsApp's 24-hour
+                 reply window, so the committee can answer with a PIN without the number
+                 being flagged for bulk outbound. -->
+            <button id="first-login-link" onclick="toggleFirstLogin()" class="w-full mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest underline decoration-dotted underline-offset-4">
+                First time here? · Belum ada PIN?
+            </button>
+
+            <div id="first-login-card" class="hidden mt-4 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                <p class="text-[11px] font-bold text-slate-700 leading-snug mb-1">Belum ada PIN?</p>
+                <p class="text-[10px] text-slate-500 leading-snug mb-3">
+                    Hantar mesej WhatsApp kepada jawatankuasa. Kami akan hantar PIN anda.<br>
+                    Message the committee on WhatsApp and we will send your PIN.
+                </p>
+                <button onclick="sendFirstLoginRequest()" class="w-full bg-emerald-600 active:bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-widest py-3 rounded-xl">
+                    Send WhatsApp · Hantar
+                </button>
+                <button onclick="copyFirstLoginMessage()" class="w-full mt-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest py-2">
+                    Copy message instead
+                </button>
+            </div>
         </div>
     </div>
 
@@ -270,8 +291,42 @@
             if(doc.exists) {
                 const r = doc.data().roads ||[];
                 document.getElementById('login-road').innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+                // Committee contact for first-login requests, editable in admin Settings.
+                const wa = String(doc.data().firstLoginWhatsapp || '60122750485').replace(/\D/g, '');
+                if (wa) firstLoginNumber = wa;
                 document.getElementById('taman-display').innerText = doc.data().name || "TamanGuard";
             }
+        }
+
+        /* Committee contact for first-login requests. Public by design (it is in the page
+           source), configurable from the admin Settings tab. */
+        let firstLoginNumber = '60122750485';
+
+        function firstLoginMessage() {
+            const h = (document.getElementById('login-house').value || '').trim().toUpperCase();
+            const r = document.getElementById('login-road').value || '';
+            return `Assalamualaikum, saya penduduk Zon C BTHO. Saya belum ada PIN TamanGuard.\n\n` +
+                   `Rumah: ${h || '-'}\n` +
+                   `Jalan: ${r || '-'}\n` +
+                   `Nama: ______\n\n` +
+                   `Mohon hantar PIN untuk login. Terima kasih.`;
+        }
+
+        function toggleFirstLogin() {
+            const card = document.getElementById('first-login-card');
+            card.classList.toggle('hidden');
+        }
+
+        function sendFirstLoginRequest() {
+            const url = `https://wa.me/${firstLoginNumber}?text=${encodeURIComponent(firstLoginMessage())}`;
+            window.open(url, '_blank');
+        }
+
+        function copyFirstLoginMessage() {
+            const msg = firstLoginMessage();
+            const done = () => showToast("Message copied — paste it in WhatsApp", "success");
+            if (navigator.clipboard?.writeText) navigator.clipboard.writeText(msg).then(done).catch(done);
+            else { const t = document.createElement('textarea'); t.value = msg; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
         }
 
         async function setIdentity() {

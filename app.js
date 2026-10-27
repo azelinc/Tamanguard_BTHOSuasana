@@ -172,6 +172,7 @@ async function loadSettings() {
     if(qs("#defaultMonthlyFee")) qs("#defaultMonthlyFee").value = tamanConfig.monthlyFee || 80;
     if(qs("#chatEnabledToggle")) qs("#chatEnabledToggle").checked = tamanConfig.isChatEnabled ?? true;
     if(qs("#visitorsEnabledToggle")) qs("#visitorsEnabledToggle").checked = tamanConfig.visitorsEnabled !== false;
+    if(qs("#firstLoginWhatsapp")) qs("#firstLoginWhatsapp").value = tamanConfig.firstLoginWhatsapp || "60122750485";
     applyModuleVisibility();
     if(qs("#residentDefaultTab")) {
       const allowed = ["news", "bills", "invite"];
@@ -232,12 +233,14 @@ qs("#saveSettingsBtn").addEventListener("click", async () => {
   const visitorsEnabled = qs("#visitorsEnabledToggle") ? qs("#visitorsEnabledToggle").checked : true;
     const defaultTab = qs("#residentDefaultTab") ? qs("#residentDefaultTab").value : "news";
   if(!name) return;
+    // Public contact number for first-login requests; digits only.
+    const firstLoginWhatsapp = (qs("#firstLoginWhatsapp") ? qs("#firstLoginWhatsapp").value : "").replace(/\D/g, "") || "60122750485";
     const wording = {};
     ["msgAllClear", "msgPending", "msgOutstanding", "msgNoBills", "msgProvisional"].forEach(id => {
       const el = qs("#" + id);
       if (el) wording[id] = el.value.trim();
     });
-    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, ...wording, name, monthlyFee: fee, isChatEnabled: isChatEnabled, visitorsEnabled: visitorsEnabled, defaultTab: defaultTab, updatedAt: serverTimestamp() });
+    await setDoc(doc(db, "settings", "taman_config"), { ...tamanConfig, ...wording, name, monthlyFee: fee, isChatEnabled: isChatEnabled, visitorsEnabled: visitorsEnabled, defaultTab: defaultTab, firstLoginWhatsapp: firstLoginWhatsapp, updatedAt: serverTimestamp() });
   applyModuleVisibility();
     toast("Config updated!", "success"); loadSettings();
 });
