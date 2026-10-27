@@ -1,0 +1,15 @@
+{
+  "name": "tamanguard-tests",
+  "private": true,
+  "type": "module",
+  "description": "Dev-only test harness for TamanGuard. Not shipped to Pages; node_modules is gitignored.",
+  "scripts": {
+    "test": "node rules-static.mjs && node position.test.mjs && node no-unbounded-reads.mjs",
+    "test:rules": "bash run-rules.sh"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.0.0",
+    "firebase-tools": "^15.0.0"
+  }
+}

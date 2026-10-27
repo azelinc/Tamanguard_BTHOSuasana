@@ -881,15 +881,134 @@ qs("#invoiceSearchClear")?.addEventListener("click", () => {
 });
 syncHidePaidChip();
 
+/* ---- House History bulk selection -------------------------------------------------
+   Ticking exists so a backlog of recorded months is verified in one pass instead of one
+   prompt per bill. Pending and provisional are tickable; paid and void are not, because
+   they have no action left. Record and Verify never merge into one button: they are two
+   different officers' steps under the two-person rule. */
+let historyRows = [];
+const historySel = new Set();
+
+function isTickable(inv) {
+    const st = inv.status || "pending";
+    if (st === "pending") return true;
+    if (st === "provisional") return isVerifier();
+    return false;
+}
+
+function paintHistoryRow(tr, on) {
+    tr.classList.toggle("bg-indigo-500/10", on);
+    const cb = tr.querySelector(".h-sel");
+    if (cb) cb.checked = on;
+}
+
+function historySelectedRows() { return historyRows.filter(r => historySel.has(r.id)); }
+
+function updateHistoryBulk() {
+    const bar = qs("#historyBulkBar"); if (!bar) return;
+    const sel = historySelectedRows();
+    const pend = sel.filter(r => (r.status || "pending") === "pending");
+    const prov = sel.filter(r => r.status === "provisional");
+    const sum = rows => rows.reduce((t, r) => t + (parseFloat(r.amount) || 0), 0);
+
+    bar.classList.toggle("hidden", sel.length === 0);
+
+    const cnt = qs("#historyBulkCount");
+    if (cnt) {
+        const mixed = pend.length > 0 && prov.length > 0;
+        cnt.textContent = mixed
+            ? `${prov.length} provisional · RM${sum(prov).toFixed(2)}  ·  ${pend.length} pending · RM${sum(pend).toFixed(2)}`
+            : `${sel.length} selected · RM${sum(sel).toFixed(2)}`;
+        cnt.className = "text-[10px] font-black uppercase tracking-wider " +
+            (mixed ? "text-slate-300" : prov.length ? "text-indigo-300" : "text-emerald-300");
+    }
+
+    const vBtn = qs("#historyVerifyBtn"), rBtn = qs("#historyRecordBtn");
+    if (vBtn) { vBtn.classList.toggle("hidden", prov.length === 0); vBtn.textContent = `Verify ${prov.length}`; }
+    if (rBtn) { rBtn.classList.toggle("hidden", pend.length === 0); rBtn.textContent = `Record ${pend.length}`; }
+
+    const all = qs("#historySelectAll");
+    if (all) {
+        const tickable = historyRows.filter(isTickable).length;
+        all.checked = tickable > 0 && sel.length === tickable;
+        all.indeterminate = sel.length > 0 && sel.length < tickable;
+    }
+}
+
+function initHistoryBulkHandlers(unit, road) {
+    const all = qs("#historySelectAll");
+    if (all) all.onchange = () => {
+        historySel.clear();
+        if (all.checked) historyRows.filter(isTickable).forEach(r => historySel.add(r.id));
+        qs("#historyTableBody").querySelectorAll("tr").forEach(tr => {
+            const cb = tr.querySelector(".h-sel");
+            if (cb) paintHistoryRow(tr, historySel.has(cb.dataset.id));
+        });
+        updateHistoryBulk();
+    };
+
+    const clear = qs("#historyClearSel");
+    if (clear) clear.onclick = () => {
+        historySel.clear();
+        qs("#historyTableBody").querySelectorAll("tr").forEach(tr => paintHistoryRow(tr, false));
+        updateHistoryBulk();
+    };
+
+    const vBtn = qs("#historyVerifyBtn");
+    if (vBtn) vBtn.onclick = async () => {
+        const note = (qs("#historyBankRef")?.value || "").trim();
+        if (note.length < 3) { toast("Bank reference or date is required", "error"); qs("#historyBankRef")?.focus(); return; }
+        try { localStorage.setItem("historyBankRef", note); } catch (e) {}
+        const rows = historySelectedRows().filter(r => r.status === "provisional");
+        if (!rows.length) return;
+        const label = vBtn.textContent;
+        vBtn.disabled = true; vBtn.innerHTML = '<span class="spinner"></span>';
+        try { await verifyBatch(rows, note); } finally { vBtn.disabled = false; vBtn.textContent = label; }
+        showHouseHistoryModal(unit, road);
+    };
+
+    const rBtn = qs("#historyRecordBtn");
+    if (rBtn) rBtn.onclick = async () => {
+        const rows = historySelectedRows().filter(r => (r.status || "pending") === "pending");
+        if (!rows.length) return;
+        const note = (qs("#historyBankRef")?.value || "").trim();
+        try { localStorage.setItem("historyBankRef", note); } catch (e) {}
+        const label = rBtn.textContent;
+        rBtn.disabled = true; rBtn.innerHTML = '<span class="spinner"></span>';
+        let ok = 0, failed = 0;
+        for (const inv of rows) {
+            try { await recordPayment(inv.id, { method: "cash", reference: note, silent: true }, inv); ok++; }
+            catch (e) { console.error("bulk record failed", inv.id, e); failed++; }
+        }
+        rBtn.disabled = false; rBtn.textContent = label;
+        toast(`${ok} recorded${failed ? `, ${failed} failed` : ""} — awaiting verification`, failed ? "error" : "info");
+        loadBilling(true); loadStats(); renderResidents();
+        showHouseHistoryModal(unit, road);
+    };
+}
+
 async function showHouseHistoryModal(unit, road) {
     const tbody = qs("#historyTableBody"); qs("#historyUnitTitle").textContent = `${unit} — ${road}`;
-    tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500"><span class="spinner"></span></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-slate-500"><span class="spinner"></span></td></tr>';
     const snap = await getDocs(query(collection(db, "invoices"),
         where("road", "==", road), where("unitNumber", "==", unit)));
     const history = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         .sort((a,b) => (b.year - a.year) || (MONTH_NAMES.indexOf(b.month) - MONTH_NAMES.indexOf(a.month)));
+
+    historyRows = history;
+    historySel.clear();
+    if (qs("#historyBankRef")) {
+        qs("#historyBankRef").value = (() => { try { return localStorage.getItem("historyBankRef") || "CASH"; } catch(e) { return "CASH"; } })();
+    }
+
     tbody.innerHTML = "";
-    if (!history.length) { tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-500 text-xs">No bills for this house.</td></tr>'; }
+    if (!history.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="py-8 text-center text-slate-500 text-xs">No bills for this house.</td></tr>';
+        updateHistoryBulk(); initHistoryBulkHandlers(unit, road);
+        qs("#historyModal").classList.remove("hidden");
+        return;
+    }
+
     history.forEach(inv => {
         const tr = document.createElement("tr"); tr.className = "border-b border-slate-700/20 hover:bg-slate-800/30 transition-colors";
         const st = inv.status || 'pending';
@@ -907,11 +1026,23 @@ async function showHouseHistoryModal(unit, road) {
                     ? `<button class='h-verify-btn bg-indigo-600 text-white text-[10px] font-bold px-3 py-1.5 rounded'>VERIFY</button>`
                     : `<span class='text-[10px] text-indigo-300 font-bold'>AWAITING</span>`)
                 : `<span class='text-[10px] text-slate-500 font-mono'>${inv.receiptNumber || 'NIL'}</span>`;
-        tr.innerHTML = `<td class="px-4 py-4 text-white font-medium">${inv.month || ''} ${inv.year || ''}</td><td class="px-4 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td><td class="px-4 py-4">${third}</td><td class="px-4 py-4 text-right">${action}</td>`;
+        tr.innerHTML = `<td class="px-2 py-4">${isTickable(inv) ? `<input type="checkbox" class="h-sel w-4 h-4 accent-indigo-500 align-middle" data-id="${inv.id}">` : ""}</td>`
+            + `<td class="px-3 py-4 text-white font-medium">${inv.month || ''} ${inv.year || ''}</td>`
+            + `<td class="px-3 py-4 text-slate-300">RM ${parseFloat(inv.amount || 0).toFixed(2)}</td>`
+            + `<td class="px-3 py-4">${third}</td>`
+            + `<td class="px-3 py-4 text-right">${action}</td>`;
+
+        const cb = tr.querySelector(".h-sel");
+        if (cb) cb.addEventListener("change", () => {
+            if (cb.checked) historySel.add(inv.id); else historySel.delete(inv.id);
+            paintHistoryRow(tr, cb.checked);
+            updateHistoryBulk();
+        });
+
         if (tr.querySelector(".h-pay-btn")) {
             tr.querySelector(".h-pay-btn").onclick = async (e) => {
                 e.target.disabled = true; e.target.innerHTML = '<span class="spinner"></span>';
-                await recordPayment(inv.id); showHouseHistoryModal(unit, road);
+                await recordPayment(inv.id, {}, inv); showHouseHistoryModal(unit, road);
             };
         }
         if (tr.querySelector(".h-verify-btn")) {
@@ -919,12 +1050,15 @@ async function showHouseHistoryModal(unit, road) {
                 const note = prompt("Verify payment — bank reference or statement date:");
                 if (!note) return;
                 e.target.disabled = true; e.target.innerHTML = '<span class="spinner"></span>';
-                try { await verifyPayment(inv.id, note); } catch (err) { toast("Verification failed", "error"); }
+                try { await verifyPayment(inv.id, note, inv); } catch (err) { toast("Verification failed", "error"); }
                 showHouseHistoryModal(unit, road);
             };
         }
         tbody.appendChild(tr);
     });
+
+    updateHistoryBulk();
+    initHistoryBulkHandlers(unit, road);
     qs("#historyModal").classList.remove("hidden");
 }
 
@@ -971,8 +1105,8 @@ async function logPaymentEvent(invoiceId, action, from, to, note) {
     } catch (e) { console.error("audit log failed", e); }
 }
 
-async function recordPayment(id, opts = {}) {
-    const inv = allInvoices.find(i => i.id === id) || {};
+async function recordPayment(id, opts = {}, invDoc = null) {
+    const inv = invDoc || allInvoices.find(i => i.id === id) || {};
     const rcpt = `RCP-${Date.now()}`;
     await updateDoc(doc(db, "invoices", id), {
         status: "provisional",
@@ -991,12 +1125,14 @@ async function recordPayment(id, opts = {}) {
         bumpMonthly(inv.month, inv.year, { pending: amt, pendingCount: 1 });
     }
     // soaPaid is untouched on purpose: provisional money is not collected money
-    toast("Recorded — awaiting Treasurer verification", "info");
-    loadBilling(true); loadStats(); renderResidents();
+    if (!opts.silent) {
+        toast("Recorded — awaiting Treasurer verification", "info");
+        loadBilling(true); loadStats(); renderResidents();
+    }
 }
 
-async function verifyPayment(id, note) {
-    const inv = allInvoices.find(i => i.id === id) || {};
+async function verifyPayment(id, note, invDoc = null) {
+    const inv = invDoc || allInvoices.find(i => i.id === id) || {};
     if (!note || note.trim().length < 3) { toast("Bank reference or date is required", "error"); return false; }
     const self = auth.currentUser.uid === inv.recordedBy;
     await updateDoc(doc(db, "invoices", id), {
@@ -1018,8 +1154,8 @@ async function verifyPayment(id, note) {
     return true;
 }
 
-async function voidPayment(id, reason) {
-    const inv = allInvoices.find(i => i.id === id) || {};
+async function voidPayment(id, reason, invDoc = null) {
+    const inv = invDoc || allInvoices.find(i => i.id === id) || {};
     await updateDoc(doc(db, "invoices", id), {
         status: "void",
         voidReason: reason,
@@ -1041,10 +1177,12 @@ async function voidPayment(id, reason) {
 }
 
 /* Batch confirm — reconciliation happens once, against the bank statement. */
-async function verifyBatch(ids, note) {
+async function verifyBatch(items, note) {
     let ok = 0, failed = 0;
-    for (const id of ids) {
-        try { if (await verifyPayment(id, note)) ok++; else failed++; }
+    for (const it of items) {
+        const id = typeof it === "string" ? it : it.id;
+        const invDoc = typeof it === "string" ? null : it;
+        try { if (await verifyPayment(id, note, invDoc)) ok++; else failed++; }
         catch (e) { console.error("verify failed", id, e); failed++; }
     }
     toast(`${ok} verified${failed ? `, ${failed} failed` : ""}`, failed ? "error" : "success");
