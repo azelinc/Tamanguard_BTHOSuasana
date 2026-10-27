@@ -922,8 +922,9 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
         }
         function closePayment() { document.getElementById('payment-modal').classList.add('hidden'); }
 
-        // Flip to false when login is verified server-side and the rules allow reads again.
-        const MAINTENANCE = true;
+        // Portal is open: login is verified server-side and rules scope reads per house.
+        // Set back to true to close the portal instantly (shows the paused card).
+        const MAINTENANCE = false;
 
         window.onload = async () => {
             // Lockdown: the backend no longer serves reads to anonymous clients, so every
