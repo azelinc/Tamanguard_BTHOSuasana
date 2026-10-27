@@ -29,7 +29,10 @@ service cloud.firestore {
 
     /* ---------- residents ---------- */
     match /residents/{docId} {
-      allow read: if true;                       // PIN login + roster
+      // LOCKDOWN 2026-10-27: this was `if true` so the browser could compare the PIN.
+      // That made every PIN, name and phone number world-readable. Login is being rebuilt
+      // server-side; until then only the committee can read the roster.
+      allow read: if isAdmin();
       // The resident app may only ever touch the join flag. This closes the hole that
       // let anyone rewrite another household's name/phone/PIN and log in as them.
       allow update: if onlyChanged(['isJoined', 'lastLoginAt']);
@@ -39,7 +42,8 @@ service cloud.firestore {
 
     /* ---------- invoices: the money trail ---------- */
     match /invoices/{docId} {
-      allow read: if true;                       // resident app + statements
+      // LOCKDOWN 2026-10-27: the full money ledger (8,184 bills) was world-readable.
+      allow read: if isAdmin();
       allow create, delete: if isAdmin();
 
       // 1. Any committee member may RECORD a payment. It stays provisional —
@@ -100,16 +104,18 @@ service cloud.firestore {
     }
     match /stats_monthly/{docId} { allow read: if true; allow write: if isAdmin(); }
     match /visits/{docId} {
-      allow read: if true;
+      // LOCKDOWN 2026-10-27: guest passes carry visitor names and vehicle plates.
+      allow read: if isAdmin();
       /* the committee can switch the visitor module off; that must stop NEW passes
          at the database, not just hide the button. Existing passes stay cancellable
          so a switch-off never strands someone who already issued one. */
       allow create: if visitorsOn();
-      allow update: if true;                     // residents still cancel their own pass
+      allow update: if isAdmin();                // lockdown: no unauthenticated writes
       allow delete: if isAdmin();
     }
     match /community_chat/{id} {
-      allow read, create: if true;
+      // LOCKDOWN 2026-10-27: chat was world-readable and world-writable.
+      allow read, create: if isAdmin();
       allow delete: if isAdmin();
     }
 
