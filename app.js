@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebas
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, writeBatch, serverTimestamp, addDoc, startAfter, documentId } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
-import { indexInvoices, position as libPosition, portfolio as libPortfolio } from "./lib/position.js";
+import { indexInvoices, position as libPosition, portfolio as libPortfolio, roadGroup, groupTotals } from "./lib/position.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -399,6 +399,11 @@ function portfolioTotals(list = allResidents) {
 }
 
 window.tgPosition = residentPosition;
+window.tgRoadGroup = roadGroup;
+window.tgGroupTotals = (residents) => groupTotals(residents, r => {
+    const p = residentPosition(r);
+    return { charged: p.charged, paid: p.paid, pending: p.pending, stillDue: p.stillDue };
+});
 /* preview the module-off state without saving it (no writes, local state only) */
 window.tgPreviewVisitorModule = (on) => { tamanConfig.visitorsEnabled = on; applyModuleVisibility(); return tamanConfig.visitorsEnabled; };
 window.tgPortfolio = portfolioTotals;
@@ -1073,7 +1078,7 @@ function isVerifier() { return userRole === "treasurer" || userRole === "super_a
 
 /* Keep the 24 monthly summaries in step with the ledger. One extra write per
    payment transition; the trend chart then costs 24 reads instead of 8,184. */
-async function bumpMonthly(month, year, delta = {}) {
+async function bumpMonthly(month, year, delta = {}, road = "") {
     const MONTHS = ["January","February","March","April","May","June",
                     "July","August","September","October","November","December"];
     const idx = MONTHS.indexOf(month);
@@ -1084,13 +1089,58 @@ async function bumpMonthly(month, year, delta = {}) {
         const snap = await getDoc(ref);
         if (!snap.exists()) return;
         const cur = snap.data();
-        await updateDoc(ref, {
+        const patch = {
             paid: Number(cur.paid || 0) + (delta.paid || 0),
             paidCount: Math.max(0, Number(cur.paidCount || 0) + (delta.paidCount || 0)),
             pending: Math.max(0, Number(cur.pending || 0) + (delta.pending || 0)),
             pendingCount: Math.max(0, Number(cur.pendingCount || 0) + (delta.pendingCount || 0))
-        });
+        };
+        // keep the per-area figures in step with the estate total, or the area chart
+        // silently stops reconciling with the headline numbers
+        const grp = roadGroup(road);
+        if (grp) {
+            const key = "g" + grp;
+            const sub = cur[key] || {};
+            patch[key + ".paid"] = Math.max(0, Number(sub.paid || 0) + (delta.paid || 0));
+            patch[key + ".paidCount"] = Math.max(0, Number(sub.paidCount || 0) + (delta.paidCount || 0));
+            patch[key + ".pending"] = Math.max(0, Number(sub.pending || 0) + (delta.pending || 0));
+            patch[key + ".pendingCount"] = Math.max(0, Number(sub.pendingCount || 0) + (delta.pendingCount || 0));
+        }
+        await updateDoc(ref, patch);
     } catch (e) { console.error("monthly summary bump failed", e); }
+}
+
+/* Raising a batch of bills moves 'billed' for the whole estate, so the monthly summary
+   and its per-area split have to move with it. Without this the analytics 'billed' figure
+   and the invoice list disagree for every month generated inside the app. */
+async function bumpMonthlyBulk(month, year, amount, residents) {
+    const MONTHS = ["January","February","March","April","May","June",
+                    "July","August","September","October","November","December"];
+    const idx = MONTHS.indexOf(month);
+    if (idx < 0 || !year || !residents.length) return;
+    const ym = year + "-" + String(idx + 1).padStart(2, "0");
+    try {
+        const ref = doc(db, "stats_monthly", ym);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) { console.warn("no monthly summary for", ym, "- charges not recorded"); return; }
+        const cur = snap.data();
+        const counts = {};
+        residents.forEach(r => {
+            const g = roadGroup(r.road) || "other";
+            counts[g] = (counts[g] || 0) + 1;
+        });
+        const patch = {
+            charged: Number(cur.charged || 0) + amount * residents.length,
+            bills: Number(cur.bills || 0) + residents.length
+        };
+        Object.entries(counts).forEach(([g, n]) => {
+            const key = "g" + g;
+            const sub = cur[key] || {};
+            patch[key + ".charged"] = Number(sub.charged || 0) + amount * n;
+            patch[key + ".bills"] = Number(sub.bills || 0) + n;
+        });
+        await updateDoc(ref, patch);
+    } catch (e) { console.error("monthly bulk charge bump failed", e); }
 }
 
 async function logPaymentEvent(invoiceId, action, from, to, note) {
@@ -1122,7 +1172,7 @@ async function recordPayment(id, opts = {}, invDoc = null) {
     if (inv.id) {
         Object.assign(inv, { status: "provisional", receiptNumber: rcpt, recordedBy: auth.currentUser.uid });
         bumpResidentAggregate(inv.road, inv.unitNumber, { pending: amt, pendingCount: 1 });
-        bumpMonthly(inv.month, inv.year, { pending: amt, pendingCount: 1 });
+        bumpMonthly(inv.month, inv.year, { pending: amt, pendingCount: 1 }, inv.road);
     }
     // soaPaid is untouched on purpose: provisional money is not collected money
     if (!opts.silent) {
@@ -1149,7 +1199,7 @@ async function verifyPayment(id, note, invDoc = null) {
         Object.assign(inv, { status: "paid", verification: "verified", verifiedBy: auth.currentUser.uid });
         bumpResidentAggregate(inv.road, inv.unitNumber,
             { paid: amt, paidCount: 1, pending: -amt, pendingCount: -1 });
-        bumpMonthly(inv.month, inv.year, { paid: amt, paidCount: 1, pending: -amt, pendingCount: -1 });
+        bumpMonthly(inv.month, inv.year, { paid: amt, paidCount: 1, pending: -amt, pendingCount: -1 }, inv.road);
     }
     return true;
 }
@@ -1166,10 +1216,10 @@ async function voidPayment(id, reason, invDoc = null) {
     const amt = parseFloat(inv.amount) || 0;
     if (inv.status === "paid") {
         bumpResidentAggregate(inv.road, inv.unitNumber, { paid: -amt, paidCount: -1 });
-        bumpMonthly(inv.month, inv.year, { paid: -amt, paidCount: -1 });
+        bumpMonthly(inv.month, inv.year, { paid: -amt, paidCount: -1 }, inv.road);
     } else if (inv.status === "provisional") {
         bumpResidentAggregate(inv.road, inv.unitNumber, { pending: -amt, pendingCount: -1 });
-        bumpMonthly(inv.month, inv.year, { pending: -amt, pendingCount: -1 });
+        bumpMonthly(inv.month, inv.year, { pending: -amt, pendingCount: -1 }, inv.road);
     }
     if (inv.id) Object.assign(inv, { status: "void", voidReason: reason });
     toast("Payment voided", "info");
@@ -1283,7 +1333,9 @@ qs("#generateBulkBtn").addEventListener("click", async () => {
                 dueDate: due, status: "pending", createdAt: serverTimestamp() 
             });
         });
-        await batch.commit(); toast("Bills generated!", "success"); loadBilling(true);
+        await batch.commit();
+        await bumpMonthlyBulk(m, y, a, allResidents);   // keep 'billed' honest for this month
+        toast("Bills generated!", "success"); loadBilling(true); loadStats();
     } catch(e) { toast("Generation failed.", "error"); }
     finally { setLoading(qs("#generateBulkBtn"), false); }
 });

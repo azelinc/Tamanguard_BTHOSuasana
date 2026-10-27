@@ -271,7 +271,8 @@
         <p id="an-source-note" class="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-4">Loading…</p>
 
         <!-- Overall View -->
-        <div id="an-view-overall" class="an-view grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        <div id="an-view-overall" class="an-view">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           <div class="glass rounded-xl p-4 border border-emerald-500/20">
             <p class="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Verified collected</p>
             <h2 id="an-total-collected" class="text-lg font-black text-white whitespace-nowrap tabular-nums">RM 0</h2>
@@ -292,6 +293,9 @@
             <h2 id="an-collection-rate" class="text-2xl font-black text-white tabular-nums">0%</h2>
           </div>
         </div>
+        <!-- Area breakdown: each bar is a share of that area's own billed total, so the
+             two are comparable even though Suasana 5 has more houses. -->
+        <div id="an-area-breakdown" class="mt-3 space-y-2"></div>
 
         <!-- Ledger View -->
         <div id="an-view-ledger" class="an-view hidden">
@@ -312,6 +316,11 @@
 
         <!-- Trends View -->
         <div id="an-view-trends" class="an-view hidden space-y-3">
+          <div class="flex items-center gap-1 mb-2" id="an-area-seg">
+            <button data-area="all" class="an-area-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-indigo-600 text-white">All</button>
+            <button data-area="5" class="an-area-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-slate-800 text-slate-400 border border-slate-700">Suasana 5</button>
+            <button data-area="3" class="an-area-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-slate-800 text-slate-400 border border-slate-700">Suasana 3</button>
+          </div>
           <div id="an-trends-container" class="space-y-2"></div>
         </div>
       </div>
@@ -633,9 +642,23 @@
 /* ANALYTICS — inlined to avoid GitHub Pages CDN cache issues */
 window.loadAnalytics = function() {
   window.renderOverallStats();
+  window.renderAreaBreakdown();
   window.renderLedger();
   window.renderTrends();
 };
+
+/* area filter for the monthly trend — one control, three series */
+document.querySelectorAll(".an-area-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    window.anArea = btn.dataset.area;
+    document.querySelectorAll(".an-area-btn").forEach(b => {
+      const on = b === btn;
+      b.className = "an-area-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide "
+        + (on ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400 border border-slate-700");
+    });
+    window.renderTrends();
+  });
+});
 window.switchAnalyticsView = function(view) {
   document.querySelectorAll(".an-view").forEach(v => v.classList.add("hidden"));
   const el = document.querySelector("#an-view-" + view);
@@ -709,6 +732,48 @@ window.renderLedger = function() {
     tbody.appendChild(tr);
   });
 };
+window.anArea = "all";
+const AREA_META = {
+  "5": { name: "Suasana 5", accent: "text-amber-400", bar: "bg-amber-500" },
+  "3": { name: "Suasana 3", accent: "text-emerald-400", bar: "bg-emerald-500" },
+  "other": { name: "Other roads", accent: "text-slate-400", bar: "bg-slate-500" }
+};
+
+window.renderAreaBreakdown = function() {
+  const box = document.querySelector("#an-area-breakdown");
+  if (!box) return;
+  const residents = window.allResidents || [];
+  if (!residents.length) { box.innerHTML = ""; return; }
+
+  const groups = window.tgGroupTotals(residents);
+  const order = ["5", "3"].concat(Object.keys(groups).filter(g => g !== "5" && g !== "3"));
+  const money = v => Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  box.innerHTML = order.filter(g => groups[g] && groups[g].charged > 0).map(g => {
+    const t = groups[g], meta = AREA_META[g] || AREA_META.other;
+    const pct = t.charged > 0 ? (t.paid / t.charged) * 100 : 0;
+    const pendPct = t.charged > 0 ? (t.pending / t.charged) * 100 : 0;
+    const pctColour = pct >= 35 ? "text-emerald-400" : pct >= 20 ? "text-amber-400" : "text-rose-400";
+    return '<div class="glass rounded-xl p-4 border border-slate-700/50">'
+      + '<div class="flex justify-between items-baseline">'
+      +   '<div><span class="text-sm font-black text-white">' + meta.name + '</span>'
+      +   '<span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider ml-1.5">· ' + t.houses + ' houses</span></div>'
+      +   '<span class="text-lg font-black tabular-nums ' + pctColour + '">' + pct.toFixed(1) + '%</span>'
+      + '</div>'
+      + '<div class="w-full bg-slate-700/50 h-2.5 rounded-full overflow-hidden flex mt-2">'
+      +   '<div class="h-full ' + meta.bar + '" style="width:' + pct.toFixed(3) + '%"></div>'
+      +   (t.pending > 0 ? '<span class="h-full block" style="width:' + pendPct.toFixed(3) + '%;min-width:4px;'
+            + 'background:repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px);"></span>' : '')
+      + '</div>'
+      + '<div class="flex justify-between mt-1.5 text-[9px] font-bold">'
+      +   '<span class="text-emerald-400">Verified RM ' + money(t.paid) + '</span>'
+      +   (t.pending > 0 ? '<span class="text-indigo-400">Recorded RM ' + money(t.pending) + '</span>' : '')
+      +   '<span class="text-rose-400">Due RM ' + money(t.stillDue) + '</span>'
+      + '</div>'
+      + '</div>';
+  }).join("");
+};
+
 window.renderTrends = async function() {
   const container = document.querySelector("#an-trends-container");
   container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">Loading…</p>';
@@ -724,9 +789,55 @@ window.renderTrends = async function() {
 
   container.innerHTML = "";
   const money = v => Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  rows.forEach(r => {
+  const area = window.anArea || "all";
+
+  // "All" keeps the estate totals; an area reads its own bucket from the same doc, so the
+  // chart never needs a second query or an invoice scan.
+  const pick = r => {
+    if (area === "all") return r;
+    const sub = r["g" + area] || {};
+    return { charged: sub.charged || 0, paid: sub.paid || 0, pending: sub.pending || 0,
+             paidCount: sub.paidCount || 0, bills: sub.bills || 0,
+             month: r.month, year: r.year, ym: r.ym };
+  };
+
+  // "All" is a comparison, not a total: side-by-side bars show the gap between areas
+  // opening up month by month, which is the whole reason for the split.
+  if (area === "all") {
+    rows.forEach(r => {
+      const part = (sub, colour) => {
+        const c = Number(sub?.charged || 0), p = Number(sub?.paid || 0), pend = Number(sub?.pending || 0);
+        const pct = c > 0 ? (p / c) * 100 : 0;
+        const ppct = c > 0 ? (pend / c) * 100 : 0;
+        return { pct, bar: '<div class="w-full bg-slate-700/50 h-2 rounded-full overflow-hidden flex mt-1">'
+          + '<div class="h-full" style="width:' + pct.toFixed(3) + '%;background:' + colour + '"></div>'
+          + (pend > 0 ? '<span class="h-full block" style="width:' + Math.max(ppct, 0.4).toFixed(3) + '%;'
+              + 'background:repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px);"></span>' : '')
+          + '</div>' };
+      };
+      const a5 = part(r.g5, "#f59e0b"), a3 = part(r.g3, "#22c55e");
+      const label = (r.month || "").slice(0, 3) + " " + String(r.year || "").slice(2);
+      const card = document.createElement("div");
+      card.className = "glass rounded-xl p-4 border border-slate-700/50";
+      card.innerHTML = '<div class="flex justify-between items-center mb-2">'
+        + '<span class="text-xs font-black uppercase text-white tracking-wider">' + label + '</span>'
+        + '<span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">both areas</span></div>'
+        + '<div class="flex gap-3">'
+        +   '<div class="flex-1"><div class="flex justify-between text-[9px] font-bold mb-0.5">'
+        +     '<span class="text-amber-400">Suasana 5</span><span class="text-amber-400 tabular-nums">' + a5.pct.toFixed(1) + '%</span></div>' + a5.bar + '</div>'
+        +   '<div class="flex-1"><div class="flex justify-between text-[9px] font-bold mb-0.5">'
+        +     '<span class="text-emerald-400">Suasana 3</span><span class="text-emerald-400 tabular-nums">' + a3.pct.toFixed(1) + '%</span></div>' + a3.bar + '</div>'
+        + '</div>';
+      container.appendChild(card);
+    });
+    return;
+  }
+
+  rows.forEach(unsliced => {
+    const r = pick(unsliced);
     const charged = Number(r.charged || 0), paid = Number(r.paid || 0);
     const pending = Number(r.pending || 0), pendingCount = Number(r.pendingCount || 0);
+    if (area !== "all" && charged === 0) return;   // this area had nothing billed that month
     const paidPct = charged > 0 ? (paid / charged) * 100 : 0;
     const pendPct = charged > 0 ? (pending / charged) * 100 : 0;
     const due = Math.max(0, charged - paid - pending);
@@ -756,6 +867,6 @@ window.renderTrends = async function() {
 };
 </script>
   <div class="text-center text-[9px] text-slate-600 font-mono pb-2">build <span id="buildStamp">—</span></div>
-  <script type="module" src="../app.js?v=20261027q"></script>
+  <script type="module" src="../app.js?v=20261027r"></script>
 </body>
 </html>
