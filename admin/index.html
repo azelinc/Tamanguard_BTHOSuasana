@@ -296,6 +296,7 @@
         <!-- Area breakdown: each bar is a share of that area's own billed total, so the
              two are comparable even though Suasana 5 has more houses. -->
         <div id="an-area-breakdown" class="mt-3 space-y-2"></div>
+        </div>
 
         <!-- Ledger View -->
         <div id="an-view-ledger" class="an-view hidden">
@@ -667,7 +668,9 @@
   
   <script type="module">
 /* ANALYTICS — inlined to avoid GitHub Pages CDN cache issues */
-window.loadAnalytics = function() {
+window.loadAnalytics = async function() {
+  // Wait for the roster before drawing: the ledger and the portfolio totals both read it.
+  try { if (window.tgEnsureResidents) await window.tgEnsureResidents(); } catch (e) { console.error("roster load failed", e); }
   window.renderOverallStats();
   window.renderAreaBreakdown();
   window.renderLedger();
@@ -699,6 +702,18 @@ window.switchAnalyticsView = function(view) {
     btn.classList.add("bg-blue-600/20", "text-blue-400", "border-blue-600/30");
     btn.classList.remove("text-slate-400", "border-slate-700/50", "bg-slate-800/50");
   }
+
+  /* Re-render on entry. These views used to be drawn once when the Analytics tab
+     opened, while still hidden; if that first render ran before the resident data
+     or the monthly summaries were ready, switching to the view afterwards showed a
+     permanently empty panel with no error and no way to refresh except a reload. */
+  const redraw = { ledger: "renderLedger", trends: "renderTrends" }[view];
+  if (redraw && typeof window[redraw] === "function") {
+    try {
+      const r = window[redraw]();
+      if (r && typeof r.catch === "function") r.catch(e => console.error(redraw + " failed", e));
+    } catch (e) { console.error(redraw + " failed", e); }
+  }
 };
 window.renderOverallStats = function() {
   const fmt = v => Math.abs(v).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -728,7 +743,13 @@ window.renderOverallStats = function() {
 };
 window.renderLedger = function() {
   const tbody = document.querySelector("#an-ledger-body");
+  if (!tbody) return;
   tbody.innerHTML = "";
+  if (!Array.isArray(window.allResidents) || !window.allResidents.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">'
+      + 'No resident data loaded yet.<br><span class="text-slate-600">Still fetching the roster, or you are not signed in as committee.</span></td></tr>';
+    return;
+  }
   const sorted = [...window.allResidents].sort((a, b) => (a.unitNumber || "").localeCompare(b.unitNumber || ""));
   if (!sorted.length) {
     tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500 text-xs">No residents found.</td></tr>';
@@ -803,14 +824,22 @@ window.renderAreaBreakdown = function() {
 
 window.renderTrends = async function() {
   const container = document.querySelector("#an-trends-container");
+  if (!container) { console.error("trends: #an-trends-container missing"); return; }
   container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">Loading…</p>';
 
   // 24 monthly summary documents, never the 8k-row ledger
   let rows = [];
-  try { rows = await window.tgMonthlyStats(); } catch (e) { console.error("trends failed", e); }
+  let err = null;
+  try { rows = await window.tgMonthlyStats(); }
+  catch (e) { err = e; console.error("trends failed", e); }
 
   if (!rows.length) {
-    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">No monthly summaries yet.<br>They are written when bills are generated or backfilled.</p>';
+    container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">'
+      + (err
+          ? 'Could not read monthly summaries.<br><span class="text-rose-400">'
+            + ((err.code || err.name || "") + " " + (err.message || "")).slice(0, 120) + '</span>'
+          : 'No monthly summaries yet.<br>They are written when bills are generated or backfilled.')
+      + '</p>';
     return;
   }
 
@@ -894,6 +923,6 @@ window.renderTrends = async function() {
 };
 </script>
   <div class="text-center text-[9px] text-slate-600 font-mono pb-2">build <span id="buildStamp">—</span></div>
-  <script type="module" src="../app.js?v=20261027v"></script>
+  <script type="module" src="../app.js?v=20261027w"></script>
 </body>
 </html>

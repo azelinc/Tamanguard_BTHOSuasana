@@ -420,6 +420,12 @@ window.tgGroupTotals = (residents) => groupTotals(residents, r => {
 window.tgPreviewVisitorModule = (on) => { tamanConfig.visitorsEnabled = on; applyModuleVisibility(); return tamanConfig.visitorsEnabled; };
 window.tgPortfolio = portfolioTotals;
 window.tgShowProfile = showResidentProfile;
+window.tgEnsureResidents = async function (force = false) {
+    // The ledger reads the roster cache. Without this, opening Analytics before the
+    // initial fetch finished rendered "No residents found" until a manual refresh.
+    await preloadResidentData(force);
+    return allResidents.length;
+};
 window.tgMonthlyStats = async function () {
     // allow-full-read: 24 monthly summaries, one per billing month
     const snap = await getDocs(query(collection(db, "stats_monthly"), orderBy("ym")));
