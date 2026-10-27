@@ -567,21 +567,10 @@ function sendWhatsAppInvite(res) {
     const baseUrl = "https://bthosuasana.tamanguard.my"; 
     
     // 1. FIRST ENCODE: Handle the spaces/slashes in the Road name so the link doesn't break
-    const u = encodeURIComponent(res.unitNumber);
-    const r = encodeURIComponent(res.road);
-    const p = encodeURIComponent(res.pin);
-
-    // This creates a "clean" link with no spaces: ...?u=1&r=JLN%20SUASANA%205%2F3&p=1234
-    const magicLink = `${baseUrl}?u=${u}&r=${r}&p=${p}`;
-
-    // 2. Build the message text
-    const rawMessage = `*TamanGuard Official Access*
-
-Hello ${res.name}, welcome! Click the secure link below to instantly log in for Unit ${res.unitNumber}:
-
-${magicLink}
-
-Once logged in, you can generate guest passes and view bills.`;
+    // No PIN goes in a URL any more: links are logged in chat history and browser
+    // history, and a URL carrying a credential is a credential. The message states the
+    // house and the PIN, which the resident types once and the device remembers.
+    const rawMessage = buildAccessMessage(res, res.pin);
     
     // 3. SECOND ENCODE: Wrap the whole message for the WhatsApp wa.me API
     const encodedMessage = encodeURIComponent(rawMessage);
@@ -595,6 +584,92 @@ Once logged in, you can generate guest passes and view bills.`;
     window.open(`https://wa.me/${phone}?text=${encodedMessage}`, '_blank');
 }
 
+// --- CREDENTIAL ISSUING -----------------------------------------------------------
+// A PIN exists only as a scrypt hash, so it can never be displayed or recovered. The
+// only way to give a resident working access is to issue a fresh one, which is shown
+// exactly once and never stored in readable form.
+let currentResident = null;
+
+function buildAccessMessage(res, pin) {
+    return `*TamanGuard Access — Rumah ${res.unitNumber}, ${res.road}*
+
+Assalamualaikum ${res.name},
+
+Cara masuk / How to sign in:
+1. Buka / Open: https://bthosuasana.tamanguard.my
+2. Rumah / House: ${res.unitNumber}
+3. Jalan / Road: ${res.road}
+4. PIN: ${pin}
+
+Simpan PIN ini. Jawatankuasa tidak boleh melihatnya semula.
+Keep this PIN — the committee cannot view it again.`;
+}
+
+function showPinReveal(res) {
+    const msg = buildAccessMessage(res, res.pin);
+    qs("#pinRevealValue").textContent = res.pin;
+    qs("#pinRevealWho").textContent = `Rumah ${res.unitNumber} — ${res.road}`;
+    qs("#pinRevealMsg").value = msg;
+    const modal = qs("#pinRevealModal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+
+    qs("#pinRevealCopy").onclick = () => {
+        navigator.clipboard.writeText(msg).then(
+            () => { qs("#pinRevealCopy").textContent = "Copied"; setTimeout(() => qs("#pinRevealCopy").textContent = "Copy message", 1500); },
+            () => alert("Copy failed — select the text manually")
+        );
+    };
+    qs("#pinRevealWa").onclick = () => {
+        let phone = (res.phone || "").replace(/\D/g, "");
+        if (phone.startsWith("0")) phone = "6" + phone;
+        else if (phone.startsWith("1")) phone = "60" + phone;
+        if (!phone) return alert("This house has no phone number on record");
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+    };
+    qs("#pinRevealDone").onclick = () => {
+        modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        // Clear the only readable copy that ever existed.
+        qs("#pinRevealValue").textContent = "------";
+        qs("#pinRevealMsg").value = "";
+        res.pin = undefined;
+    };
+}
+
+async function issueNewPin(res) {
+    if (!res) return;
+    const who = `Rumah ${res.unitNumber}, ${res.road}`;
+    if (!confirm(`Issue a new PIN for ${who}?\n\nThe previous PIN stops working immediately, and the new one is shown only once.`)) return;
+    const btn = qs("#profIssuePinBtn");
+    const label = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "Issuing...";
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error("Not signed in");
+        const idToken = await user.getIdToken();
+        const r = await fetch("https://hermes.azelinc.tech/tamanguard/auth/issue-pin", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+            // The panel identifies houses by unit+road, not by Firestore doc id.
+            body: JSON.stringify({ unit: res.unitNumber, road: res.road })
+        });
+        if (r.status === 401) throw new Error("Only committee members can issue PINs.");
+        if (r.status === 404) throw new Error("That house is no longer in the roster.");
+        if (!r.ok) throw new Error("Could not issue a PIN (" + r.status + ").");
+        const d = await r.json();
+        res.pin = d.pin;
+        qs("#profPinState").textContent = "New PIN issued just now";
+        showPinReveal(res);
+    } catch (e) {
+        alert(e.message || String(e));
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = label;
+    }
+}
+
 async function showResidentProfile(res) {
     const modal = qs("#residentProfileModal");
     qs("#profInitial").textContent = res.name.charAt(0).toUpperCase();
@@ -602,10 +677,16 @@ async function showResidentProfile(res) {
     qs("#profMeta").textContent = `UNIT ${res.unitNumber} — ${res.road || '-'}`;
     qs("#profPhone").textContent = res.phone;
     qs("#profVehicle").textContent = res.vehiclePlate || '-';
-    qs("#profPin").textContent = res.pin;
+    // The PIN is stored as a scrypt hash, so it cannot be displayed. The only way to
+    // give a resident a working PIN is to issue a new one.
+    currentResident = res;
+    qs("#profPinState").textContent = res.pinIssuedAt ? "Hash stored — reissue to replace" : "Hash stored";
 
     const soaBtn = qs("#profSoaBtn");
     if (soaBtn) soaBtn.onclick = () => openStatement(res);
+
+    const issueBtn = qs("#profIssuePinBtn");
+    if (issueBtn) issueBtn.onclick = () => issueNewPin(res);
 
     const tbody = qs("#profHistoryBody");
     tbody.innerHTML = '<tr><td colspan="4" class="py-12 text-center text-slate-500"><span class="spinner"></span></td></tr>';

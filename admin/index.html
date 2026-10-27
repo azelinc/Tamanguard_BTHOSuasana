@@ -439,7 +439,25 @@
     </div>
   </div>
 
-  <div id="residentProfileModal" class="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
+  <!-- ONE-TIME PIN REVEAL: the only moment a PIN is ever visible -->
+<div id="pinRevealModal" class="fixed inset-0 z-[120] bg-slate-950/90 hidden items-center justify-center p-6">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+    <h3 class="text-white font-black uppercase tracking-widest text-sm">New PIN issued</h3>
+    <p class="text-[10px] text-amber-400 uppercase tracking-widest mt-1 mb-4">Shown once — nothing readable is stored</p>
+    <div class="bg-slate-950 border border-slate-700 rounded-xl p-4 text-center mb-4">
+      <div id="pinRevealValue" class="font-mono text-3xl font-black text-emerald-400 tracking-[0.3em]">------</div>
+      <div id="pinRevealWho" class="text-[10px] text-slate-400 uppercase tracking-widest mt-2">-</div>
+    </div>
+    <textarea id="pinRevealMsg" readonly class="w-full h-36 bg-slate-950 border border-slate-700 rounded-xl p-3 text-[11px] text-slate-300 font-mono mb-3"></textarea>
+    <div class="grid grid-cols-2 gap-3">
+      <button id="pinRevealCopy" class="bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-bold uppercase tracking-widest py-3 rounded-xl transition-colors">Copy message</button>
+      <button id="pinRevealWa" class="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-widest py-3 rounded-xl transition-colors">Send WhatsApp</button>
+    </div>
+    <button id="pinRevealDone" class="w-full mt-3 text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest py-2 transition-colors">Done — I have saved it</button>
+  </div>
+</div>
+
+<div id="residentProfileModal" class="fixed inset-0 z-[150] bg-slate-950/90 backdrop-blur hidden flex items-center justify-center p-4">
     <div class="glass rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col p-8 relative shadow-2xl">
         <div class="flex justify-between items-start mb-6">
             <div class="flex gap-4 items-center">
@@ -453,9 +471,14 @@
                 <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-phone w-8 text-slate-500"></i><span id="profPhone">-</span></p>
                 <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-car w-8 text-slate-500"></i><span id="profVehicle">-</span></p>
             </div>
-            <div class="flex justify-between items-center px-4 border-l border-slate-700/50">
-                <span class="text-[10px] uppercase font-bold text-slate-500 tracking-widest">App PIN</span>
-                <span class="font-mono text-emerald-400 font-bold text-2xl tracking-widest" id="profPin">----</span>
+            <div class="flex justify-between items-center px-4 border-l border-slate-700/50 gap-3">
+                <div class="min-w-0">
+                    <span class="block text-[10px] uppercase font-bold text-slate-500 tracking-widest">App PIN</span>
+                    <span class="block text-[9px] text-slate-500 mt-1 leading-tight" id="profPinState">Stored as a hash</span>
+                </div>
+                <button id="profIssuePinBtn" class="shrink-0 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold uppercase tracking-widest px-3 py-2 rounded-lg transition-colors">
+                    Issue new PIN
+                </button>
             </div>
         </div>
         <div id="profSummary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6"></div>
@@ -867,6 +890,6 @@ window.renderTrends = async function() {
 };
 </script>
   <div class="text-center text-[9px] text-slate-600 font-mono pb-2">build <span id="buildStamp">—</span></div>
-  <script type="module" src="../app.js?v=20261027s"></script>
+  <script type="module" src="../app.js?v=20261027u"></script>
 </body>
 </html>
