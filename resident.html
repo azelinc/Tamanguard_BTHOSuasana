@@ -290,7 +290,11 @@
             const doc = await db.collection("settings").doc("taman_config").get();
             if(doc.exists) {
                 const r = doc.data().roads ||[];
-                document.getElementById('login-road').innerHTML = r.map(x => `<option value="${x}">${x}</option>`).join('');
+                // No default selection: a pre-selected road means a resident who only types
+                // their house number submits a mismatched road and is told the PIN is wrong.
+                document.getElementById('login-road').innerHTML =
+                    '<option value="">— Pilih Jalan / Select Road —</option>' +
+                    r.map(x => `<option value="${x}">${x}</option>`).join('');
                 // Committee contact for first-login requests, editable in admin Settings.
                 const wa = String(doc.data().firstLoginWhatsapp || '60122750485').replace(/\D/g, '');
                 if (wa) firstLoginNumber = wa;
