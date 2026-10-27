@@ -27,23 +27,46 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    /* ---------- resident identity ----------
+       A resident's session is a Firebase custom token minted by the login service with
+       two claims: their house number and their road. Rules compare documents to those
+       claims rather than looking the resident up, which costs ZERO extra reads — a
+       get() inside the rule would bill one extra read per document evaluated, i.e. 24
+       extra reads for a 24-bill page, on every page load, forever.
+
+       Consequence to remember: if an admin corrects a house's road or number, that
+       resident's claim is stale until they next log in. */
+    function isResident() {
+      return request.auth != null && request.auth.token.get('unit', '') != '';
+    }
+    function residentUnit() {
+      return request.auth.token.get('unit', '');
+    }
+    function residentRoad() {
+      return request.auth.token.get('road', '');
+    }
+    function ownsHouse(data) {
+      return isResident()
+        && data.get('unitNumber', '') == residentUnit()
+        && data.get('road', '') == residentRoad();
+    }
+
     /* ---------- residents ---------- */
     match /residents/{docId} {
       // LOCKDOWN 2026-10-27: this was `if true` so the browser could compare the PIN.
-      // That made every PIN, name and phone number world-readable. Login is being rebuilt
-      // server-side; until then only the committee can read the roster.
-      allow read: if isAdmin();
-      // The resident app may only ever touch the join flag. This closes the hole that
-      // let anyone rewrite another household's name/phone/PIN and log in as them.
-      allow update: if onlyChanged(['isJoined', 'lastLoginAt']);
-      allow create, delete: if isAdmin();
-      allow update: if isAdmin();
+      // That made every PIN, name and phone number world-readable.
+      // Now: a resident sees their own house; the rest of the roster is committee-only.
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == docId);
+      // Residents hold NO write access to their own document. The login service stamps
+      // isJoined/lastLoginAt with server credentials, so that badge now counts every
+      // login instead of only the ones that arrived via a magic link.
+      allow write: if isAdmin();
     }
 
     /* ---------- invoices: the money trail ---------- */
     match /invoices/{docId} {
-      // LOCKDOWN 2026-10-27: the full money ledger (8,184 bills) was world-readable.
-      allow read: if isAdmin();
+      // A resident may read bills addressed to their own house, and nothing else.
+      allow read: if isAdmin() || ownsHouse(resource.data);
       allow create, delete: if isAdmin();
 
       // 1. Any committee member may RECORD a payment. It stays provisional —
@@ -103,19 +126,31 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     match /stats_monthly/{docId} { allow read: if true; allow write: if isAdmin(); }
+
     match /visits/{docId} {
-      // LOCKDOWN 2026-10-27: guest passes carry visitor names and vehicle plates.
-      allow read: if isAdmin();
+      // Guest passes carry visitor names and vehicle plates, so they are scoped to the
+      // house that issued them.
+      allow read: if isAdmin() || ownsHouse(resource.data);
       /* the committee can switch the visitor module off; that must stop NEW passes
          at the database, not just hide the button. Existing passes stay cancellable
-         so a switch-off never strands someone who already issued one. */
-      allow create: if visitorsOn();
-      allow update: if isAdmin();                // lockdown: no unauthenticated writes
+         so a switch-off never strands someone who already issued one.
+         A resident may only create a pass for their own house. */
+      allow create: if visitorsOn()
+        && ((isResident() && ownsHouse(request.resource.data)) || isAdmin());
+      // Residents may cancel their own pass (status + updatedAt only), nothing else.
+      allow update: if isAdmin()
+        || (ownsHouse(resource.data) && onlyChanged(['status', 'updatedAt']));
       allow delete: if isAdmin();
     }
+
     match /community_chat/{id} {
-      // LOCKDOWN 2026-10-27: chat was world-readable and world-writable.
-      allow read, create: if isAdmin();
+      // Estate-wide chat: any signed-in resident may read and post, but a post must
+      // carry the poster's own house — you cannot speak as another household.
+      allow read: if isAdmin() || isResident();
+      allow create: if isAdmin()
+        || (isResident()
+            && request.resource.data.get('unit', '') == residentUnit()
+            && request.resource.data.get('road', '') == residentRoad());
       allow delete: if isAdmin();
     }
 
