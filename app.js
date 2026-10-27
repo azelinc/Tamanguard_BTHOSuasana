@@ -79,7 +79,16 @@ function applyRoleVisibility() {
   });
 }
 
-const BUILD_STAMP = "2026-10-27-m";
+/* Read the version off this module's own script tag. A hardcoded stamp goes stale the
+   moment app.js is bumped (it claimed -m while serving -r), which makes the one thing it
+   exists for - telling a cached page from a fresh one - a lie. */
+const BUILD_STAMP = (() => {
+    try {
+        const tags = [...document.querySelectorAll('script[src*="app.js"]')];
+        const src = tags.length ? tags[tags.length - 1].src : "";
+        return new URL(src, location.href).searchParams.get("v") || "dev";
+    } catch (e) { return "dev"; }
+})();
 
 /* A module can be switched off for the whole Taman. The role gate decides WHO can
    see a tab; this gate decides WHETHER the feature exists at all. Both write
