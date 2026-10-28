@@ -808,6 +808,17 @@ document.querySelectorAll(".an-area-btn").forEach(btn => {
     window.renderTrends();
   });
 });
+/* The trend bars are inline styles, so the light/dark remap in CSS cannot touch
+   them. Redraw on a theme change instead of leaving dark-mode colours on white. */
+window.addEventListener("tg:theme", () => {
+  const v = document.querySelector("#an-view-trends");
+  if (!v || v.classList.contains("hidden")) return;
+  try {
+    const r = window.renderTrends();
+    if (r && typeof r.catch === "function") r.catch(e => console.error("trends redraw failed", e));
+  } catch (e) { console.error("trends redraw failed", e); }
+});
+
 window.switchAnalyticsView = function(view) {
   document.querySelectorAll(".an-view").forEach(v => v.classList.add("hidden"));
   const el = document.querySelector("#an-view-" + view);
@@ -951,6 +962,8 @@ window.renderTrends = async function() {
   let err = null;
   try { rows = await window.tgMonthlyStats(); }
   catch (e) { err = e; console.error("trends failed", e); }
+  // chronological regardless of document order — the column chart depends on it
+  rows = rows.slice().sort((a, b) => String(a.ym || "").localeCompare(String(b.ym || "")));
 
   if (!rows.length) {
     container.innerHTML = '<p class="text-center py-10 text-xs text-slate-500">'
@@ -976,39 +989,153 @@ window.renderTrends = async function() {
              month: r.month, year: r.year, ym: r.ym };
   };
 
-  // "All" is a comparison, not a total: side-by-side bars show the gap between areas
-  // opening up month by month, which is the whole reason for the split.
+  /* ------------------------------------------------------------------
+     ALL = the whole estate, so the two areas are STACKED inside one bar per
+     month, never drawn as two competing lanes. Two views, both from the same
+     24 stats_monthly docs:
+        B  one column per month, stacked 5 + 3, height = collection rate
+        C  compact list, one stacked bar per row with the ringgit split spelled out
+     Colours are chosen per theme because these bars are inline styles, not
+     CSS classes — the light theme cannot remap them.
+     ------------------------------------------------------------------ */
   if (area === "all") {
-    rows.forEach(r => {
-      const part = (sub, colour) => {
-        const c = Number(sub?.charged || 0), p = Number(sub?.paid || 0), pend = Number(sub?.pending || 0);
-        const pct = c > 0 ? (p / c) * 100 : 0;
-        const ppct = c > 0 ? (pend / c) * 100 : 0;
-        return { pct, bar: '<div class="w-full bg-slate-700/50 h-2 rounded-full overflow-hidden flex mt-1">'
-          + '<div class="h-full" style="width:' + pct.toFixed(3) + '%;background:' + colour + '"></div>'
-          + (pend > 0 ? '<span class="h-full block" style="width:' + Math.max(ppct, 0.4).toFixed(3) + '%;'
-              + 'background:repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px);"></span>' : '')
-          + '</div>' };
-      };
-      const a5 = part(r.g5, "#f59e0b"), a3 = part(r.g3, "#22c55e");
-      const label = (r.month || "").slice(0, 3) + " " + String(r.year || "").slice(2);
-      const card = document.createElement("div");
-      card.className = "glass rounded-xl p-4 border border-slate-700/50";
-      card.innerHTML = '<div class="flex justify-between items-center mb-2">'
-        + '<span class="text-xs font-black uppercase text-white tracking-wider">' + label + '</span>'
-        + '<span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider">both areas</span></div>'
-        + '<div class="flex gap-3">'
-        +   '<div class="flex-1"><div class="flex justify-between text-[9px] font-bold mb-0.5">'
-        +     '<span class="text-amber-400">Suasana 5</span><span class="text-amber-400 tabular-nums">' + a5.pct.toFixed(1) + '%</span></div>' + a5.bar + '</div>'
-        +   '<div class="flex-1"><div class="flex justify-between text-[9px] font-bold mb-0.5">'
-        +     '<span class="text-emerald-400">Suasana 3</span><span class="text-emerald-400 tabular-nums">' + a3.pct.toFixed(1) + '%</span></div>' + a3.bar + '</div>'
+    const isLight = document.documentElement.classList.contains("light");
+    const C5 = isLight ? "#b45309" : "#f59e0b";        // Suasana 5
+    const C3 = isLight ? "#15803d" : "#22c55e";        // Suasana 3
+    const TRACK = isLight ? "rgba(15,23,42,.07)" : "rgba(51,65,85,.45)";
+    const GRID = isLight ? "rgba(15,23,42,.10)" : "rgba(148,163,184,.16)";
+    const HATCH = "repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px)";
+    const MONO = "font-variant-numeric:tabular-nums;font-family:'Courier New',monospace";
+    const muted = isLight ? "#475569" : "#94a3b8";
+
+    const n = v => Number(v || 0);
+    const lab = r => (r.month || "").slice(0, 3) + " " + String(r.year || "").slice(2);
+    const tot = rows.reduce((a, r) => {
+      a.c5 += n(r.g5?.charged); a.c3 += n(r.g3?.charged);
+      a.p5 += n(r.g5?.paid);    a.p3 += n(r.g3?.paid);
+      a.pend += n(r.pending);
+      return a;
+    }, { c5: 0, c3: 0, p5: 0, p3: 0, pend: 0 });
+    const rate = (tot.c5 + tot.c3) > 0 ? ((tot.p5 + tot.p3) / (tot.c5 + tot.c3)) * 100 : 0;
+
+    const chip = (colour, text, hatch) => '<span class="flex items-center gap-1 text-[9px]" style="color:' + muted + '">'
+      + '<i style="width:9px;height:9px;border-radius:2px;display:inline-block;'
+      + (hatch ? "background:" + HATCH : "background:" + colour) + '"></i>' + text + '</span>';
+
+    const legend = '<div class="flex flex-wrap gap-x-3 gap-y-1">'
+      + chip(C5, "Suasana 5") + chip(C3, "Suasana 3") + chip(null, "recorded", true) + '</div>';
+
+    // ---------- B: column chart ----------
+    const cols = rows.map(r => {
+      const c5 = n(r.g5?.charged), p5 = n(r.g5?.paid);
+      const c3 = n(r.g3?.charged), p3 = n(r.g3?.paid);
+      const pend = n(r.pending);
+      const charged = c5 + c3;
+      const pc = v => charged > 0 ? (v / charged) * 100 : 0;
+      const pct = charged > 0 ? ((p5 + p3) / charged) * 100 : 0;
+      const seg = (p, colour) => p > 0
+        ? '<div class="w-full" style="height:' + p.toFixed(2) + '%;background:' + colour + '"></div>' : "";
+      return '<div class="flex-1 flex flex-col justify-end cursor-pointer group" style="min-width:0"'
+        + ' data-ym="' + (r.ym || "") + '" data-lab="' + lab(r) + '"'
+        + ' data-pct="' + pct.toFixed(1) + '" data-p5="' + p5 + '" data-p3="' + p3 + '"'
+        + ' data-c5="' + c5 + '" data-c3="' + c3 + '" data-pend="' + pend + '">'
+        + '<div class="w-full h-full flex flex-col justify-end overflow-hidden" style="background:' + TRACK + '">'
+        +   seg(pc(p3), C3) + seg(pc(p5), C5)
+        +   (pend > 0 ? '<div style="height:' + Math.max(pc(pend), 1.5).toFixed(2) + '%;background:' + HATCH + '"></div>' : "")
+        + '</div></div>';
+    }).join("");
+
+    const xlab = rows.map((r, i) => {
+      const jan = (r.month || "") === "January";
+      return '<div class="flex-1 text-center" style="font-size:6.5px;line-height:1.15;color:'
+        + (jan ? muted : (isLight ? "#94a3b8" : "#475569")) + ';font-weight:' + (jan ? "800" : "600") + '">'
+        + (r.month || "").slice(0, 3)
+        + (jan ? '<br><span style="font-size:6px;opacity:.8">' + String(r.year || "") + '</span>' : "")
         + '</div>';
-      container.appendChild(card);
+    }).join("");
+
+    const chart = document.createElement("div");
+    chart.className = "glass rounded-xl p-4 border border-slate-700/50";
+    chart.innerHTML =
+      '<div class="flex justify-between items-start mb-3 gap-3">'
+      + '<div><div class="text-[9px] font-bold uppercase tracking-widest" style="color:' + muted + '">Estate collection rate</div>'
+      + '<div class="text-lg font-black text-white leading-none mt-0.5">' + rate.toFixed(1) + '%'
+      +   '<span class="text-[9px] font-bold ml-1.5" style="color:' + muted + '">all 341 houses · both areas</span></div></div>'
+      + legend + '</div>'
+      + '<div class="flex gap-1">'
+      +   '<div class="flex flex-col justify-between text-right shrink-0" style="height:150px;width:26px;font-size:7px;color:' + muted + '">'
+      +     '<span>100%</span><span>75</span><span>50</span><span>25</span><span>0</span></div>'
+      +   '<div class="flex-1 relative" style="height:150px">'
+      +     '<div class="absolute inset-0 pointer-events-none">'
+      +       [0, 25, 50, 75].map(p => '<div class="absolute w-full" style="top:' + p + '%;border-top:1px dashed ' + GRID + '"></div>').join("")
+      +     '</div>'
+      +     '<div class="flex items-stretch h-full" style="gap:2px">' + cols + '</div>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="flex mt-1" style="gap:2px;padding-left:30px">' + xlab + '</div>'
+      + '<div id="an-trend-readout" class="mt-2.5 pt-2 border-t flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-bold"'
+      +   ' style="border-color:' + GRID + ';color:' + muted + '">'
+      +   '<span class="font-black text-white">' + rows.length + ' months</span>'
+      +   '<span style="color:' + C5 + '">5 · RM ' + money(tot.p5) + '</span>'
+      +   '<span style="color:' + C3 + '">3 · RM ' + money(tot.p3) + '</span>'
+      +   '<span>verified RM ' + money(tot.p5 + tot.p3) + ' of RM ' + money(tot.c5 + tot.c3) + '</span>'
+      + '</div>';
+    container.appendChild(chart);
+
+    // hover / tap readout — the chart shows shape, this restores the numbers
+    const readout = chart.querySelector("#an-trend-readout");
+    const baseReadout = readout.innerHTML;
+    const show = el => {
+      const d = el.dataset;
+      readout.innerHTML = '<span class="font-black text-white">' + d.lab + '</span>'
+        + '<span style="color:' + C5 + '">5 · RM ' + money(d.p5) + ' <span style="opacity:.55">/ ' + money(d.c5) + '</span></span>'
+        + '<span style="color:' + C3 + '">3 · RM ' + money(d.p3) + ' <span style="opacity:.55">/ ' + money(d.c3) + '</span></span>'
+        + (Number(d.pend) > 0 ? '<span class="text-indigo-400">recorded RM ' + money(d.pend) + '</span>' : "")
+        + '<span class="text-white">' + d.pct + '%</span>';
+    };
+    chart.querySelectorAll("[data-ym]").forEach(el => {
+      el.addEventListener("mouseenter", () => show(el));
+      el.addEventListener("click", () => show(el));
     });
+    readout.addEventListener("mouseleave", () => { readout.innerHTML = baseReadout; });
+
+    // ---------- C: compact list ----------
+    const list = document.createElement("div");
+    list.className = "glass rounded-xl p-3 border border-slate-700/50";
+    list.innerHTML =
+      '<div class="flex justify-between items-center mb-2 px-1">'
+      + '<span class="text-[9px] font-bold uppercase tracking-widest" style="color:' + muted + '">Month by month · stacked</span>'
+      + '<span class="text-[9px] font-bold" style="color:' + muted + '">verified RM · Suasana 5 · Suasana 3</span></div>' 
+      + rows.map(r => {
+          const c5 = n(r.g5?.charged), p5 = n(r.g5?.paid);
+          const c3 = n(r.g3?.charged), p3 = n(r.g3?.paid);
+          const pend = n(r.pending);
+          const charged = c5 + c3;
+          const pc = v => charged > 0 ? (v / charged) * 100 : 0;
+          const pct = charged > 0 ? ((p5 + p3) / charged) * 100 : 0;
+          const tone = pct >= 80 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "#f43f5e";
+          const seg = (p, colour, border) => p > 0
+            ? '<span style="display:block;height:100%;width:' + p.toFixed(2) + '%;background:' + colour
+              + (border ? ";border-left:1px solid " + (isLight ? "#ffffff" : "#0b1220") : "") + '"></span>' : "";
+          return '<div class="flex items-center gap-2 py-1 px-1 rounded" style="background:'
+            + (isLight ? "rgba(15,23,42,.03)" : "rgba(15,23,42,.45)") + '">'
+            + '<span class="shrink-0 font-black uppercase" style="width:46px;font-size:9px;color:'
+            + (isLight ? "#0f172a" : "#ffffff") + '">' + lab(r) + '</span>'
+            + '<span class="flex-1 flex overflow-hidden rounded-full" style="height:7px;background:' + TRACK + '">'
+            +   seg(pc(p5), C5) + seg(pc(p3), C3, true)
+            +   (pend > 0 ? '<span style="display:block;height:100%;min-width:2px;width:'
+                + Math.max(pc(pend), 1).toFixed(2) + '%;background:' + HATCH + '"></span>' : "")
+            + '</span>'
+            + '<span class="shrink-0 text-right" style="width:64px;font-size:9px;color:' + C5 + ';' + MONO + '">' + money(p5) + '</span>'
+            + '<span class="shrink-0 text-right" style="width:64px;font-size:9px;color:' + C3 + ';' + MONO + '">' + money(p3) + '</span>'
+            + '<span class="shrink-0 text-right font-bold" style="width:34px;font-size:9px;color:' + tone + ';' + MONO + '">' + pct.toFixed(0) + '%</span>'
+            + '</div>';
+        }).join("");
+    container.appendChild(list);
     return;
   }
 
-  rows.forEach(unsliced => {
+    rows.forEach(unsliced => {
     const r = pick(unsliced);
     const charged = Number(r.charged || 0), paid = Number(r.paid || 0);
     const pending = Number(r.pending || 0), pendingCount = Number(r.pendingCount || 0);
@@ -1078,6 +1205,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028c"></script>
+  <script type="module" src="../app.js?v=20261028d"></script>
 </body>
 </html>
