@@ -92,14 +92,36 @@
   html.light [class*="text-purple-300"],
   html.light [class*="text-purple-400"]  { color: #7e22ce !important; }
 
-  /* filled controls keep white labels */
-  html.light [class*="bg-blue-5"],    html.light [class*="bg-blue-6"],
-  html.light [class*="bg-emerald-5"], html.light [class*="bg-emerald-6"],
-  html.light [class*="bg-indigo-5"],  html.light [class*="bg-indigo-6"],
-  html.light [class*="bg-purple-5"],  html.light [class*="bg-purple-6"],
-  html.light [class*="bg-rose-5"],    html.light [class*="bg-red-5"],
-  html.light [class*="bg-red-6"],     html.light [class*="bg-amber-5"],
-  html.light [class*="bg-amber-6"] { color: #ffffff !important; }
+  /* Filled controls keep white labels — but ONLY solid fills. A translucent
+     tint (bg-emerald-600/20 behind an icon button) is not a filled button:
+     forcing white text on it made the WhatsApp icon vanish on white. */
+  html.light [class*="bg-blue-5"]:not([class*="bg-blue-500/"]),
+  html.light [class*="bg-blue-6"]:not([class*="bg-blue-600/"]),
+  html.light [class*="bg-emerald-5"]:not([class*="bg-emerald-500/"]),
+  html.light [class*="bg-emerald-6"]:not([class*="bg-emerald-600/"]),
+  html.light [class*="bg-indigo-5"]:not([class*="bg-indigo-500/"]),
+  html.light [class*="bg-indigo-6"]:not([class*="bg-indigo-600/"]),
+  html.light [class*="bg-purple-5"]:not([class*="bg-purple-500/"]),
+  html.light [class*="bg-purple-6"]:not([class*="bg-purple-600/"]),
+  html.light [class*="bg-rose-5"]:not([class*="bg-rose-500/"]),
+  html.light [class*="bg-red-5"]:not([class*="bg-red-500/"]),
+  html.light [class*="bg-red-6"]:not([class*="bg-red-600/"]),
+  html.light [class*="bg-amber-5"]:not([class*="bg-amber-500/"]),
+  html.light [class*="bg-amber-6"]:not([class*="bg-amber-600/"]) { color: #ffffff !important; }
+
+  /* translucent accent tints read as a pale wash on white — retint them */
+  html.light [class*="bg-emerald-600/"], html.light [class*="bg-emerald-500/"] { background-color: rgba(5,150,105,.14) !important; }
+  html.light [class*="bg-blue-600/"], html.light [class*="bg-blue-500/"] { background-color: rgba(37,99,235,.12) !important; }
+  html.light [class*="bg-indigo-500/"] { background-color: rgba(79,70,229,.14) !important; }
+  html.light [class*="bg-purple-500/"] { background-color: rgba(126,34,206,.14) !important; }
+  html.light [class*="bg-amber-500/"] { background-color: rgba(180,83,9,.14) !important; }
+  html.light [class*="bg-rose-500/"], html.light [class*="bg-red-500/"],
+  html.light [class*="bg-red-600/"] { background-color: rgba(190,18,60,.12) !important; }
+  html.light [class*="bg-rose-900/"] { background-color: rgba(159,18,57,.10) !important; }
+
+  /* WhatsApp invite: brand green dark enough to read on white */
+  html.light .invite-btn { color: #128C7E !important; }
+  html.light .invite-btn:hover { background: #128C7E !important; color: #ffffff !important; }
   html.light [class*="bg-rose-900"] { background-color: #ffe4e6 !important; color: #9f1239 !important; }
   html.light [class*="bg-slate-200"],
   html.light [class*="bg-slate-400"] { background-color: #e2e8f0 !important; }
@@ -570,6 +592,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-slate-800/30 p-4 rounded-xl border border-slate-700/50">
             <div class="space-y-2">
                 <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-phone w-8 text-slate-500"></i><span id="profPhone">-</span></p>
+                <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-envelope w-8 text-slate-500"></i><span id="profEmail" class="truncate">-</span></p>
                 <p class="text-sm text-slate-300 flex items-center"><i class="fas fa-car w-8 text-slate-500"></i><span id="profVehicle">-</span></p>
             </div>
             <div class="flex justify-between items-center px-4 border-l border-slate-700/50 gap-3">
@@ -1055,6 +1078,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028a"></script>
+  <script type="module" src="../app.js?v=20261028c"></script>
 </body>
 </html>

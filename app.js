@@ -490,6 +490,7 @@ function residentCard(res) {
         </div>
         <p class="text-[11px] text-slate-400 uppercase tracking-widest font-bold">Unit ${res.unitNumber} • ${res.road || '-'}</p>
         <p class="text-[11px] text-slate-500 mt-1">${res.phone}</p>
+        ${res.email ? `<p class="text-[10px] text-slate-500 mt-0.5 truncate" title="${escHtml(res.email)}"><i class="fas fa-envelope mr-1 opacity-60"></i>${escHtml(res.email)}</p>` : ""}
         <div class="mt-2 pt-2 border-t border-slate-700/50 flex justify-between items-center">
             <span class="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Balance</span>
             ${balanceBadge(res)}
@@ -515,7 +516,7 @@ function residentRow(res) {
         </div>
         <div class="min-w-0 flex-1">
             <p class="text-[13px] font-bold text-white leading-tight truncate">${res.name}</p>
-            <p class="text-[11px] text-slate-400 truncate mt-0.5">${res.road || '-'} · ${phone}</p>
+            <p class="text-[11px] text-slate-400 truncate mt-0.5">${res.road || '-'} · ${phone}${res.email ? ` · <i class="fas fa-envelope opacity-60"></i> ${escHtml(res.email)}` : ""}</p>
         </div>
         <div class="flex items-center gap-1 shrink-0">
             ${balanceBadge(res)}
@@ -685,6 +686,13 @@ async function showResidentProfile(res) {
     qs("#profName").textContent = res.name;
     qs("#profMeta").textContent = `UNIT ${res.unitNumber} — ${res.road || '-'}`;
     qs("#profPhone").textContent = res.phone;
+    const emailEl = qs("#profEmail");
+    if (emailEl) {
+        // mailto only when the address actually looks like one
+        emailEl.innerHTML = res.email && /.+@.+\..+/.test(res.email)
+            ? `<a href="mailto:${escHtml(res.email)}" class="text-blue-400 hover:underline">${escHtml(res.email)}</a>`
+            : '<span class="text-slate-600">no email on record</span>';
+    }
     qs("#profVehicle").textContent = res.vehiclePlate || '-';
     // The PIN is stored as a scrypt hash, so it cannot be displayed. The only way to
     // give a resident a working PIN is to issue a new one.
