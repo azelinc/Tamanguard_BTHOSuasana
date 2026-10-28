@@ -1269,8 +1269,8 @@ window.loadHome = async function () {
     }
   }
 
-  /* ---------- 12-month strip ---------- */
-  const spark = pick.rows.slice(-12);
+  /* ---------- month strip: every month in the period, oldest first ---------- */
+  const spark = pick.rows;
   const sparkBox = $("#home-spark");
   if (sparkBox) {
     sparkBox.innerHTML = spark.map(r => {
@@ -1286,17 +1286,22 @@ window.loadHome = async function () {
   const sparkX = $("#home-spark-x");
   if (sparkX) {
     sparkX.innerHTML = spark.map((r, i) =>
-      '<div class="flex-1 text-center leading-none" style="font-size:6.5px;color:' + (r.month === "January" ? "#94a3b8" : "#475569") + '">'
-      + String(r.month || "").slice(0, 3)
-      + (r.month === "January" ? '<br><span style="font-size:5.5px">' + String(r.year).slice(2) + '</span>' : "")
-      + '</div>').join("");
+      {
+        const show = i === 0 || r.month === "January" || i % 3 === 0;
+        const jan = r.month === "January";
+        return '<div class="flex-1 text-center leading-none overflow-hidden" style="font-size:5.6px;color:'
+          + (jan ? "#94a3b8" : "#475569") + '">'
+          + (show ? String(r.month || "").slice(0, 3).replace(/^\w/, c => c.toUpperCase()) : "")
+          + (show && jan ? '<br><span style="font-size:5px">' + String(r.year).slice(2) + '</span>' : "")
+          + '</div>';
+      }).join("");
   }
   const read = $("#home-spark-read");
   const resetRead = () => {
     /* describe the strip itself — it shows the last 12 months, which is not the
        same range as the money tiles above it */
     if (read) read.innerHTML = '<span class="text-slate-500">' + periodLabel(spark)
-      + ' · ' + spark.length + ' months, oldest left</span>';
+      + ' · ' + spark.length + ' months, oldest left · every bar is one month</span>';
   };
   resetRead();
   if (sparkBox) {
@@ -1684,6 +1689,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028h"></script>
+  <script type="module" src="../app.js?v=20261028i"></script>
 </body>
 </html>
