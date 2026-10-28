@@ -58,12 +58,13 @@ async function initAuth() {
     qs("#logoutBtn").classList.remove("hidden");
     qs("#userName").textContent = userProfile.name;
     qs("#userRole").textContent = userRole.replace("_", " ");
-    applyRoleVisibility(); loadSettings(); showTab("news"); loadStats(); preloadResidentData();
+    applyRoleVisibility(); loadSettings(); showTab("home"); loadStats();
   });
 }
 
 function applyRoleVisibility() {
   const map = {
+    home: ["super_admin", "treasurer", "manager"],
     news: ["super_admin", "treasurer", "manager"],
     residents: ["super_admin", "manager"],
     visitors: ["super_admin", "manager"],
@@ -127,6 +128,7 @@ qs("#logoutBtn").addEventListener("click", () => signOut(auth));
 function showTab(name) {
   qsa(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
   qsa(".tab-pane").forEach(p => p.classList.toggle("hidden", p.id !== `tab-${name}`));
+  if (name === "home") { if (typeof window.loadHome === "function") window.loadHome(); else console.error("window.loadHome missing"); }
   if (name === "news") loadNews();
   if (name === "residents") { loadResidents(); }
   if (name === "visitors") loadVisitors();
@@ -426,6 +428,20 @@ window.tgEnsureResidents = async function (force = false) {
     await preloadResidentData(force);
     return allResidents.length;
 };
+/* One announcement read for the home summary. loadNews() opens a 20-doc live
+   listener, which is the wrong cost for a banner that shows one headline. */
+window.tgLatestAnnouncement = async function () {
+    try {
+        const snap = await getDocs(query(collection(db, "announcements"), limit(20)));
+        const docs = snap.docs.slice().sort((x, y) => tsMillis(y.data().createdAt) - tsMillis(x.data().createdAt));
+        const d = docs[0];
+        if (!d) return null;
+        const v = d.data();
+        return { id: d.id, title: v.title || "", createdAt: v.createdAt, millis: tsMillis(v.createdAt),
+                 body: v.content || v.message || v.body || v.text || v.description || "" };
+    } catch (e) { console.error("latest announcement failed", e); return null; }
+};
+
 window.tgMonthlyStats = async function () {
     // allow-full-read: 24 monthly summaries, one per billing month
     const snap = await getDocs(query(collection(db, "stats_monthly"), orderBy("ym")));

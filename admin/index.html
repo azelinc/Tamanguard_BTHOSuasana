@@ -84,7 +84,10 @@
   html.light [class*="text-emerald-300"],
   html.light [class*="text-emerald-400"] { color: #047857 !important; }
   html.light [class*="text-amber-400"]   { color: #b45309 !important; }
+  html.light [class*="text-rose-300"],
   html.light [class*="text-rose-400"]    { color: #be123c !important; }
+  html.light [class*="text-amber-300"]   { color: #b45309 !important; }
+  html.light [class*="text-emerald-300"] { color: #047857 !important; }
   html.light [class*="text-red-400"],
   html.light [class*="text-red-500"]     { color: #dc2626 !important; }
   html.light [class*="text-indigo-300"],
@@ -210,7 +213,8 @@
 
     <!-- Tabs Container -->
     <div class="glass rounded-xl p-1 mb-6 flex flex-wrap gap-1 sticky top-16 z-30">
-      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="news"><i class="fas fa-bullhorn mr-2"></i>News</button>
+      <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="home"><i class="fas fa-gauge-high mr-2"></i>Home</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="news"><i class="fas fa-bullhorn mr-2"></i>News</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="residents"><i class="fas fa-users mr-2"></i>Residents</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="visitors"><i class="fas fa-car mr-2"></i>Visitors</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="billing"><i class="fas fa-file-invoice-dollar mr-2"></i>Billing</button>
@@ -220,6 +224,78 @@
     </div>
 
     <div id="tabContents">
+      <!-- Home Tab — summary landing. Money comes from the 24 monthly summaries;
+           the house blocks wait for the roster so opening the panel stays ~30 reads. -->
+      <div id="tab-home" class="tab-pane hidden space-y-2">
+        <div id="home-alert"></div>
+        <div>
+          <div class="flex justify-between items-baseline mb-1">
+            <span id="home-money-label" class="text-[9px] font-bold uppercase tracking-widest text-slate-500">Money</span>
+            <span class="text-[8px] text-slate-500">24 monthly summaries</span>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5">
+            <div class="glass rounded-xl px-2 py-2 border-l-[3px] border-emerald-500">
+              <div class="text-[8px] uppercase font-bold text-slate-400 tracking-wide">Verified</div>
+              <div id="home-paid" class="text-[15px] font-black text-emerald-400 tabular-nums leading-none mt-1">—</div>
+              <div id="home-paid-sub" class="text-[8px] text-slate-500 tabular-nums mt-0.5">—</div>
+            </div>
+            <div class="glass rounded-xl px-2 py-2 border-l-[3px] border-indigo-500">
+              <div class="text-[8px] uppercase font-bold text-slate-400 tracking-wide">Recorded</div>
+              <div id="home-pend" class="text-[15px] font-black text-indigo-300 tabular-nums leading-none mt-1">—</div>
+              <div id="home-pend-sub" class="text-[8px] text-slate-500 tabular-nums mt-0.5">—</div>
+            </div>
+            <div class="glass rounded-xl px-2 py-2 border-l-[3px] border-rose-500">
+              <div class="text-[8px] uppercase font-bold text-slate-400 tracking-wide">Still due</div>
+              <div id="home-due" class="text-[15px] font-black text-rose-400 tabular-nums leading-none mt-1">—</div>
+              <div id="home-due-sub" class="text-[8px] text-slate-500 tabular-nums mt-0.5">—</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 mt-1.5">
+            <div class="flex-1 h-1.5 rounded-full overflow-hidden bg-slate-700/50"><div id="home-bar" class="h-full bg-emerald-500" style="width:0%"></div></div>
+            <span id="home-rate" class="text-[9px] font-black text-white tabular-nums">—</span>
+          </div>
+        </div>
+        <div class="glass rounded-xl px-3 py-2.5">
+          <div class="flex justify-between items-baseline mb-1">
+            <span id="home-month-label" class="text-[9px] font-bold uppercase tracking-widest text-slate-500">This month</span>
+            <span id="home-month-delta" class="text-[9px] font-black tabular-nums text-slate-500">—</span>
+          </div>
+          <div class="flex items-end justify-between">
+            <div><span id="home-month-paid" class="text-[17px] font-black text-white tabular-nums">—</span><span id="home-month-charged" class="text-[10px] text-slate-500 tabular-nums"></span></div>
+            <span id="home-month-rate" class="text-[11px] font-black tabular-nums">—</span>
+          </div>
+        </div>
+        <div class="glass rounded-xl px-3 py-2.5">
+          <div class="flex justify-between items-baseline mb-2">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">Collection rate · last 12 months</span>
+            <span class="text-[8px] text-slate-500">tap a bar</span>
+          </div>
+          <div class="flex items-end gap-[3px] h-14" id="home-spark"></div>
+          <div class="flex gap-[3px] mt-1" id="home-spark-x"></div>
+          <div id="home-spark-read" class="text-[9px] font-bold text-slate-400 mt-1.5">—</div>
+        </div>
+        <div>
+          <div class="flex justify-between items-baseline mb-1">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">Needs action</span>
+            <span id="home-roster-note" class="text-[8px] text-slate-500"></span>
+          </div>
+          <div id="home-needs" class="space-y-1.5"></div>
+        </div>
+        <div class="glass rounded-xl px-3 py-2.5">
+          <div class="flex justify-between items-baseline mb-1.5">
+            <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">Largest arrears</span>
+            <button class="text-[8px] font-bold text-blue-400" data-goto="residents">all houses →</button>
+          </div>
+          <div id="home-arrears" class="space-y-1"></div>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button class="glass rounded-xl py-2 text-center" data-goto="billing"><div class="text-emerald-400 text-xs"><i class="fas fa-plus"></i></div><div class="text-[8px] uppercase font-bold text-slate-400 mt-1">Record</div></button>
+          <button class="glass rounded-xl py-2 text-center" data-goto="billing"><div class="text-blue-400 text-xs"><i class="fas fa-file-invoice"></i></div><div class="text-[8px] uppercase font-bold text-slate-400 mt-1">Bills</div></button>
+          <button class="glass rounded-xl py-2 text-center" data-goto="verify"><div class="text-indigo-400 text-xs"><i class="fas fa-check-double"></i></div><div class="text-[8px] uppercase font-bold text-slate-400 mt-1">Verify</div></button>
+          <button class="glass rounded-xl py-2 text-center" data-goto="news"><div class="text-slate-300 text-xs"><i class="fas fa-bullhorn"></i></div><div class="text-[8px] uppercase font-bold text-slate-400 mt-1">News</div></button>
+        </div>
+      </div>
+
       <!-- News Tab -->
       <div id="tab-news" class="tab-pane">
         <div class="glass rounded-xl p-6 mb-6">
@@ -380,6 +456,24 @@
 
         <!-- Overall View -->
         <div id="an-view-overall" class="an-view">
+
+        <!-- Period filter. All four options are a client-side sum over the 24
+             stats_monthly docs, so switching costs zero reads. -->
+        <div class="flex items-center gap-1 mb-2" id="an-period-seg">
+          <button data-period="2025" class="an-period-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-slate-800 text-slate-400 border border-slate-700">2025</button>
+          <button data-period="2026" class="an-period-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-slate-800 text-slate-400 border border-slate-700">2026</button>
+          <button data-period="all" class="an-period-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-indigo-600 text-white">All</button>
+          <button data-period="custom" class="an-period-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide bg-slate-800 text-slate-400 border border-slate-700">Custom</button>
+        </div>
+        <div class="hidden items-center gap-2 mb-2" id="an-period-custom">
+          <select id="an-period-from" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-bold text-white outline-none"></select>
+          <span class="text-slate-500 text-[10px]">→</span>
+          <select id="an-period-to" class="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-[10px] font-bold text-white outline-none"></select>
+        </div>
+        <div class="hidden items-center justify-between gap-2 mb-3" id="an-asat-row">
+          <button id="an-asat-btn" class="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wide border"></button>
+          <span id="an-asat-note" class="text-[9px] text-slate-500 text-right"></span>
+        </div>
         <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
           <div class="glass rounded-xl p-4 border border-emerald-500/20">
             <p class="text-[9px] font-bold text-emerald-400 uppercase tracking-widest mb-1">Verified collected</p>
@@ -780,8 +874,9 @@
 window.loadAnalytics = async function() {
   // Wait for the roster before drawing: the ledger and the portfolio totals both read it.
   try { if (window.tgEnsureResidents) await window.tgEnsureResidents(); } catch (e) { console.error("roster load failed", e); }
+  // renderOverallStats() awaits the monthly summaries and then paints the area
+  // breakdown from the same period, so it is not called separately here.
   window.renderOverallStats();
-  window.renderAreaBreakdown();
   window.renderLedger();
   window.renderTrends();
 };
@@ -835,32 +930,6 @@ window.switchAnalyticsView = function(view) {
     } catch (e) { console.error(redraw + " failed", e); }
   }
 };
-window.renderOverallStats = function() {
-  const fmt = v => Math.abs(v).toLocaleString('en-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const t = window.tgPortfolio ? window.tgPortfolio() : { paid: 0, arrears: 0, rate: 0, houses: 0, withOpening: 0 };
-  const pending = Number(t.pending || 0);
-  const stillDue = Number(t.stillDue != null ? t.stillDue : t.arrears);
-  document.querySelector("#an-total-collected").textContent = "RM " + fmt(t.paid);
-  document.querySelector("#an-total-pending").textContent = "RM " + fmt(pending);
-  document.querySelector("#an-total-outstanding").textContent = "RM " + fmt(stillDue);
-  const cSub = document.querySelector("#an-collected-sub");
-  if (cSub) cSub.textContent = Number(t.paidCount || 0).toLocaleString("en-MY") + " bill(s) confirmed";
-  const pSub = document.querySelector("#an-pending-sub");
-  if (pSub) pSub.textContent = pending > 0
-    ? Number(t.pendingCount || 0).toLocaleString("en-MY") + " bill(s) · not yet confirmed"
-    : "nothing waiting";
-  const oSub = document.querySelector("#an-outstanding-sub");
-  if (oSub) oSub.textContent = "of RM " + fmt(t.charged) + " billed";
-  const rateEl = document.querySelector("#an-collection-rate");
-  rateEl.textContent = (t.rate || 0).toFixed(1) + "%";
-  rateEl.className = "text-4xl font-black " + ((t.rate||0) >= 80 ? "text-emerald-400" : (t.rate||0) >= 50 ? "text-amber-400" : "text-rose-400");
-  const note = document.querySelector("#an-source-note");
-  if (note) {
-    const asOf = (window.allResidents || []).find(r => r.soaOpeningAsOf)?.soaOpeningAsOf || "31 Oct 2026";
-    note.textContent = t.houses + " houses · " + (t.itemised || 0) + " itemised ledgers · "
-      + window.allInvoices.length.toLocaleString("en-MY") + " invoices · itemised from Jan 2025";
-  }
-};
 window.renderLedger = function() {
   const tbody = document.querySelector("#an-ledger-body");
   if (!tbody) return;
@@ -907,13 +976,181 @@ const AREA_META = {
   "other": { name: "Other roads", accent: "text-slate-400", bar: "bg-slate-500" }
 };
 
-window.renderAreaBreakdown = function() {
+/* ==========================================================================
+   Period filter for Overall Status — 2025 / 2026 / All / Custom.
+   Every figure is a client-side sum over the 24 stats_monthly docs, so moving
+   the filter costs zero reads. The docs are cached for 5 minutes and shared
+   with the Monthly Trends view instead of being fetched twice.
+   ========================================================================== */
+let _statsCache = { rows: null, at: 0 };
+
+async function monthlyRows(force) {
+  const now = Date.now();
+  if (!force && _statsCache.rows && (now - _statsCache.at) < 300000) return _statsCache.rows;
+  const raw = await window.tgMonthlyStats();
+  const rows = raw.slice().sort((a, b) => String(a.ym || "").localeCompare(String(b.ym || "")));
+  _statsCache = { rows, at: now };
+  return rows;
+}
+
+window.anPeriod = "all";
+window.anAsAt = true;                                  // default: drop months not yet due
+window.anCustom = { from: "2026-07", to: "2026-10" };
+
+function nowYm() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+const MONTH_LONG = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+function ymLabel(ym) {
+  const [y, m] = String(ym).split("-");
+  return (MONTH_LONG[Number(m) - 1] || m || "").slice(0, 3) + " " + y;
+}
+
+/* Select the months the filter covers, then optionally trim the ones that are
+   billed but not yet collectible. */
+function periodSelection(rows) {
+  const cur = nowYm(), p = window.anPeriod;
+  let sel = rows;
+  if (p === "2025") sel = rows.filter(r => String(r.ym || "").startsWith("2025"));
+  else if (p === "2026") sel = rows.filter(r => String(r.ym || "").startsWith("2026"));
+  else if (p === "custom") {
+    sel = rows.filter(r => String(r.ym) >= window.anCustom.from && String(r.ym) <= window.anCustom.to);
+  }
+  const hasFuture = sel.some(r => String(r.ym) > cur);
+  const trimmed = window.anAsAt && hasFuture;
+  if (trimmed) sel = sel.filter(r => String(r.ym) <= cur);
+  return { rows: sel, cur, hasFuture, trimmed };
+}
+
+function sumRows(sel) {
+  const a = { charged: 0, paid: 0, pending: 0, paidCount: 0, bills: 0, pendingCount: 0,
+              c5: 0, p5: 0, d5: 0, c3: 0, p3: 0, d3: 0 };
+  for (const r of sel) {
+    a.charged += Number(r.charged || 0);
+    a.paid += Number(r.paid || 0);
+    a.pending += Number(r.pending || 0);
+    a.paidCount += Number(r.paidCount || 0);
+    a.bills += Number(r.bills || 0);
+    a.pendingCount += Number(r.pendingCount || 0);
+    const g5 = r.g5 || {}, g3 = r.g3 || {};
+    a.c5 += Number(g5.charged || 0); a.p5 += Number(g5.paid || 0); a.d5 += Number(g5.pending || 0);
+    a.c3 += Number(g3.charged || 0); a.p3 += Number(g3.paid || 0); a.d3 += Number(g3.pending || 0);
+  }
+  a.due = Math.max(0, a.charged - a.paid - a.pending);
+  a.rate = a.charged > 0 ? (a.paid / a.charged) * 100 : 0;
+  return a;
+}
+
+function periodLabel(sel) {
+  if (!sel.length) return "no months";
+  const first = sel[0].ym, last = sel[sel.length - 1].ym;
+  if (first === last) return ymLabel(first);
+  return ymLabel(first) + " – " + ymLabel(last);
+}
+
+/* Fill the custom range selects once, from the months that actually exist. */
+let _selectsFilled = false;
+function fillPeriodSelects(rows) {
+  if (_selectsFilled) return;
+  const from = document.querySelector("#an-period-from"), to = document.querySelector("#an-period-to");
+  if (!from || !to) return;
+  const opts = rows.map(r => '<option value="' + r.ym + '">' + ymLabel(r.ym) + '</option>').join("");
+  from.innerHTML = opts; to.innerHTML = opts;
+  from.value = window.anCustom.from; to.value = window.anCustom.to;
+  from.onchange = () => { window.anCustom.from = from.value; if (window.anCustom.to < from.value) { window.anCustom.to = from.value; to.value = from.value; } window.renderOverallStats(); };
+  to.onchange   = () => { window.anCustom.to = to.value;   if (window.anCustom.from > to.value) { window.anCustom.from = to.value; from.value = to.value; } window.renderOverallStats(); };
+  _selectsFilled = true;
+}
+
+window.renderOverallStats = async function () {
+  const fmt = v => Math.abs(Number(v || 0)).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const note = document.querySelector("#an-source-note");
+  const houses = (window.allResidents || []).length;
+
+  let rows = [];
+  try { rows = await monthlyRows(); }
+  catch (e) { console.error("overall: monthly summaries failed", e); }
+
+  if (!rows.length) {
+    if (note) note.textContent = "No monthly summaries yet — they are written when bills are generated.";
+    return;
+  }
+
+  fillPeriodSelects(rows);
+  const pick = periodSelection(rows);
+  const a = sumRows(pick.rows);
+
+  const set = (id, txt) => { const el = document.querySelector(id); if (el) el.textContent = txt; };
+  set("#an-total-collected", "RM " + fmt(a.paid));
+  set("#an-total-pending", "RM " + fmt(a.pending));
+  set("#an-total-outstanding", "RM " + fmt(a.due));
+  set("#an-collected-sub", Number(a.paidCount).toLocaleString("en-MY") + " bill(s) confirmed");
+  set("#an-pending-sub", a.pending > 0
+    ? Number(a.pendingCount).toLocaleString("en-MY") + " bill(s) · not yet confirmed"
+    : "nothing waiting");
+  set("#an-outstanding-sub", "of RM " + fmt(a.charged) + " billed");
+
+  const rateEl = document.querySelector("#an-collection-rate");
+  if (rateEl) {
+    rateEl.textContent = a.rate.toFixed(1) + "%";
+    rateEl.className = "text-2xl sm:text-4xl font-black tabular-nums "
+      + (a.rate >= 80 ? "text-emerald-400" : a.rate >= 50 ? "text-amber-400" : "text-rose-400");
+  }
+
+  if (note) {
+    note.textContent = periodLabel(pick.rows) + " · " + pick.rows.length + " month(s) · RM "
+      + fmt(a.charged) + " billed · " + houses + " houses"
+      + (pick.trimmed ? " · as at " + ymLabel(pick.cur) : "");
+  }
+
+  /* "as at" switch — only meaningful when the selection reaches past today */
+  const row = document.querySelector("#an-asat-row");
+  const btn = document.querySelector("#an-asat-btn");
+  const aNote = document.querySelector("#an-asat-note");
+  if (row && btn && aNote) {
+    row.classList.toggle("hidden", !pick.hasFuture);
+    row.classList.toggle("flex", pick.hasFuture);
+    if (pick.hasFuture) {
+      const curSel = window.anAsAt;
+      btn.textContent = curSel ? "as at " + ymLabel(pick.cur) : "including billed ahead";
+      btn.className = "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wide border "
+        + (curSel ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                  : "bg-slate-800 text-slate-400 border border-slate-700");
+      aNote.textContent = curSel
+        ? "future months excluded from arrears"
+        : "includes months not yet collectible — for full-period totals only";
+    }
+  }
+
+  renderAreaBreakdown(pick.rows);
+};
+
+window.renderAreaBreakdown = function (sel) {
   const box = document.querySelector("#an-area-breakdown");
   if (!box) return;
   const residents = window.allResidents || [];
-  if (!residents.length) { box.innerHTML = ""; return; }
 
-  const groups = window.tgGroupTotals(residents);
+  let groups;
+  if (Array.isArray(sel) && sel.length) {
+    /* money follows the period; the house count is structural, so it still comes
+       from the roster */
+    const housesFor = g => residents.filter(r => ((window.tgRoadGroup ? window.tgRoadGroup(r.road) : "") || "other") === g).length;
+    /* NOTE: stats_monthly's per-area `pending` is not trustworthy — g5.pending sums
+       to 2x the estate pending while g3.pending is 0, so it is deliberately not
+       drawn here. Per area we show verified and outstanding (billed − verified),
+       which reconciles: sum(outstanding) = still due + recorded, exactly. */
+    const a = sumRows(sel);
+    groups = {
+      "5": { charged: a.c5, paid: a.p5, pending: 0, stillDue: Math.max(0, a.c5 - a.p5), houses: housesFor("5"), label: "Outstanding" },
+      "3": { charged: a.c3, paid: a.p3, pending: 0, stillDue: Math.max(0, a.c3 - a.p3), houses: housesFor("3"), label: "Outstanding" }
+    };
+  } else {
+    if (!residents.length) { box.innerHTML = ""; return; }
+    groups = window.tgGroupTotals(residents);
+  }
+
   const order = ["5", "3"].concat(Object.keys(groups).filter(g => g !== "5" && g !== "3"));
   const money = v => Number(v).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -936,11 +1173,245 @@ window.renderAreaBreakdown = function() {
       + '<div class="flex justify-between mt-1.5 text-[9px] font-bold">'
       +   '<span class="text-emerald-400">Verified RM ' + money(t.paid) + '</span>'
       +   (t.pending > 0 ? '<span class="text-indigo-400">Recorded RM ' + money(t.pending) + '</span>' : '')
-      +   '<span class="text-rose-400">Due RM ' + money(t.stillDue) + '</span>'
+      +   '<span class="text-rose-400">' + (t.label || "Due") + ' RM ' + money(t.stillDue) + '</span>'
       + '</div>'
       + '</div>';
   }).join("");
 };
+
+/* wire the period controls once */
+document.querySelectorAll(".an-period-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    window.anPeriod = btn.dataset.period;
+    document.querySelectorAll(".an-period-btn").forEach(b => {
+      b.className = "an-period-btn flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide "
+        + (b === btn ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400 border border-slate-700");
+    });
+    const cust = document.querySelector("#an-period-custom");
+    if (cust) {
+      cust.classList.toggle("hidden", window.anPeriod !== "custom");
+      cust.classList.toggle("flex", window.anPeriod === "custom");
+    }
+    window.renderOverallStats();
+  });
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("#an-asat-btn");
+  if (!b) return;
+  window.anAsAt = !window.anAsAt;
+  window.renderOverallStats();
+});
+
+/* ==========================================================================
+   Home — the summary landing page.
+
+   Read budget is the whole point of this screen:
+     • money, this-month and the 12-month strip  → the 24 stats_monthly docs,
+       already cached for 5 minutes and shared with Analytics
+     • the alert banner                          → one announcements read
+     • anything per-house                        → NOT loaded here. The roster is
+       341 documents; it is fetched only when you tap "load" or open Residents /
+       Billing / Analytics, and is then cached for 5 minutes anyway.
+   ========================================================================== */
+window.loadHome = async function () {
+  const pane = document.querySelector("#tab-home");
+  if (!pane) return;
+
+  const $ = id => document.querySelector(id);
+  const fmt = v => Math.abs(Number(v || 0)).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money0 = v => Number(v || 0).toLocaleString("en-MY", { maximumFractionDigits: 0 });
+
+  /* ---------- money: 24 monthly summaries ---------- */
+  let rows = [];
+  try { rows = await monthlyRows(); }
+  catch (e) { console.error("home: monthly summaries failed", e); }
+
+  const pick = periodSelection(rows);
+  const a = sumRows(pick.rows);
+
+  const setText = (sel, txt) => { const el = $(sel); if (el) el.textContent = txt; };
+
+  setText("#home-money-label", pick.trimmed ? "Money · as at " + ymLabel(pick.cur) : "Money · " + periodLabel(pick.rows));
+  setText("#home-paid", "RM " + fmt(a.paid));
+  setText("#home-paid-sub", Number(a.paidCount).toLocaleString("en-MY") + " months paid");
+  setText("#home-pend", "RM " + fmt(a.pending));
+  setText("#home-pend-sub", Number(a.pendingCount).toLocaleString("en-MY") + " awaiting check");
+  setText("#home-due", "RM " + fmt(a.due));
+  setText("#home-due-sub", "of RM " + fmt(a.charged) + " billed");
+  setText("#home-rate", a.rate.toFixed(1) + "%");
+  const bar = $("#home-bar");
+  if (bar) {
+    bar.style.width = Math.min(100, a.rate).toFixed(2) + "%";
+    bar.className = "h-full " + (a.rate >= 80 ? "bg-emerald-500" : a.rate >= 50 ? "bg-amber-500" : "bg-rose-500");
+  }
+
+  /* ---------- this month vs last ---------- */
+  const curRow = rows.find(r => String(r.ym) === pick.cur) || pick.rows[pick.rows.length - 1];
+  if (curRow) {
+    const idx = rows.indexOf(curRow);
+    const prev = idx > 0 ? rows[idx - 1] : null;
+    const c = Number(curRow.charged || 0), p = Number(curRow.paid || 0);
+    const rate = c > 0 ? (p / c) * 100 : 0;
+    const prevRate = prev && Number(prev.charged) > 0 ? (Number(prev.paid) / Number(prev.charged)) * 100 : null;
+    setText("#home-month-label", curRow.month + " " + curRow.year);
+    setText("#home-month-paid", "RM " + fmt(p));
+    setText("#home-month-charged", " / " + fmt(c));
+    setText("#home-month-rate", rate.toFixed(1) + "%");
+    const dEl = $("#home-month-delta");
+    if (dEl) {
+      if (prevRate == null) { dEl.textContent = "—"; }
+      else {
+        const d = rate - prevRate;
+        dEl.textContent = (d >= 0 ? "▲ " : "▼ ") + Math.abs(d).toFixed(1) + " pts vs " + String(prev.month).slice(0, 3);
+        dEl.className = "text-[9px] font-black tabular-nums " + (d >= 0 ? "text-emerald-400" : "text-rose-400");
+      }
+    }
+  }
+
+  /* ---------- 12-month strip ---------- */
+  const spark = pick.rows.slice(-12);
+  const sparkBox = $("#home-spark");
+  if (sparkBox) {
+    sparkBox.innerHTML = spark.map(r => {
+      const c = Number(r.charged || 0), p = Number(r.paid || 0);
+      const h = c > 0 ? (p / c) * 100 : 0;
+      const col = h >= 30 ? "#22c55e" : h >= 20 ? "#f59e0b" : "#f43f5e";
+      return '<button class="flex-1 h-full flex flex-col justify-end cursor-pointer" style="background:rgba(51,65,85,.45)"'
+        + ' data-ym="' + r.ym + '" title="' + r.month + " " + r.year + ' — ' + h.toFixed(1) + '%">'
+        + '<div style="height:' + h.toFixed(2) + '%;background:' + col + '"></div></button>';
+    }).join("");
+  }
+  const sparkX = $("#home-spark-x");
+  if (sparkX) {
+    sparkX.innerHTML = spark.map((r, i) =>
+      '<div class="flex-1 text-center" style="font-size:6.5px;color:' + (i % 2 ? "#475569" : "#94a3b8") + '">'
+      + String(r.month || "").slice(0, 1) + '</div>').join("");
+  }
+  const read = $("#home-spark-read");
+  const resetRead = () => {
+    if (read) read.innerHTML = '<span class="text-slate-500">' + periodLabel(pick.rows)
+      + ' · ' + pick.rows.length + ' months · RM ' + fmt(a.charged) + ' billed</span>';
+  };
+  resetRead();
+  if (sparkBox) {
+    sparkBox.querySelectorAll("[data-ym]").forEach(b => {
+      const show = () => {
+        const r = rows.find(x => String(x.ym) === b.dataset.ym);
+        if (!r || !read) return;
+        const c = Number(r.charged || 0), p = Number(r.paid || 0), d = Number(r.pending || 0);
+        const rt = c > 0 ? (p / c) * 100 : 0;
+        read.innerHTML = '<span class="text-white font-black">' + r.month + " " + r.year + '</span>'
+          + '<span class="text-emerald-400 ml-2">RM ' + fmt(p) + '</span>'
+          + '<span class="text-slate-500"> / ' + fmt(c) + '</span>'
+          + (d > 0 ? '<span class="text-indigo-400 ml-2">+' + fmt(d) + ' recorded</span>' : '')
+          + '<span class="ml-2 text-white">' + rt.toFixed(1) + '%</span>';
+      };
+      b.addEventListener("mouseenter", show);
+      b.addEventListener("click", show);
+    });
+    sparkBox.addEventListener("mouseleave", resetRead);
+  }
+
+  /* ---------- alert: latest announcement ---------- */
+  const alertBox = $("#home-alert");
+  if (alertBox) {
+    let ann = null;
+    try { ann = await window.tgLatestAnnouncement?.(); } catch (e) { console.error("home: announcement failed", e); }
+    if (ann) {
+      const days = ann.millis ? Math.floor((Date.now() - ann.millis) / 86400000) : null;
+      const ago = days == null ? "" : days <= 0 ? " · today" : days === 1 ? " · yesterday" : " · " + days + " days ago";
+      const body = String(ann.body || "").replace(/\s+/g, " ").trim().slice(0, 140);
+      alertBox.innerHTML = '<button class="w-full text-left rounded-xl px-3 py-2.5 flex gap-2.5" data-goto="news"'
+        + ' style="background:rgba(244,63,94,.10);border:1px solid rgba(244,63,94,.35)">'
+        + '<span class="text-rose-400 text-xs mt-0.5"><i class="fas fa-bullhorn"></i></span>'
+        + '<span class="min-w-0">'
+        +   '<span class="block text-[9px] font-black text-rose-400 uppercase tracking-wider">Latest announcement' + ago + '</span>'
+        +   '<span class="block text-[10px] font-bold text-white leading-snug mt-0.5">' + escHome(ann.title) + '</span>'
+        +   (body ? '<span class="block text-[9px] text-slate-400 leading-snug mt-0.5">' + escHome(body) + '…</span>' : "")
+        + '</span></button>';
+    } else {
+      alertBox.innerHTML = "";
+    }
+  }
+
+  /* ---------- per-house blocks: only from the roster cache ---------- */
+  renderHomeHouses();
+};
+
+function escHome(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderHomeHouses() {
+  const needs = document.querySelector("#home-needs");
+  const arrears = document.querySelector("#home-arrears");
+  const note = document.querySelector("#home-roster-note");
+  if (!needs || !arrears) return;
+
+  const roster = window.allResidents || [];
+  const money = v => Math.abs(Number(v || 0)).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  if (!roster.length) {
+    if (note) note.textContent = "not loaded";
+    needs.innerHTML = '<button id="home-load-roster" class="w-full py-2.5 rounded-lg text-[10px] font-black uppercase tracking-wide"'
+      + ' style="background:rgba(30,41,59,.7);border:1px dashed rgba(148,163,184,.35);color:#94a3b8">'
+      + 'Show house-level figures · loads 341 houses</button>';
+    arrears.innerHTML = '<p class="text-[9px] text-slate-500">Waiting for the house list.</p>';
+    const btn = document.querySelector("#home-load-roster");
+    if (btn) btn.addEventListener("click", async () => {
+      btn.textContent = "Loading houses…";
+      try { await window.tgEnsureResidents(); } catch (e) { console.error("home: roster failed", e); }
+      renderHomeHouses();
+    });
+    return;
+  }
+
+  if (note) note.textContent = roster.length + " houses · cached";
+
+  const owing = roster.filter(r => Number(r.soaBalance || 0) > 0.01);
+  const neverPaid = roster.filter(r => Number(r.soaPaid || 0) <= 0.01);
+  const awaiting = roster.filter(r => Number(r.soaPending || 0) > 0);
+  const pendingAmt = awaiting.reduce((s, r) => s + Number(r.soaPending || 0), 0);
+  const notJoined = roster.filter(r => !r.isJoined).length;
+
+  const tile = (goto, colour, label, value) =>
+    '<button class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-left" data-goto="' + goto + '"'
+    + ' style="background:' + colour.bg + ';border:1px solid ' + colour.border + '">'
+    + '<span class="text-[10px] font-bold ' + colour.text + '">' + label + '</span>'
+    + '<span class="text-[10px] font-black ' + colour.text + ' tabular-nums">' + value + ' →</span></button>';
+
+  needs.innerHTML = [
+    awaiting.length
+      ? tile("verify", { bg: "rgba(79,70,229,.12)", border: "rgba(99,102,241,.35)", text: "text-indigo-300" },
+             "Payments awaiting verification", awaiting.length + " · RM " + money(pendingAmt))
+      : "",
+    tile("residents", { bg: "rgba(244,63,94,.08)", border: "rgba(244,63,94,.28)", text: "text-rose-300" },
+         "Houses in arrears", owing.length + " of " + roster.length),
+    tile("residents", { bg: "rgba(30,41,59,.6)", border: "rgba(148,163,184,.18)", text: "text-slate-300" },
+         "Never paid a sen", neverPaid.length + " houses"),
+    tile("residents", { bg: "rgba(30,41,59,.6)", border: "rgba(148,163,184,.18)", text: "text-slate-300" },
+         "Not joined the app yet", notJoined + " of " + roster.length)
+  ].join("");
+
+  const top = owing.slice().sort((x, y) => Number(y.soaBalance) - Number(x.soaBalance)).slice(0, 5);
+  arrears.innerHTML = top.map(r =>
+    '<div class="flex items-center justify-between gap-2 text-[9px]">'
+    + '<span class="text-slate-300 truncate">' + escHome(String(r.road || "").replace("Jalan Suasana ", "")) + ' No ' + escHome(r.unitNumber) + ' · ' + escHome(r.name || "") + '</span>'
+    + '<span class="tabular-nums text-rose-400 font-bold shrink-0">' + money(r.soaBalance) + '</span></div>'
+  ).join("") || '<p class="text-[9px] text-slate-500">Nobody owes anything.</p>';
+}
+
+/* every [data-goto] on the home pane is a tab shortcut */
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-goto]");
+  if (!b) return;
+  const tab = b.dataset.goto;
+  const btn = document.querySelector('.tab-btn[data-tab="' + tab + '"]');
+  if (btn) btn.click();
+});
+
+
 
 window.renderTrends = async function() {
   const container = document.querySelector("#an-trends-container");
@@ -950,7 +1421,7 @@ window.renderTrends = async function() {
   // 24 monthly summary documents, never the 8k-row ledger
   let rows = [];
   let err = null;
-  try { rows = await window.tgMonthlyStats(); }
+  try { rows = await monthlyRows(); }
   catch (e) { err = e; console.error("trends failed", e); }
   // chronological regardless of document order — the column chart depends on it
   rows = rows.slice().sort((a, b) => String(a.ym || "").localeCompare(String(b.ym || "")));
@@ -1208,6 +1679,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028f"></script>
+  <script type="module" src="../app.js?v=20261028g"></script>
 </body>
 </html>
