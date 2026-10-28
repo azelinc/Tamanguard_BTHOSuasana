@@ -270,7 +270,7 @@
             <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">Collection rate · last 12 months</span>
             <span class="text-[8px] text-slate-500">tap a bar</span>
           </div>
-          <div class="flex items-end gap-[3px] h-14" id="home-spark"></div>
+          <div class="flex items-stretch gap-[3px] h-14 border-b border-slate-700/60 pb-[1px]" id="home-spark"></div>
           <div class="flex gap-[3px] mt-1" id="home-spark-x"></div>
           <div id="home-spark-read" class="text-[9px] font-bold text-slate-400 mt-1.5">—</div>
         </div>
@@ -1277,21 +1277,26 @@ window.loadHome = async function () {
       const c = Number(r.charged || 0), p = Number(r.paid || 0);
       const h = c > 0 ? (p / c) * 100 : 0;
       const col = h >= 30 ? "#22c55e" : h >= 20 ? "#f59e0b" : "#f43f5e";
-      return '<button class="flex-1 h-full flex flex-col justify-end cursor-pointer" style="background:rgba(51,65,85,.45)"'
+      return '<button class="flex-1 h-full flex flex-col justify-end cursor-pointer overflow-hidden"'
+        + ' style="background:rgba(51,65,85,.28)"'
         + ' data-ym="' + r.ym + '" title="' + r.month + " " + r.year + ' — ' + h.toFixed(1) + '%">'
-        + '<div style="height:' + h.toFixed(2) + '%;background:' + col + '"></div></button>';
+        + '<div style="height:' + h.toFixed(2) + '%;min-height:' + (h > 0 ? 2 : 0) + 'px;background:' + col + '"></div></button>';
     }).join("");
   }
   const sparkX = $("#home-spark-x");
   if (sparkX) {
     sparkX.innerHTML = spark.map((r, i) =>
-      '<div class="flex-1 text-center" style="font-size:6.5px;color:' + (i % 2 ? "#475569" : "#94a3b8") + '">'
-      + String(r.month || "").slice(0, 1) + '</div>').join("");
+      '<div class="flex-1 text-center leading-none" style="font-size:6.5px;color:' + (r.month === "January" ? "#94a3b8" : "#475569") + '">'
+      + String(r.month || "").slice(0, 3)
+      + (r.month === "January" ? '<br><span style="font-size:5.5px">' + String(r.year).slice(2) + '</span>' : "")
+      + '</div>').join("");
   }
   const read = $("#home-spark-read");
   const resetRead = () => {
-    if (read) read.innerHTML = '<span class="text-slate-500">' + periodLabel(pick.rows)
-      + ' · ' + pick.rows.length + ' months · RM ' + fmt(a.charged) + ' billed</span>';
+    /* describe the strip itself — it shows the last 12 months, which is not the
+       same range as the money tiles above it */
+    if (read) read.innerHTML = '<span class="text-slate-500">' + periodLabel(spark)
+      + ' · ' + spark.length + ' months, oldest left</span>';
   };
   resetRead();
   if (sparkBox) {
@@ -1679,6 +1684,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028g"></script>
+  <script type="module" src="../app.js?v=20261028h"></script>
 </body>
 </html>
