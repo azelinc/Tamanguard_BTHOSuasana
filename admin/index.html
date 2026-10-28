@@ -1045,8 +1045,12 @@ window.renderTrends = async function() {
         + '</div></div>';
     }).join("");
 
+    // On a phone 24 columns leave ~14px each, so thin the labels to every 3rd month
+    // (plus every January) instead of letting them collide into mush.
+    const narrow = (window.innerWidth || 1024) < 560;
     const xlab = rows.map((r, i) => {
       const jan = (r.month || "") === "January";
+      if (narrow && !jan && i % 3 !== 0) return '<div class="flex-1"></div>';
       return '<div class="flex-1 text-center" style="font-size:6.5px;line-height:1.15;color:'
         + (jan ? muted : (isLight ? "#94a3b8" : "#475569")) + ';font-weight:' + (jan ? "800" : "600") + '">'
         + (r.month || "").slice(0, 3)
@@ -1105,7 +1109,16 @@ window.renderTrends = async function() {
     list.innerHTML =
       '<div class="flex justify-between items-center mb-2 px-1">'
       + '<span class="text-[9px] font-bold uppercase tracking-widest" style="color:' + muted + '">Month by month · stacked</span>'
-      + '<span class="text-[9px] font-bold" style="color:' + muted + '">verified RM · Suasana 5 · Suasana 3</span></div>' 
+      + '<span class="text-[9px] font-bold" style="color:' + muted + '">verified RM</span></div>'
+      /* Column header cells use the same widths and gaps as the rows below, so each
+         label sits over its own numbers instead of floating as one right-aligned blob. */
+      + '<div class="flex items-center px-1" style="gap:8px;padding-bottom:3px;border-bottom:1px solid ' + GRID + '">'
+      +   '<span class="shrink-0 font-bold uppercase" style="width:42px;font-size:8px;letter-spacing:.05em;color:' + muted + '">Month</span>'
+      +   '<span class="flex-1 font-bold uppercase" style="font-size:8px;letter-spacing:.05em;color:' + muted + '">Stacked</span>'
+      +   '<span class="shrink-0 text-right font-bold uppercase" style="width:60px;font-size:8px;letter-spacing:.05em;color:' + C5 + '">Suasana 5</span>'
+      +   '<span class="shrink-0 text-right font-bold uppercase" style="width:60px;font-size:8px;letter-spacing:.05em;color:' + C3 + '">Suasana 3</span>'
+      +   '<span class="shrink-0 text-right font-bold uppercase" style="width:32px;font-size:8px;letter-spacing:.05em;color:' + muted + '">%</span>'
+      + '</div>' 
       + rows.map(r => {
           const c5 = n(r.g5?.charged), p5 = n(r.g5?.paid);
           const c3 = n(r.g3?.charged), p3 = n(r.g3?.paid);
@@ -1119,16 +1132,16 @@ window.renderTrends = async function() {
               + (border ? ";border-left:1px solid " + (isLight ? "#ffffff" : "#0b1220") : "") + '"></span>' : "";
           return '<div class="flex items-center gap-2 py-1 px-1 rounded" style="background:'
             + (isLight ? "rgba(15,23,42,.03)" : "rgba(15,23,42,.45)") + '">'
-            + '<span class="shrink-0 font-black uppercase" style="width:46px;font-size:9px;color:'
-            + (isLight ? "#0f172a" : "#ffffff") + '">' + lab(r) + '</span>'
+            + '<span class="shrink-0 font-black uppercase" style="width:42px;font-size:9px;color:'
+            + (isLight ? "#0f172a" : "#ffffff") + '">' + lab(r) + '</span>' 
             + '<span class="flex-1 flex overflow-hidden rounded-full" style="height:7px;background:' + TRACK + '">'
             +   seg(pc(p5), C5) + seg(pc(p3), C3, true)
             +   (pend > 0 ? '<span style="display:block;height:100%;min-width:2px;width:'
                 + Math.max(pc(pend), 1).toFixed(2) + '%;background:' + HATCH + '"></span>' : "")
             + '</span>'
-            + '<span class="shrink-0 text-right" style="width:64px;font-size:9px;color:' + C5 + ';' + MONO + '">' + money(p5) + '</span>'
-            + '<span class="shrink-0 text-right" style="width:64px;font-size:9px;color:' + C3 + ';' + MONO + '">' + money(p3) + '</span>'
-            + '<span class="shrink-0 text-right font-bold" style="width:34px;font-size:9px;color:' + tone + ';' + MONO + '">' + pct.toFixed(0) + '%</span>'
+            + '<span class="shrink-0 text-right" style="width:60px;font-size:9px;color:' + C5 + ';' + MONO + '">' + money(p5) + '</span>'
+            + '<span class="shrink-0 text-right" style="width:60px;font-size:9px;color:' + C3 + ';' + MONO + '">' + money(p3) + '</span>'
+            + '<span class="shrink-0 text-right font-bold" style="width:32px;font-size:9px;color:' + tone + ';' + MONO + '">' + pct.toFixed(0) + '%</span>' 
             + '</div>';
         }).join("");
     container.appendChild(list);
@@ -1205,6 +1218,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028d"></script>
+  <script type="module" src="../app.js?v=20261028e"></script>
 </body>
 </html>
