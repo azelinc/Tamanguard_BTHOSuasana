@@ -446,6 +446,10 @@ function portfolioTotals(list = allResidents) {
 }
 
 window.tgPosition = residentPosition;
+/* Snapshot of money paid for months beyond the billed window. The home screen
+   reads this so it can show a cash-basis total without loading the 341-house
+   roster; Analytics recomputes it live from the roster when that is loaded. */
+window.tgPaidAhead = () => (tamanConfig && tamanConfig.paidAhead) || null;
 window.tgRoadGroup = roadGroup;
 window.tgGroupTotals = (residents) => groupTotals(residents, r => {
     const p = residentPosition(r);

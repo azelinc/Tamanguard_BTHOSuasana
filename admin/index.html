@@ -1019,6 +1019,43 @@ function periodSelection(rows) {
   return { rows: sel, cur, hasFuture, trimmed };
 }
 
+/* Money paid for months beyond the billed window — one house today (Siew, 3/1C 18,
+   RM240 for Jan–Mar 2027). It is real cash, so it belongs in "collected", but it
+   is not a billed month, so it must not reduce anything. */
+function paidAheadSplit() {
+  const roster = window.allResidents || [];
+  if (roster.length) {
+    let total = 0, g3 = 0, g5 = 0;
+    roster.forEach(r => {
+      const adv = Number(r.soaAdvance || 0);
+      if (!adv) return;
+      total += adv;
+      const g = (window.tgRoadGroup ? window.tgRoadGroup(r.road) : "") || "other";
+      if (g === "3") g3 += adv; else if (g === "5") g5 += adv;
+    });
+    return { total, g3, g5, live: true };
+  }
+  const s = (window.tgPaidAhead && window.tgPaidAhead()) || {};
+  return { total: Number(s.total || 0), g3: Number(s.g3 || 0), g5: Number(s.g5 || 0), live: false };
+}
+
+/* honour rate = houses that paid something ÷ houses billed. Unit-based, and a
+   completely different question from the ringgit collection rate. */
+function honourSplit() {
+  const roster = window.allResidents || [];
+  if (!roster.length) return null;
+  const out = { all: { paid: 0, units: 0 }, "3": { paid: 0, units: 0 }, "5": { paid: 0, units: 0 } };
+  roster.forEach(r => {
+    const g = (window.tgRoadGroup ? window.tgRoadGroup(r.road) : "") || "other";
+    const bucket = out[g] || (out[g] = { paid: 0, units: 0 });
+    bucket.units += 1;
+    if (Number(r.soaPaid || 0) > 0.01) bucket.paid += 1;
+    out.all.units += 1;
+    if (Number(r.soaPaid || 0) > 0.01) out.all.paid += 1;
+  });
+  return out;
+}
+
 function sumRows(sel) {
   const a = { charged: 0, paid: 0, pending: 0, paidCount: 0, bills: 0, pendingCount: 0,
               c5: 0, p5: 0, d5: 0, c3: 0, p3: 0, d3: 0 };
@@ -1076,28 +1113,38 @@ window.renderOverallStats = async function () {
   fillPeriodSelects(rows);
   const pick = periodSelection(rows);
   const a = sumRows(pick.rows);
+  const adv = paidAheadSplit();
+  const cash = a.paid + adv.total;
+  const hon = honourSplit();
 
   const set = (id, txt) => { const el = document.querySelector(id); if (el) el.textContent = txt; };
-  set("#an-total-collected", "RM " + fmt(a.paid));
+  set("#an-total-collected", "RM " + fmt(cash));
   set("#an-total-pending", "RM " + fmt(a.pending));
   set("#an-total-outstanding", "RM " + fmt(a.due));
-  set("#an-collected-sub", Number(a.paidCount).toLocaleString("en-MY") + " bill(s) confirmed");
+  set("#an-collected-sub", Number(a.paidCount).toLocaleString("en-MY") + " months paid"
+    + (adv.total > 0 ? " + RM " + fmt(adv.total) + " ahead" : "")
+    + (hon ? " · " + hon.all.paid + "/" + hon.all.units + " units" : ""));
   set("#an-pending-sub", a.pending > 0
     ? Number(a.pendingCount).toLocaleString("en-MY") + " bill(s) · not yet confirmed"
     : "nothing waiting");
   set("#an-outstanding-sub", "of RM " + fmt(a.charged) + " billed");
 
+  const cashRate = a.charged > 0 ? (cash / a.charged) * 100 : 0;
   const rateEl = document.querySelector("#an-collection-rate");
   if (rateEl) {
-    rateEl.textContent = a.rate.toFixed(1) + "%";
+    rateEl.textContent = cashRate.toFixed(1) + "%";
+    rateEl.title = "Collection rate (RM): cash collected ÷ amount billed";
     rateEl.className = "text-2xl sm:text-4xl font-black tabular-nums "
-      + (a.rate >= 80 ? "text-emerald-400" : a.rate >= 50 ? "text-amber-400" : "text-rose-400");
+      + (cashRate >= 80 ? "text-emerald-400" : cashRate >= 50 ? "text-amber-400" : "text-rose-400");
   }
 
   if (note) {
     note.textContent = periodLabel(pick.rows) + " · " + pick.rows.length + " month(s) · RM "
       + fmt(a.charged) + " billed · " + houses + " houses"
-      + (pick.trimmed ? " · as at " + ymLabel(pick.cur) : "");
+      + (pick.trimmed ? " · as at " + ymLabel(pick.cur) : "")
+      + " · Collection " + cashRate.toFixed(1) + "% (RM)"
+      + (hon ? " · Honour " + (hon.all.units ? (hon.all.paid / hon.all.units * 100).toFixed(1) : "0.0")
+             + "% (" + hon.all.paid + "/" + hon.all.units + " units)" : "");
   }
 
   /* "as at" switch — only meaningful when the selection reaches past today */
@@ -1137,10 +1184,16 @@ window.renderAreaBreakdown = function (sel) {
        drawn here. Per area we show verified and outstanding (billed − verified),
        which reconciles: sum(outstanding) = still due + recorded, exactly. */
     const a = sumRows(sel);
-    groups = {
-      "5": { charged: a.c5, paid: a.p5, pending: 0, stillDue: Math.max(0, a.c5 - a.p5), houses: housesFor("5"), label: "Outstanding" },
-      "3": { charged: a.c3, paid: a.p3, pending: 0, stillDue: Math.max(0, a.c3 - a.p3), houses: housesFor("3"), label: "Outstanding" }
+    const adv = paidAheadSplit();
+    const hon = honourSplit();
+    const build = (g, charged, paid) => {
+      const ahead = Number(adv["g" + g] || 0);
+      const cash = paid + ahead;
+      return { charged, paid: cash, ahead, pending: 0, stillDue: Math.max(0, charged - cash),
+               houses: housesFor(g), label: "Outstanding",
+               honour: hon && hon[g] ? hon[g] : null };
     };
+    groups = { "5": build("5", a.c5, a.p5), "3": build("3", a.c3, a.p3) };
   } else {
     if (!residents.length) { box.innerHTML = ""; return; }
     groups = window.tgGroupTotals(residents);
@@ -1166,10 +1219,17 @@ window.renderAreaBreakdown = function (sel) {
             + 'background:repeating-linear-gradient(45deg,#818cf8,#818cf8 3px,#6366f1 3px,#6366f1 6px);"></span>' : '')
       + '</div>'
       + '<div class="flex justify-between mt-1.5 text-[9px] font-bold">'
-      +   '<span class="text-emerald-400">Verified RM ' + money(t.paid) + '</span>'
+      +   '<span class="text-emerald-400">Verified RM ' + money(t.paid)
+        + (t.ahead > 0 ? ' <span class="text-slate-500">(incl. ' + money(t.ahead) + ' ahead)</span>' : '') + '</span>'
       +   (t.pending > 0 ? '<span class="text-indigo-400">Recorded RM ' + money(t.pending) + '</span>' : '')
       +   '<span class="text-rose-400">' + (t.label || "Due") + ' RM ' + money(t.stillDue) + '</span>'
       + '</div>'
+      + (t.honour
+          ? '<div class="text-[8px] text-slate-500 mt-1 tabular-nums">Honour rate '
+            + ((t.honour.units ? t.honour.paid / t.honour.units * 100 : 0).toFixed(1)) + '% · '
+            + t.honour.paid + '/' + t.honour.units + ' units paid · collection '
+            + (t.charged > 0 ? (t.paid / t.charged * 100).toFixed(1) : "0.0") + '% (RM)</div>'
+          : '')
       + '</div>';
   }).join("");
 };
@@ -1228,17 +1288,22 @@ window.loadHome = async function () {
   const setText = (sel, txt) => { const el = $(sel); if (el) el.textContent = txt; };
 
   setText("#home-money-label", pick.trimmed ? "Money · as at " + ymLabel(pick.cur) : "Money · " + periodLabel(pick.rows));
-  setText("#home-paid", "RM " + fmt(a.paid));
-  setText("#home-paid-sub", Number(a.paidCount).toLocaleString("en-MY") + " months paid");
+  /* cash basis: includes money received for months beyond the billed window */
+  const homeAdv = paidAheadSplit();
+  const homeCash = a.paid + homeAdv.total;
+  const homeRate = a.charged > 0 ? (homeCash / a.charged) * 100 : 0;
+  setText("#home-paid", "RM " + fmt(homeCash));
+  setText("#home-paid-sub", Number(a.paidCount).toLocaleString("en-MY") + " months"
+    + (homeAdv.total > 0 ? " + " + fmt(homeAdv.total) + " ahead" : ""));
   setText("#home-pend", "RM " + fmt(a.pending));
   setText("#home-pend-sub", Number(a.pendingCount).toLocaleString("en-MY") + " awaiting check");
   setText("#home-due", "RM " + fmt(a.due));
   setText("#home-due-sub", "of RM " + fmt(a.charged) + " billed");
-  setText("#home-rate", a.rate.toFixed(1) + "%");
+  setText("#home-rate", homeRate.toFixed(1) + "%");
   const bar = $("#home-bar");
   if (bar) {
-    bar.style.width = Math.min(100, a.rate).toFixed(2) + "%";
-    bar.className = "h-full " + (a.rate >= 80 ? "bg-emerald-500" : a.rate >= 50 ? "bg-amber-500" : "bg-rose-500");
+    bar.style.width = Math.min(100, homeRate).toFixed(2) + "%";
+    bar.className = "h-full " + (homeRate >= 80 ? "bg-emerald-500" : homeRate >= 50 ? "bg-amber-500" : "bg-rose-500");
   }
 
   /* ---------- this month vs last ---------- */
@@ -1684,6 +1749,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028k"></script>
+  <script type="module" src="../app.js?v=20261028m"></script>
 </body>
 </html>
