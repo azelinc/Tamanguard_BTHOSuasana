@@ -14,7 +14,7 @@
     font-family: Helvetica, Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact;
   }
   .page {
-    width: 794px; min-height: 1123px; background: #fff; padding: 40px 44px 32px;
+    width: 794px; min-height: 1123px; background: #fff; padding: 40px 44px 236px;
     margin: 24px auto; position: relative; box-shadow: 0 6px 22px rgba(0,0,0,.18);
   }
   header { display: flex; justify-content: space-between; align-items: flex-start;
@@ -58,7 +58,13 @@
     text-transform: uppercase; letter-spacing: .1em; color: #3730a3; padding: 5px 6px; }
   table.ledger tfoot td { border-top: 2px solid var(--ink); padding: 8px 6px; font-weight: 800; font-size: 11px; }
   table.ledger tfoot td.num { font-family: "Courier New", monospace; }
-  .rcpt { display: block; font-size: 7.5px; color: var(--muted); font-weight: 400; }
+  .rcpt { display: block; font-size: 7.5px; color: var(--muted); font-weight: 400; line-height: 1.25; }
+  table.ledger.receipts { margin-top: 10px; }
+  table.ledger.receipts td.mono, table.ledger.receipts td.num { font-family: "Courier New", monospace; font-size: 9px; }
+  col.r-date { width: 78px; } col.r-desc { width: auto; } col.r-months { width: 58px; }
+  col.r-period { width: 132px; } col.r-amt { width: 92px; }
+  table.ledger.receipts td.period { white-space: nowrap; font-size: 9px; }
+  table.ledger.receipts thead th { background: #1f2937; }
 
   .paybox { margin-top: 18px; border: 1px solid var(--line); background: #f9fafb; padding: 8px 10px;
             font-size: 9px; color: #374151; display: flex; flex-direction: column; gap: 2px; }
@@ -147,9 +153,52 @@ async function loadInvoices(res) {
   return rows;
 }
 
+/* Official receipts issued by MyJiran (org 161), keyed on the house's payRef.
+   One receipt can cover several months, so the window (periodFrom..periodTo)
+   is what ties a receipt to the month rows it paid. Read-only evidence: the
+   statement prints what the issuer issued, never a synthesised number. */
+/* Fallback source: the receipt window denormalised onto the resident doc.
+   Used when the payments collection is not readable by this session — the
+   statement must still print the receipt the committee can see, and must still
+   print "coverage" (never an invented number) when there is none. */
+function residentReceipts(res) {
+  if (!res.receiptNoLatest) return [];
+  return [{
+    receiptNo: res.receiptNoLatest,
+    receiptDate: res.receiptDateLatest,
+    amount: res.receiptAmountLatest,
+    months: res.receiptMonthsLatest,
+    periodFrom: res.receiptPeriodFrom,
+    periodTo: res.receiptPeriodTo
+  }];
+}
+
+async function loadReceipts(res) {
+  try {
+    if (!res.payRef) return residentReceipts(res);
+    const q = query(collection(db, "payments"), where("payRef", "==", res.payRef));
+    const snap = await getDocs(q);
+    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .filter(r => !r.voided && r.receiptNo);
+    if (!rows.length) return residentReceipts(res);
+    rows.sort((a, b) => String(a.receiptDate || "").localeCompare(String(b.receiptDate || "")));
+    return rows;
+  } catch (e) {
+    console.warn("receipts collection unavailable, using resident record:", e && e.code ? e.code : e);
+    return residentReceipts(res);
+  }
+}
+
+const ym = (y, m) => `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`;
+
 function monthIndex(m) { return MONTHS.indexOf(m); }
 
-function render(res, invoices) {
+function render(res, invoices, receipts = []) {
+  // oldest receipt covering a given (year, month), or null
+  const receiptFor = (y, m) => {
+    const key = ym(y, m);
+    return receipts.find(r => r.periodFrom && r.periodTo && r.periodFrom <= key && key <= r.periodTo) || null;
+  };
   const rate = Number(res.soaRate || FEE);
   const billStart = res.soaBillStart || "2025-01";
   const openingAsOf = res.soaOpeningAsOf || "2026-10-31";
@@ -205,7 +254,12 @@ function render(res, invoices) {
           <td class="date">${esc(r.date)}</td>
           <td>${esc(r.inv.remarks || `Security fee — ${r.inv.month} ${r.inv.year}`)}</td>
           <td class="num">${money(r.amt)}</td>
-          <td class="num pay">${r.paid ? money(r.paid) + `<span class="rcpt">${esc(r.inv.receiptNumber || "NIL")}</span>` : ""}</td>
+          <td class="num pay">${r.paid ? money(r.paid) + (() => {
+            const rc = receiptFor(parseInt(r.inv.year), monthIndex(r.inv.month) + 1);
+            if (r.inv.receiptNumber) return `<span class="rcpt">${esc(r.inv.receiptNumber)}</span>`;
+            if (rc) return `<span class="rcpt">${esc(rc.receiptNo)}<br>${esc(String(rc.receiptDate || "").slice(0, 10))}</span>`;
+            return `<span class="rcpt">coverage</span>`;
+          })() : ""}</td>
           <td class="num bal">${fmtBal(r.balance)}</td>
         </tr>`).join("")}` : `
       <tr class="section"><td colspan="5">${ledgerHeader}</td></tr>
@@ -302,6 +356,36 @@ function render(res, invoices) {
       </tfoot>
     </table>
 
+    ${receipts.length ? `
+    <table class="ledger receipts">
+      <colgroup><col class="r-date"><col class="r-desc"><col class="r-months"><col class="r-period"><col class="r-amt"></colgroup>
+      <thead>
+        <tr>
+          <th class="date">Receipt date</th>
+          <th>Official receipt no. (MyJiran)</th>
+          <th class="num">Months</th>
+          <th class="num">Period covered</th>
+          <th class="num">Amount<br><span>(RM)</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${receipts.map(rc => `
+        <tr>
+          <td class="date">${esc(String(rc.receiptDate || "").slice(0, 10) || "—")}</td>
+          <td class="mono">${esc(rc.receiptNo)}</td>
+          <td class="num">${esc(rc.months ?? "—")}</td>
+          <td class="num period">${esc(rc.periodFrom || "—")} to ${esc(rc.periodTo || "—")}</td>
+          <td class="num pay">${money(Number(rc.amount || 0))}</td>
+        </tr>`).join("")}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="4">Receipts on record</td>
+          <td class="num">${money(receipts.reduce((s, r) => s + Number(r.amount || 0), 0))}</td>
+        </tr>
+      </tfoot>
+    </table>` : ""}
+
     <div class="paybox">
       <b>How to pay</b>
       <span>Cash — to the appointed collector, official receipt issued on the spot.</span>
@@ -313,10 +397,12 @@ function render(res, invoices) {
       <div class="notes">
         <p><b>Notes</b></p>
         <p>1. Charges are the monthly security &amp; maintenance fee of RM ${money(rate)} per house, raised on the 1st of each month from ${esc(periodStart)}.</p>
-        ${invoices.length
-          ? `<p>2. Months shown as paid before 1 Nov 2026 are reconstructed from the association's months-paid coverage record. They record the month covered, not the individual receipt; receipt numbers appear only for payments recorded in this system.</p>`
-          : `<p>2. The opening position (${esc(openingAsOf)}) is carried forward from the association's records, supported by official receipts and bank statements. Detail is summarised by month count, not by individual receipt.</p>`}
-        <p>3. Payments after the opening position are listed individually with their receipt numbers.</p>
+        ${receipts.length
+          ? `<p>2. Receipt numbers and dates are as issued by the association's collection system (MyJiran, organisation 161) and are reproduced verbatim. One receipt may settle several consecutive months; the period it covers is shown against each receipt, and the receipt number appears under every month it paid.</p>`
+          : (invoices.length
+              ? `<p>2. Months shown as paid are reconstructed from the association's months-paid coverage record. No official receipt has been traced for this house, so no receipt number is printed.</p>`
+              : `<p>2. The opening position (${esc(openingAsOf)}) is carried forward from the association's records. Detail is summarised by month count, not by individual receipt.</p>`)}
+        <p>3. Where a paid month shows "coverage" instead of a receipt number, that month is supported by the collection record only — the receipt has not been traced and is not claimed.</p>
         <p>4. Any discrepancy must be reported to the Honorary Secretary within 14 days of the statement date.</p>
         <p>5. This statement is computer-generated on ${new Date().toLocaleString("en-GB")}.</p>
       </div>
@@ -354,8 +440,8 @@ const gate = () => new Promise(resolve => {
         `<div class="state">No resident found for this house.<br><small>Open this page from a resident record.</small></div>`;
       return;
     }
-    const invoices = await loadInvoices(res);
-    render(res, invoices);
+    const [invoices, receipts] = await Promise.all([loadInvoices(res), loadReceipts(res)]);
+    render(res, invoices, receipts);
   } catch (e) {
     document.getElementById("root").innerHTML =
       `<div class="state">Could not build the statement.<br><small>${esc(e.message)}</small></div>`;
