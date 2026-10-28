@@ -201,21 +201,11 @@
 </nav>
 
   <main class="pt-24 pb-6 px-4 max-w-7xl mx-auto">
-    <!-- Stats Row -->
-    <div class="grid grid-cols-3 gap-2 mb-4">
-      <div class="glass rounded-xl px-2.5 py-2 border-l-[3px] border-blue-500 flex flex-col justify-center">
-        <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Total Residents</div>
-        <div id="statResidents" class="text-lg font-bold leading-none mt-1">0</div>
-      </div>
-      <div id="statCardVisits" class="glass rounded-xl px-2.5 py-2 border-l-[3px] border-emerald-500 flex flex-col justify-center">
-        <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Active Visits</div>
-        <div id="statVisits" class="text-lg font-bold leading-none mt-1">0</div>
-      </div>
-      <div class="glass rounded-xl px-2.5 py-2 border-l-[3px] border-amber-500 flex flex-col justify-center">
-        <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Unpaid Bills</div>
-        <div id="statBills" class="text-lg font-bold leading-none mt-1">0</div>
-        <div id="statArrearsAmt" class="text-[8.5px] text-slate-500 font-mono leading-tight mt-0.5">—</div>
-      </div>
+    <!-- Stats Row — only the visitor counter stays here. Total Residents and
+         Unpaid Bills were removed: both duplicate Overall Status on Analytics. -->
+    <div id="statCardVisits" class="glass rounded-xl px-3 py-2 mb-4 border-l-[3px] border-emerald-500 inline-flex flex-col justify-center">
+      <div class="text-slate-400 text-[8px] uppercase font-bold leading-tight tracking-wide">Active Visits</div>
+      <div id="statVisits" class="text-lg font-bold leading-none mt-1">0</div>
     </div>
 
     <!-- Tabs Container -->
@@ -1218,6 +1208,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261028e"></script>
+  <script type="module" src="../app.js?v=20261028f"></script>
 </body>
 </html>

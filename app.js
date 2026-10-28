@@ -1592,18 +1592,12 @@ function showVisitDetails(data) {
     modal.classList.remove("hidden");
 }
 
-async function loadStats() {
-    try {
-        /* no queries here on purpose: the old version pulled every resident AND
-           every pending invoice on each render (≈6k reads per dashboard load). */
-        qs("#statResidents").textContent = allResidents.length;
-        const t = portfolioTotals();
-        const billsEl = qs("#statBills");
-        if (billsEl) billsEl.textContent = t.debtors;
-        const amtEl = qs("#statArrearsAmt");
-        if (amtEl) amtEl.textContent = `${t.debtors} houses · RM ${money2(t.arrears)}`;
-    } catch(e) {}
-}
+/* The "Total Residents" and "Unpaid Bills" header cards were removed — both
+   duplicated Overall Status on the Analytics tab, and the bills count was the only
+   reason this function existed. Kept as a no-op because eleven call sites still
+   invoke it as a refresh hook after billing and verification actions; delete it
+   (and those calls) together, not on its own. */
+async function loadStats() {}
 
 function openResidentModal(id = null, data = {}) {
   qs("#residentModal").classList.remove("hidden");
