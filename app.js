@@ -47,12 +47,45 @@ function debounce(fn, ms = 300) {
 }
 
 /* INITIALIZATION */
+function showLoginError(msg) {
+  const el = qs("#loginErr");
+  if (el) { el.textContent = msg; el.classList.remove("hidden"); }
+  qs("#adminOverlay").classList.remove("hidden");
+}
+function clearLoginError() {
+  const el = qs("#loginErr");
+  if (el) { el.textContent = ""; el.classList.add("hidden"); }
+}
+
 async function initAuth() {
   onAuthStateChanged(auth, async (user) => {
     if (!user) { qs("#adminOverlay").classList.remove("hidden"); return; }
-    const snap = await getDoc(doc(db, "admin_accounts", user.uid));
-    if (!snap.exists()) { await signOut(auth); return; }
-    userProfile = snap.data(); userRole = userProfile.role;
+
+    /* One failed read of the admin record used to drop the user straight back to
+       the login form with no message at all — a transient Firestore error was
+       indistinguishable from being kicked out. Retry a few times, and only sign
+       out when the server authoritatively says there is no admin document. */
+    let profile = null, lastErr = null;
+    for (let attempt = 0; attempt < 3 && !profile; attempt++) {
+      try {
+        const snap = await getDoc(doc(db, "admin_accounts", user.uid));
+        if (snap.exists()) { profile = snap.data(); break; }
+        lastErr = null;
+        if (attempt < 2) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+      } catch (e) {
+        lastErr = e;
+        if (attempt < 2) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
+      }
+    }
+    if (!profile) {
+      if (!lastErr) { await signOut(auth); return; }   // really not an admin
+      console.error("admin record unreadable", lastErr);
+      showLoginError("Signed in as " + (user.email || user.uid) + ", but the admin record could not be read ("
+        + (lastErr.code || lastErr.message) + "). Tap LOGIN again, or tell Azly this code.");
+      return;
+    }
+    userProfile = profile; userRole = userProfile.role;
+    clearLoginError();
     qs("#adminOverlay").classList.add("hidden");
     qs("#userBadge").classList.remove("hidden");
     qs("#logoutBtn").classList.remove("hidden");
