@@ -1171,8 +1171,11 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
     <script>
       /* Register Service Worker */
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(reg => {
+        /* updateViaCache:'none' — never let the HTTP cache serve an old sw.js, otherwise
+           a new worker cannot install and the app keeps the previous build. */
+        navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
           console.log('SW registered:', reg.scope);
+          reg.update().catch(() => { });
         }).catch(err => {
           console.warn('SW registration failed:', err);
         });
