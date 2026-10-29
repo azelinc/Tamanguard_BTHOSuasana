@@ -214,7 +214,8 @@
                 <button onclick="requestCardHelp()" class="w-full mt-3 py-2.5 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">Renew or report lost — contact committee</button>
             </div>
             <div class="flex justify-between items-end mb-4 px-1">
-                <h3 class="font-bold text-lg">My Bills</h3>
+                <div><h3 class="font-bold text-lg">My Bills</h3>
+                    <button onclick="openPaymentHistory()" class="text-[9px] font-black uppercase tracking-widest text-indigo-600 mt-0.5">Payment history ›</button></div>
                 <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
                     <button onclick="setBillFilter('all')" id="f-all" class="px-3 py-1 rounded-md bg-white shadow-sm text-indigo-600 transition-all">All</button>
                     <button onclick="setBillFilter('unpaid')" id="f-unpaid" class="px-3 py-1 rounded-md text-slate-500 transition-all">Unpaid</button>
@@ -570,6 +571,10 @@
                 /* cards not switched on yet, or no rule for this house — stay quiet */
                 card.classList.add('hidden');
             }
+        }
+
+        function openPaymentHistory() {
+            location.href = 'payments.html?road=' + encodeURIComponent(localStorage.getItem('myRoad') || '') + '&unit=' + encodeURIComponent(myUnit || '');
         }
 
         function requestCardHelp() {

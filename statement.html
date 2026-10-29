@@ -140,8 +140,18 @@ async function loadResident({ road, unit, id }) {
     return s.exists() ? { id: s.id, ...s.data() } : null;
   }
   if (!road || !unit) return null;
-  const q = query(collection(db, "residents"), where("road", "==", road), where("unitNumber", "==", unit));
-  const snap = await getDocs(q);
+  /* residents is own-doc-only for a resident, so read by uid first and fall back to a
+     query for committee accounts (this page was previously unreachable from the app). */
+  let snap = null;
+  const _u = getAuth(app).currentUser;
+  if (_u) {
+    const self = await getDoc(doc(db, "residents", _u.uid)).catch(() => null);
+    if (self && self.exists()) snap = { docs: [self], empty: false };
+  }
+  if (!snap) {
+    const q = query(collection(db, "residents"), where("road", "==", road), where("unitNumber", "==", unit));
+    snap = await getDocs(q);
+  }
   return snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
 }
 

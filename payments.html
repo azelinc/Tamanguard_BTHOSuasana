@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Payment History · TamanGuard</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f1f5f9;color:#0f172a;
+       padding:0 0 32px;-webkit-font-smoothing:antialiased}
+  .top{background:#fff;padding:12px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:10px;
+       position:sticky;top:0;z-index:5}
+  .back{font-size:20px;line-height:1;color:#6366f1;font-weight:700;text-decoration:none;padding:0 2px}
+  .ttl{font-size:13px;font-weight:900;letter-spacing:.02em}
+  .house{font-size:10px;color:#64748b;margin-top:1px}
+  .print{margin-left:auto;font-size:9px;font-weight:900;letter-spacing:.1em;color:#6366f1;border:1px solid #c7d2fe;
+         background:#eef2ff;border-radius:7px;padding:6px 9px;cursor:pointer}
+  .wrap{max-width:520px;margin:0 auto;padding:12px 14px}
+  .sumbox{background:linear-gradient(135deg,#4f46e5,#6366f1);border-radius:16px;padding:15px 16px;color:#fff}
+  .sumbox.credit{background:linear-gradient(135deg,#047857,#10b981)}
+  .sumbox.nil{background:linear-gradient(135deg,#475569,#64748b)}
+  .sumlab{font-size:8px;font-weight:900;letter-spacing:.14em;opacity:.78}
+  .sumval{font-size:25px;font-weight:900;letter-spacing:-.02em;margin-top:2px}
+  .sumrow{display:flex;gap:14px;margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.22);flex-wrap:wrap}
+  .sumcell{min-width:64px}
+  .sumcell .k{font-size:7.5px;font-weight:900;letter-spacing:.1em;opacity:.78}
+  .sumcell .v{font-size:12.5px;font-weight:800;margin-top:1px}
+  .yr{font-size:8px;font-weight:900;letter-spacing:.16em;color:#94a3b8;margin:14px 2px 6px}
+  .pay{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;margin-bottom:7px}
+  .pay.legacy{background:#f8fafc;border:1px dashed #cbd5e1}
+  .pay.pend{border-color:#c7d2fe;background:#fbfbff}
+  .r1{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .date{font-size:11px;font-weight:800}
+  .date.none{color:#94a3b8;font-weight:700}
+  .amt{font-size:15px;font-weight:900;letter-spacing:-.01em;white-space:nowrap}
+  .r2{font-size:9.5px;color:#64748b;margin-top:3px;line-height:1.45}
+  .cov{display:inline-block;margin-top:6px;font-size:8.5px;font-weight:800;letter-spacing:.03em;background:#eef2ff;
+       color:#4338ca;border-radius:5px;padding:3px 6px}
+  .badge{display:inline-block;margin-top:6px;margin-left:4px;font-size:7.5px;font-weight:900;letter-spacing:.09em;
+         border-radius:5px;padding:3px 6px}
+  .ok{background:#dcfce7;color:#15803d}.pendb{background:#e0e7ff;color:#4338ca}.norec{background:#f1f5f9;color:#94a3b8}
+  .empty{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px 18px;text-align:center;margin-top:14px}
+  .empty .ic{font-size:26px}.empty h4{font-size:12.5px;font-weight:900;margin-top:9px}
+  .empty p{font-size:10.5px;color:#64748b;margin-top:6px;line-height:1.55}
+  .foot{font-size:9px;color:#94a3b8;line-height:1.6;margin-top:14px}
+  .note{font-size:9px;color:#64748b;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;margin-top:10px;line-height:1.55}
+  .err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:12px;padding:14px;font-size:11px;line-height:1.6}
+  .skel{height:74px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:7px;opacity:.6}
+  @media print{
+    body{background:#fff;padding:0}
+    .top{position:static;border-bottom:2px solid #0f172a}
+    .print{display:none}
+    .sumbox{background:#fff!important;color:#0f172a;border:1px solid #cbd5e1}
+    .sumbox .sumlab,.sumbox .sumcell .k{color:#475569;opacity:1}
+    .sumrow{border-top-color:#cbd5e1}
+    .pay{break-inside:avoid;border-color:#cbd5e1}
+    .pay.legacy{border-style:solid}
+    .wrap{max-width:100%;padding:0}
+  }
+</style>
+</head>
+<body>
+<div class="top">
+  <a class="back" id="backLink" href="resident.html" title="Back">‹</a>
+  <div><div class="ttl">PAYMENT HISTORY</div><div class="house" id="houseLine">Loading…</div></div>
+  <button class="print" onclick="window.print()">PRINT</button>
+</div>
+<div class="wrap">
+  <div id="summary"></div>
+  <div id="list"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
+  <div class="foot" id="foot"></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+import { getFirestore, collection, doc, getDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+import { firebaseConfig } from "./config.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const MON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MON3 = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const idx = (y, m) => Number(y) * 12 + MON.indexOf(m);
+const lab = i => `${MON3[i % 12]} ${Math.floor(i / 12)}`;
+const rm = n => "RM " + Number(n || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* Wait for the Firebase session — invoices are readable only by the owning house,
+   so an anonymous load must fail loudly rather than render an empty page. */
+function session() {
+  return new Promise(res => {
+    if (auth.currentUser) return res(auth.currentUser);
+    const stop = onAuthStateChanged(auth, u => { stop(); res(u); });
+    setTimeout(() => res(auth.currentUser), 6000);
+  });
+}
+
+function params() {
+  const p = new URLSearchParams(location.search);
+  return { road: p.get("road") || "", unit: p.get("unit") || "" };
+}
+
+/* One row per PAYMENT, not per bill: a single transfer that cleared four months is
+   one line. Bills show what is due; this page shows what came in. */
+function groupPayments(invoices) {
+  const bank = new Map();     // one bank credit -> one payment
+  const pend = new Map();     // one recording day -> one pending line
+  const legacy = [];
+
+  for (const inv of invoices) {
+    const st = inv.status;
+    if (st !== "paid" && st !== "provisional") continue;
+
+    if (st === "paid" && inv.paidBasis === "bank-credit" && (inv.bankTxnId || inv.bankDate)) {
+      const key = `${inv.bankTxnId || ""}|${inv.bankDate || ""}`;
+      if (!bank.has(key)) bank.set(key, {
+        kind: "bank", date: inv.bankDate || "", amount: 0, months: [],
+        ref: inv.bankRef || "", payer: inv.bankPayer || "", file: inv.bankStatementFile || "",
+        receipt: inv.receiptNumber || "", receiptStatus: inv.receiptStatus || "",
+      });
+      const row = bank.get(key);
+      row.amount += Number(inv.amount || 0);
+      row.months.push({ i: idx(inv.year, inv.month), label: `${inv.month} ${inv.year}` });
+      if (!row.receipt && inv.receiptNumber) row.receipt = inv.receiptNumber;
+      continue;
+    }
+
+    if (st === "provisional") {
+      const rec = inv.recordedAt && inv.recordedAt.toDate ? inv.recordedAt.toDate() : (inv.recordedAt ? new Date(inv.recordedAt) : null);
+      const key = rec ? rec.toISOString().slice(0, 10) : "undated";
+      if (!pend.has(key)) pend.set(key, {
+        kind: "pending", date: key === "undated" ? "" : key, amount: 0, months: [],
+        receipt: inv.receiptNumber || "", receiptStatus: "PENDING",
+      });
+      const row = pend.get(key);
+      row.amount += Number(inv.amount || 0);
+      row.months.push({ i: idx(inv.year, inv.month), label: `${inv.month} ${inv.year}` });
+      continue;
+    }
+
+    legacy.push({ i: idx(inv.year, inv.month), amount: Number(inv.amount || 0), receipt: inv.receiptNumber || "" });
+  }
+
+  const out = [];
+  for (const r of bank.values()) { r.months.sort((a, b) => a.i - b.i); out.push(r); }
+  for (const r of pend.values()) { r.months.sort((a, b) => a.i - b.i); out.push(r); }
+  if (legacy.length) {
+    legacy.sort((a, b) => a.i - b.i);
+    out.push({
+      kind: "legacy", date: "", amount: legacy.reduce((s, x) => s + x.amount, 0),
+      months: legacy.map(x => ({ i: x.i, label: "" })), span: [lab(legacy[0].i), lab(legacy[legacy.length - 1].i)],
+      receipt: legacy.map(x => x.receipt).filter(Boolean)[0] || "",
+    });
+  }
+  out.sort((a, b) => {
+    if (!a.date && !b.date) return 0;
+    if (!a.date) return 1;          // undated carried-forward goes last
+    if (!b.date) return -1;
+    return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+  });
+  return out;
+}
+
+function spanText(row) {
+  if (row.kind === "legacy") return `${row.span[0]} – ${row.span[1]} · ${row.months.length} month${row.months.length === 1 ? "" : "s"}`;
+  const first = row.months[0], last = row.months[row.months.length - 1];
+  const n = row.months.length;
+  if (n === 1) return `${first.label} · 1 month`;
+  return `${lab(first.i)} – ${lab(last.i)} · ${n} months`;
+}
+
+function render(rows, resident) {
+  const paid = Number(resident?.soaPaid || 0);
+  const pending = Number(resident?.soaPending || 0);
+  const bal = Number(resident?.soaBalance || 0);
+  const advance = Number(resident?.soaAdvance || 0);
+  const paidCount = Number(resident?.soaPaidCount || 0);
+  const charged = Number(resident?.soaCharged || 0);
+  const totalMonths = Math.round(charged / 80) || 24;
+  /* balance already nets the advance; money awaiting verification must not be
+     counted as due a second time */
+  const stillDue = Math.max(0, bal - pending);
+
+  const nb = document.getElementById("houseLine");
+  nb.textContent = `No ${resident?.unitNumber || ""}, ${resident?.road || ""}${resident?.name ? " · " + resident.name : ""}`;
+
+  const cls = paid === 0 ? "nil" : (advance > 0 ? "credit" : "");
+  document.getElementById("summary").innerHTML = `
+  <div class="sumbox ${cls}">
+    <div class="sumlab">PAID TO DATE</div><div class="sumval">${rm(paid)}</div>
+    <div class="sumrow">
+      <div class="sumcell"><div class="k">BEING VERIFIED</div><div class="v">${rm(pending)}</div></div>
+      <div class="sumcell"><div class="k">STILL DUE</div><div class="v">${rm(stillDue)}</div></div>
+      ${advance > 0 ? `<div class="sumcell"><div class="k">CREDIT BALANCE</div><div class="v">${rm(advance)}</div></div>` : ""}
+      <div class="sumcell"><div class="k">MONTHS PAID</div><div class="v">${paidCount} of ${totalMonths}</div></div>
+    </div>
+  </div>`;
+
+  const list = document.getElementById("list");
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty"><div class="ic">🧾</div><h4>No payments recorded yet</h4>
+      <p>When a payment is entered, or a bank transfer is matched to this house, it appears here with the months it covered.</p></div>`;
+    document.getElementById("foot").textContent = "";
+    return;
+  }
+
+  let year = null, html = "";
+  for (const r of rows) {
+    const y = r.date ? r.date.slice(0, 4) : "CARRIED FORWARD";
+    if (y !== year) { html += `<div class="yr">${y}</div>`; year = y; }
+    const badge = r.kind === "bank"
+      ? `<span class="badge ok">VERIFIED</span>`
+      : r.kind === "pending"
+        ? `<span class="badge pendb">AWAITING CHECK</span>`
+        : `<span class="badge norec">ON RECORD</span>`;
+    const sub = r.kind === "bank"
+      ? `Bank transfer${r.payer ? " · " + esc(r.payer) : ""}${r.ref ? " · ref " + esc(r.ref) : ""}`
+      : r.kind === "pending"
+        ? `Recorded in the app · awaiting committee verification`
+        : `Carried forward from MyJiran · position, not a transaction`;
+    html += `<div class="pay ${r.kind === "legacy" ? "legacy" : r.kind === "pending" ? "pend" : ""}">
+      <div class="r1"><div class="date ${r.date ? "" : "none"}">${r.date ? esc(fmtDate(r.date)) : "no transaction date"}</div>
+      <div class="amt">${rm(r.amount)}</div></div>
+      <div class="r2">${sub}</div>
+      <div><span class="cov">${spanText(r)}</span>${badge}</div>
+    </div>`;
+  }
+  list.innerHTML = html;
+  document.getElementById("foot").innerHTML =
+    `Money received, with the months each payment covered. Bills show what is due; this page shows what came in.` +
+    (rows.some(r => r.kind === "legacy")
+      ? `<div class="note"><b>Carried-forward line:</b> this house's payments were recorded in MyJiran as a position (paid up to a month), not as individual transactions. There is no payment date or receipt to show, so none is invented.</div>`
+      : "");
+}
+
+function fmtDate(iso) {
+  const [y, m, d] = String(iso).slice(0, 10).split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${String(d).padStart(2, "0")} ${MON3[m - 1]} ${y}`;
+}
+
+(async function main() {
+  let { road, unit } = params();
+  const list = document.getElementById("list");
+  /* road/unit are optional: a signed-in resident is identified by their own document,
+     and the params only matter when a committee member opens someone else's house. */
+  const back = document.getElementById("backLink");
+  back.href = `resident.html`;
+  try {
+    const user = await session();
+    if (!user) {
+      list.innerHTML = `<div class="err">Please open this from the resident app while signed in — payment history is private to each house.</div>`;
+      return;
+    }
+    if (!road || !unit) {
+      const selfNow = await getDoc(doc(db, "residents", user.uid)).catch(() => null);
+      if (selfNow && selfNow.exists()) { const d = selfNow.data(); road = d.road; unit = d.unitNumber; }
+    }
+    /* A resident may only read residents/{their own uid} — the roster is committee-only,
+       so a road+unit query is denied for them. Try the own-document first (1 read),
+       and only fall back to the query when a committee member opens the page. */
+    let resident = null;
+    const self = await getDoc(doc(db, "residents", user.uid)).catch(() => null);
+    if (self && self.exists()) resident = { id: self.id, ...self.data() };
+    if (!resident && road && unit) {
+      const rs = await getDocs(query(collection(db, "residents"), where("road", "==", road), where("unitNumber", "==", unit))).catch(() => null);
+      if (rs && !rs.empty) resident = { id: rs.docs[0].id, ...rs.docs[0].data() };
+    }
+    if (!resident) { list.innerHTML = `<div class="err">Could not read this house. Open the page from the resident app while signed in, or from the admin panel.</div>`; return; }
+    const is = await getDocs(query(collection(db, "invoices"), where("road", "==", resident.road), where("unitNumber", "==", resident.unitNumber)));
+    const invoices = is.docs.map(d => d.data());
+    render(groupPayments(invoices), resident);
+  } catch (e) {
+    console.error(e);
+    list.innerHTML = `<div class="err">Could not load payment history: ${esc(e.code || e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
