@@ -205,13 +205,20 @@
         <section id="view-bills" class="hidden">
             <!-- ACCESS CARDS: read-only in the resident app. Blocking stays with the
                  committee; a lost card here only produces a WhatsApp request. -->
-            <div id="myCardsCard" class="hidden bg-slate-800 rounded-2xl p-4 mb-4">
-                <div class="flex items-center justify-between mb-2">
-                    <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-300">My access cards</h3>
-                    <span id="myCardsCount" class="text-[9px] font-bold text-slate-400"></span>
+            <div id="myCardsCard" class="hidden bg-slate-800 rounded-2xl mb-4 overflow-hidden">
+                <button id="myCardsToggle" onclick="toggleMyCards()" aria-expanded="false"
+                        class="w-full flex items-center justify-between gap-3 px-4 py-3 text-left active:bg-slate-700/40 transition-colors">
+                    <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-300">My access card</h3>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span id="myCardsCount" class="text-[9px] font-bold text-slate-400"></span>
+                        <span id="myCardsPill" class="hidden px-1.5 py-0.5 rounded border text-[8px] font-black tracking-widest"></span>
+                        <i id="myCardsChevron" class="fas fa-chevron-down text-[10px] text-slate-400 transition-transform duration-200"></i>
+                    </div>
+                </button>
+                <div id="myCardsBody" class="hidden px-4 pb-4">
+                    <div id="myCardsList" class="space-y-2"></div>
+                    <button onclick="requestCardHelp()" class="w-full mt-3 py-2.5 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">Renew or report lost — contact committee</button>
                 </div>
-                <div id="myCardsList" class="space-y-2"></div>
-                <button onclick="requestCardHelp()" class="w-full mt-3 py-2.5 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">Renew or report lost — contact committee</button>
             </div>
             <div class="flex justify-between items-end mb-4 px-1">
                 <div><h3 class="font-bold text-lg">My Bills</h3>
@@ -527,6 +534,37 @@
             strip.classList.remove('hidden');
         }
 
+        /* Collapsed by default: one line the resident can ignore. The header carries the
+           worst status so the line is still informative without opening it. */
+        function toggleMyCards() {
+            const body = document.getElementById('myCardsBody');
+            const chev = document.getElementById('myCardsChevron');
+            const btn = document.getElementById('myCardsToggle');
+            if (!body) return;
+            const open = body.classList.toggle('hidden') === false;
+            if (chev) chev.style.transform = open ? 'rotate(180deg)' : '';
+            if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        function setCardsPill(rows) {
+            const pill = document.getElementById('myCardsPill');
+            if (!pill) return;
+            if (!rows.length) { pill.className = 'hidden'; return; }
+            const rank = { blocked: 0, expired: 1, expiring: 2, unused: 3, active: 4 };
+            const worst = rows.map(cardStatusLocal).sort((a, b) => rank[a] - rank[b])[0];
+            const label = worst === 'active' ? 'ACTIVE' : worst === 'expiring' ? 'EXPIRING'
+                : worst === 'expired' ? 'EXPIRED' : worst === 'unused' ? 'NOT ACTIVE' : 'BLOCKED';
+            const tone = {
+                active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                expiring: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                expired: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+                unused: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+                blocked: 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+            }[worst] || 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+            pill.className = 'px-1.5 py-0.5 rounded border text-[8px] font-black tracking-widest ' + tone;
+            pill.textContent = label;
+        }
+
         async function loadMyCards() {
             const card = document.getElementById('myCardsCard');
             const list = document.getElementById('myCardsList');
@@ -542,6 +580,7 @@
                         + 'New card RM50 &middot; renewal RM20 &middot; ask the committee.</div>';
                     const n0 = document.getElementById('myCardsCount');
                     if (n0) n0.textContent = 'none yet';
+                    setCardsPill([]);
                     renderHomeCardStrip([]);
                     card.classList.remove('hidden');
                     return;
@@ -565,6 +604,7 @@
                 }).join('');
                 const n = document.getElementById('myCardsCount');
                 if (n) n.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
+                setCardsPill(rows);
                 renderHomeCardStrip(rows);
                 card.classList.remove('hidden');
             } catch (e) {
