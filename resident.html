@@ -333,6 +333,36 @@
             else { const t = document.createElement('textarea'); t.value = msg; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); done(); }
         }
 
+        /* The PIN POST is the one request a resident cannot retry without starting over,
+           and it is the request most exposed to a flaky mobile connection: the CORS
+           preflight lands, the POST itself is dropped, and the browser raises a bare
+           "Failed to fetch" that says nothing useful. Retry a NETWORK failure twice
+           before bothering the resident; never retry an HTTP answer — 200/401/429 are
+           real verdicts from the server and repeating them only burns the throttle. */
+        async function postVerify(payload) {
+            const waits = [0, 600, 1500];
+            let lastErr = null;
+            for (let i = 0; i < waits.length; i++) {
+                if (waits[i]) await new Promise(r => setTimeout(r, waits[i]));
+                const ctl = new AbortController();
+                const timer = setTimeout(() => ctl.abort(), 8000);
+                try {
+                    const res = await fetch(AUTH_ENDPOINT, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: ctl.signal
+                    });
+                    clearTimeout(timer);
+                    return res;
+                } catch (e) {
+                    clearTimeout(timer);
+                    lastErr = e;           // dropped / aborted / DNS — worth another try
+                }
+            }
+            throw lastErr || new Error("Network unavailable");
+        }
+
         async function setIdentity() {
             const h = document.getElementById('login-house').value.trim().toUpperCase(),
                   r = document.getElementById('login-road').value,
@@ -341,11 +371,7 @@
             const btn = document.getElementById('login-btn');
             btn.innerHTML = `<span class="spinner"></span> Verifying...`; btn.disabled = true;
             try {
-                const res = await fetch(AUTH_ENDPOINT, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ unit: h, road: r, pin: p })
-                });
+                const res = await postVerify({ unit: h, road: r, pin: p });
                 if (res.status === 429) {
                     const d = await res.json().catch(() => ({}));
                     const mins = Math.max(1, Math.ceil((d.retryAfter || 60) / 60));
@@ -358,7 +384,11 @@
                 await enterWithSession();
             } catch (e) {
                 btn.innerHTML = "Verify & Enter"; btn.disabled = false;
-                showToast(e.message || "Could not sign in", "error");
+                const networkish = e && (e.name === 'AbortError'
+                    || /failed to fetch|networkerror|load failed|network request failed/i.test(e.message || ''));
+                showToast(networkish
+                    ? "Network problem reaching the login server. Check your connection and try again."
+                    : (e.message || "Could not sign in"), "error");
             }
         }
 
