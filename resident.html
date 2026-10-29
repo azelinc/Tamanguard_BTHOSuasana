@@ -957,8 +957,15 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                     const tok = await user.getIdTokenResult();
                     const unit = tok.claims.unit, road = tok.claims.road;
                     if (!unit || !road) {
-                        await auth.signOut();
-                        showToast("Committee accounts use the admin portal.", "error");
+                        /* One origin, one Firebase auth session, shared with the admin
+                           panel. Calling signOut() here used to also sign a committee
+                           member out of /admin/ from a background tab. Show the PIN form
+                           and say what happened instead — the next PIN login replaces
+                           this session on its own. */
+                        localStorage.removeItem('myUnit'); localStorage.removeItem('myRoad');
+                        document.getElementById('login-screen').classList.remove('hidden');
+                        fetchRoads();
+                        showToast("Signed in as a committee account. Enter your house PIN to use the resident app.", "error");
                         return;
                     }
                     localStorage.setItem('myUnit', String(unit));

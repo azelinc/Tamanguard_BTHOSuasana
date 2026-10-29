@@ -65,10 +65,19 @@ async function initAuth() {
        the login form with no message at all — a transient Firestore error was
        indistinguishable from being kicked out. Retry a few times, and only sign
        out when the server authoritatively says there is no admin document. */
-    let profile = null, lastErr = null;
+    /* One origin = one Firebase auth session, shared with the resident app. That makes
+       signOut() here dangerous: it also signs the resident's tab out. Worse, this page
+       fires whenever auth changes in ANY tab, so a resident logging in elsewhere used to
+       get executed by this callback. So: never sign out a session that isn't ours, and
+       abort the retries the moment the session changes under us. */
+    const myUid = user.uid;
+    const stillMe = () => !!auth.currentUser && auth.currentUser.uid === myUid;
+
+    let profile = null, lastErr = null, aborted = false;
     for (let attempt = 0; attempt < 3 && !profile; attempt++) {
+      if (!stillMe()) { aborted = true; break; }
       try {
-        const snap = await getDoc(doc(db, "admin_accounts", user.uid));
+        const snap = await getDoc(doc(db, "admin_accounts", myUid));
         if (snap.exists()) { profile = snap.data(); break; }
         lastErr = null;
         if (attempt < 2) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
@@ -77,11 +86,18 @@ async function initAuth() {
         if (attempt < 2) await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
       }
     }
+    /* The session changed while we were looking (a resident logged in on another tab,
+       or someone signed in properly). Drop our stale verdict — no side effects. */
+    if (aborted || !stillMe()) return;
+
     if (!profile) {
-      if (!lastErr) { await signOut(auth); return; }   // really not an admin
-      console.error("admin record unreadable", lastErr);
-      showLoginError("Signed in as " + (user.email || user.uid) + ", but the admin record could not be read ("
-        + (lastErr.code || lastErr.message) + "). Tap LOGIN again, or tell Azly this code.");
+      /* Deliberately NO signOut(auth) here. A non-admin session is not ours to end:
+         signing it out killed resident logins whenever this page was left open in a
+         tab. Show the form, say who is signed in, let the next sign-in replace it. */
+      console.warn("admin gate: not a committee account", myUid, lastErr || "no admin record");
+      showLoginError("Signed in as " + (user.email || myUid) + " — no committee access"
+        + (lastErr ? " (read failed: " + (lastErr.code || lastErr.message) + ")" : "")
+        + ". Sign in below with your committee account.");
       return;
     }
     userProfile = profile; userRole = userProfile.role;
