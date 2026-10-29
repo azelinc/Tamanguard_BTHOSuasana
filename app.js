@@ -3,6 +3,10 @@ import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, creat
 import { getFirestore, collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, query, where, orderBy, limit, getDocs, writeBatch, serverTimestamp, addDoc, startAfter, documentId } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { firebaseConfig } from "./config.js";
 import { indexInvoices, position as libPosition, portfolio as libPortfolio, roadGroup, groupTotals } from "./lib/position.js";
+import {
+  normaliseSerial, isValidSerial, formatSerial, effectiveStatus, daysLeft,
+  activationPatch, renewalPatch, feeFor, receiptNo, houseSummary, todayISO, addYear,
+} from "./lib/cards.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -120,6 +124,7 @@ function applyRoleVisibility() {
     billing: ["super_admin", "treasurer", "manager"],
     verify: ["super_admin", "treasurer"],
     analytics: ["super_admin", "treasurer", "manager"],
+    cards: ["super_admin", "treasurer", "manager"],
     settings: ["super_admin"]
   };
   qsa(".tab-btn").forEach(btn => {
@@ -196,6 +201,7 @@ function showTab(name) {
       });
   }
   if (name === "verify") { loadVerifyQueue(); }
+  if (name === "cards") { loadCards(); }
   if (name === "settings") { loadSettings(); loadAdmins(); }
 }
 qsa(".tab-btn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
@@ -1809,3 +1815,293 @@ function init() {
     if(qs("#bulkYear")) qs("#bulkYear").innerHTML = opts;
 }
 init();
+
+/* ==== ACCESS CARDS ============================================================
+ * A card is one document keyed by its serial, so the gate (and the admin search)
+ * is a single doc read and a serial can never belong to two houses.
+ *
+ *   cards/{SERIAL}  serial road unitNumber residentId status blocked
+ *                   activatedAt expiresAt issuedAt issuedBy receiptNo fee
+ *                   blockedAt blockedBy blockedReason replacedBy note updatedAt
+ *   cards/{SERIAL}/events/{id}  append-only: issued activated renewed blocked
+ *                               unblocked replaced
+ *   card_payments/{id}          one row per ringgit taken, so card money is never
+ *                               a number without an object
+ *
+ * Additive only: nothing here deletes a card or rewrites activatedAt.
+ * ========================================================================== */
+
+let allCards = [];
+let cardsLoadedAt = 0;
+let cardFilter = "all";
+let cardSearch = "";
+
+const CARD_FEE_LABEL = { new: "New card · RM50", renewal: "Renewal · RM20" };
+
+function cardToneClasses(status) {
+  return {
+    active: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    expiring: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+    expired: "bg-slate-500/15 text-slate-300 border-slate-500/30",
+    unused: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+    blocked: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  }[status] || "bg-slate-500/15 text-slate-300 border-slate-500/30";
+}
+
+function cardStatusText(c) {
+  const s = effectiveStatus(c);
+  const left = daysLeft(c);
+  if (s === "active") return `ACTIVE · ${left}d`;
+  if (s === "expiring") return `EXPIRING · ${left}d`;
+  if (s === "expired") return `EXPIRED · ${Math.abs(left)}d ago`;
+  if (s === "unused") return "UNUSED";
+  return "BLOCKED";
+}
+
+async function loadCards(force = false) {
+  const box = qs("#cardsList");
+  if (box && !allCards.length) box.innerHTML = `<div class="text-xs text-slate-400 p-4">Loading cards…</div>`;
+  try {
+    if (!force && allCards.length && Date.now() - cardsLoadedAt < 60000) { renderCards(); return; }
+    const snap = await getDocs(collection(db, "cards"));
+    allCards = [];
+    snap.forEach(d => allCards.push({ id: d.id, ...d.data() }));
+    cardsLoadedAt = Date.now();
+    renderCards();
+  } catch (e) {
+    console.error("cards load failed", e);
+    if (box) box.innerHTML = `<div class="text-xs text-rose-300 p-4">Could not load cards (${e.code || e.message}).</div>`;
+  }
+}
+
+function cardMatches(c) {
+  const s = effectiveStatus(c);
+  if (cardFilter !== "all") {
+    if (cardFilter === "active" && !["active", "expiring"].includes(s)) return false;
+    if (cardFilter !== "active" && s !== cardFilter) return false;
+  }
+  if (!cardSearch) return true;
+  const hay = `${c.id} ${formatSerial(c.id)} ${c.road || ""} ${c.unitNumber || ""} ${c.name || ""}`.toUpperCase();
+  return hay.includes(cardSearch.toUpperCase());
+}
+
+function renderCards() {
+  const list = qs("#cardsList");
+  if (!list) return;
+  const vis = allCards.filter(cardMatches)
+    .sort((a, b) => (a.road || "").localeCompare(b.road || "")
+      || String(a.unitNumber).localeCompare(String(b.unitNumber), undefined, { numeric: true })
+      || String(a.id).localeCompare(String(b.id)));
+
+  const counts = { all: allCards.length, active: 0, expiring: 0, expired: 0, unused: 0, blocked: 0 };
+  allCards.forEach(c => { const s = effectiveStatus(c); if (counts[s] !== undefined) counts[s]++; });
+  counts.active += counts.expiring;   // the ACTIVE chip means "in force", expiring included
+
+  const chips = [
+    ["all", `All ${counts.all}`], ["active", `In force ${counts.active}`],
+    ["expiring", `Expiring ${counts.expiring}`], ["expired", `Expired ${counts.expired}`],
+    ["unused", `Unused ${counts.unused}`], ["blocked", `Blocked ${counts.blocked}`],
+  ];
+  const chipBox = qs("#cardChips");
+  if (chipBox) chipBox.innerHTML = chips.map(([k, label]) => `
+    <button data-card-filter="${k}" class="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border
+      ${cardFilter === k ? "bg-indigo-600 border-indigo-500 text-white" : "bg-slate-900 border-slate-700 text-slate-400"}">${label}</button>`).join("");
+  qsa("[data-card-filter]").forEach(b => b.onclick = () => { cardFilter = b.dataset.cardFilter; renderCards(); });
+
+  const sum = qs("#cardsSummary");
+  if (sum) {
+    const inForce = allCards.filter(c => ["active", "expiring"].includes(effectiveStatus(c))).length;
+    const expiringSoon = allCards.filter(c => effectiveStatus(c) === "expiring").length;
+    sum.textContent = `${allCards.length} cards · ${inForce} in force · ${expiringSoon} expiring in 30 days · ${counts.blocked} blocked`;
+  }
+
+  if (!vis.length) {
+    list.innerHTML = `<div class="bg-slate-800 rounded-xl p-6 text-center">
+      <div class="text-xs text-slate-400">${allCards.length ? "No card matches that filter or serial." : "No cards registered yet. Use ISSUE CARD to add the first one."}</div></div>`;
+    return;
+  }
+
+  list.innerHTML = vis.map(c => {
+    const s = effectiveStatus(c);
+    const left = daysLeft(c);
+    const when = c.activatedAt
+      ? `Activated ${c.activatedAt} · expires ${c.expiresAt}${left !== null && left >= 0 ? ` · ${left} days left` : ""}`
+      : `Issued ${c.issuedAt || "—"} · not activated yet`;
+    const blockedLine = c.blocked
+      ? `<div class="text-[10px] text-rose-300 mt-1">Blocked ${c.blockedAt || ""} ${c.blockedReason ? "· " + c.blockedReason : ""}</div>` : "";
+    const acts = [];
+    if (s === "unused") acts.push(`<button data-card-act="activate" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest">Activate</button>`);
+    if (!c.blocked) {
+      if (["active", "expiring", "expired"].includes(s)) acts.push(`<button data-card-act="renew" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold uppercase tracking-widest">Renew · RM20</button>`);
+      acts.push(`<button data-card-act="block" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-rose-600/80 text-white text-[10px] font-bold uppercase tracking-widest">Block</button>`);
+    } else {
+      acts.push(`<button data-card-act="unblock" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-slate-700 text-white text-[10px] font-bold uppercase tracking-widest">Unblock</button>`);
+      acts.push(`<button data-card-act="replace" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-widest">Replace</button>`);
+    }
+    acts.push(`<button data-card-act="history" data-card="${c.id}" class="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 text-[10px] font-bold uppercase tracking-widest">History</button>`);
+    return `<div class="bg-slate-800 rounded-xl border ${s === "blocked" ? "border-rose-500/40" : s === "expiring" || s === "expired" ? "border-amber-500/30" : "border-slate-700"} p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="font-mono text-sm font-bold text-white tracking-wider">${formatSerial(c.id)}</div>
+          <div class="text-[11px] text-slate-300 mt-0.5">${c.road || "?"} No ${c.unitNumber || "?"}${c.name ? " · " + c.name : ""}</div>
+          <div class="text-[10px] text-slate-500 mt-1">${when}</div>
+          ${blockedLine}
+        </div>
+        <span class="shrink-0 px-2 py-1 rounded-md border text-[9px] font-black uppercase tracking-widest ${cardToneClasses(s)}">${cardStatusText(c)}</span>
+      </div>
+      <div class="flex gap-1.5 mt-2 flex-wrap">${acts.join("")}</div>
+    </div>`;
+  }).join("");
+
+  qsa("[data-card-act]").forEach(b => b.onclick = () => cardAction(b.dataset.cardAct, b.dataset.card));
+}
+
+/* Every mutation writes one audit event, and money movements also write a payment row. */
+async function cardWrite(cardId, patch, evType, evMeta = {}) {
+  const now = Date.now();
+  await updateDoc(doc(db, "cards", cardId), { ...patch, updatedAt: serverTimestamp() });
+  await addDoc(collection(db, "cards", cardId, "events"), {
+    type: evType, at: serverTimestamp(), by: auth.currentUser?.uid || null, ...evMeta,
+  }).catch(e => console.warn("event write failed", e));
+  allCards = allCards.map(c => (c.id === cardId ? { ...c, ...patch } : c));
+  cardsLoadedAt = 0;
+  renderCards();
+  return now;
+}
+
+async function cardAction(act, cardId) {
+  const c = allCards.find(x => x.id === cardId);
+  if (!c) return;
+  try {
+    if (act === "activate") {
+      const p = activationPatch(c);
+      if (!p) return toast("Already activated", "error");
+      await cardWrite(cardId, { activatedAt: p.activatedAt, expiresAt: p.expiresAt, status: "active" }, "activated", { expiresAt: p.expiresAt });
+      toast(`Activated · expires ${p.expiresAt}`, "success");
+    }
+    if (act === "renew") {
+      const p = renewalPatch(c);
+      const rn = receiptNo(Date.now());
+      await cardWrite(cardId, {
+        activatedAt: p.activatedAt, expiresAt: p.to, status: "active",
+        receiptNo: rn, fee: feeFor("renewal"), paidAt: todayISO(),
+      }, "renewed", { from: p.from, to: p.to, fee: feeFor("renewal"), receiptNo: rn });
+      await addDoc(collection(db, "card_payments"), {
+        serial: cardId, road: c.road, unitNumber: c.unitNumber, kind: "renewal",
+        amount: feeFor("renewal"), receiptNo: rn, at: serverTimestamp(), by: auth.currentUser?.uid || null,
+      }).catch(() => {});
+      toast(`Renewed to ${p.to} · RM20 receipt ${rn}`, "success");
+    }
+    if (act === "block") {
+      const reason = prompt("Reason for blocking (lost / damaged / other):", "Reported lost");
+      if (reason === null) return;
+      await cardWrite(cardId, { blocked: true, status: "blocked", blockedAt: todayISO(), blockedBy: auth.currentUser?.uid || null, blockedReason: reason }, "blocked", { reason });
+      toast("Card blocked", "success");
+    }
+    if (act === "unblock") {
+      const stillExpired = c.expiresAt && c.expiresAt < todayISO();
+      await cardWrite(cardId, { blocked: false, status: stillExpired ? "active" : (c.activatedAt ? "active" : "unused"), blockedReason: "" }, "unblocked", {});
+      toast("Card unblocked", "success");
+    }
+    if (act === "replace") {
+      const serial = prompt("New card serial (the plastic you are handing over):");
+      if (!serial) return;
+      const id = normaliseSerial(serial);
+      if (!isValidSerial(id)) return toast("Serial looks wrong (6–24 letters/digits)", "error");
+      if (allCards.some(x => x.id === id)) return toast("That serial is already registered", "error");
+      const rn = receiptNo(Date.now());
+      await setDoc(doc(db, "cards", id), {
+        serial: id, road: c.road, unitNumber: c.unitNumber, residentId: c.residentId || null,
+        status: "unused", blocked: false, activatedAt: null, expiresAt: null,
+        issuedAt: todayISO(), issuedBy: auth.currentUser?.uid || null,
+        receiptNo: rn, fee: feeFor("new"), replaced: c.id,
+        createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+      await addDoc(collection(db, "cards", id, "events"), { type: "issued", at: serverTimestamp(), by: auth.currentUser?.uid || null, kind: "replacement", fee: feeFor("new") }).catch(() => {});
+      await addDoc(collection(db, "card_payments"), {
+        serial: id, road: c.road, unitNumber: c.unitNumber, kind: "new",
+        amount: feeFor("new"), receiptNo: rn, at: serverTimestamp(), by: auth.currentUser?.uid || null,
+      }).catch(() => {});
+      await cardWrite(cardId, { blocked: true, status: "blocked", blockedAt: todayISO(), blockedReason: "Replaced", replacedBy: id }, "blocked", { reason: "Replaced", replacedBy: id });
+      toast(`Issued ${formatSerial(id)} · RM50 · activate it once handed over`, "success");
+    }
+    if (act === "history") {
+      const snap = await getDocs(collection(db, "cards", cardId, "events"));
+      const rows = [];
+      snap.forEach(d => rows.push(d.data()));
+      rows.sort((a, b) => String(a.at?.toMillis?.() || 0).localeCompare(String(b.at?.toMillis?.() || 0)));
+      alert(`${formatSerial(cardId)} — history\n\n` + (rows.length
+        ? rows.map(r => `${r.type.toUpperCase()}${r.reason ? " (" + r.reason + ")" : ""}${r.receiptNo ? " · " + r.receiptNo : ""}${r.fee ? " · RM" + r.fee : ""}`).join("\n")
+        : "No events recorded yet."));
+    }
+  } catch (e) {
+    console.error("card action failed", act, e);
+    toast(`Failed: ${e.code || e.message}`, "error");
+  }
+}
+
+/* --- issuing ----------------------------------------------------------------- */
+function openIssueCard() {
+  const form = qs("#issueCardForm");
+  if (!form) return;
+  form.classList.toggle("hidden");
+  if (form.classList.contains("hidden")) return;
+  const pick = qs("#issueCardHouse");
+  if (pick && !pick.options.length) {
+    preloadResidentData().then(() => {
+      const list = allResidents
+        .map(r => `${r.road} No ${r.unitNumber}${r.name ? " — " + r.name : ""}`)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      pick.innerHTML = `<option value="">— pick a house —</option>` + list.map(v => `<option value="${v}">${v}</option>`).join("");
+    }).catch(() => {});
+  }
+  const serial = qs("#issueCardSerial");
+  if (serial) serial.focus();
+}
+
+async function submitIssueCard() {
+  const house = qs("#issueCardHouse")?.value || "";
+  const serialRaw = qs("#issueCardSerial")?.value || "";
+  const kind = qs("#issueCardKind")?.value || "new";
+  const id = normaliseSerial(serialRaw);
+  if (!house) return toast("Pick the house first", "error");
+  if (!isValidSerial(id)) return toast("Serial looks wrong (6–24 letters/digits)", "error");
+  if (allCards.some(c => c.id === id)) return toast("That serial is already registered", "error");
+  const m = house.match(/^(.*) No (\S+?)(?: — .*)?$/);
+  if (!m) return toast("Could not read that house", "error");
+  const road = m[1], unit = m[2];
+  const res = allResidents.find(r => r.road === road && String(r.unitNumber) === String(unit));
+  const rn = receiptNo(Date.now());
+  const fee = feeFor(kind === "new" ? "new" : "renewal");
+  try {
+    await setDoc(doc(db, "cards", id), {
+      serial: id, road, unitNumber: unit, residentId: res?.id || null,
+      status: kind === "new" ? "unused" : "active",
+      blocked: false,
+      activatedAt: kind === "new" ? null : todayISO(),
+      expiresAt: kind === "new" ? null : addYear(todayISO()),
+      issuedAt: todayISO(), issuedBy: auth.currentUser?.uid || null,
+      receiptNo: rn, fee,
+      createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    await addDoc(collection(db, "cards", id, "events"), { type: "issued", at: serverTimestamp(), by: auth.currentUser?.uid || null, kind, fee, receiptNo: rn }).catch(() => {});
+    await addDoc(collection(db, "card_payments"), {
+      serial: id, road, unitNumber: unit, kind, amount: fee, receiptNo: rn,
+      at: serverTimestamp(), by: auth.currentUser?.uid || null,
+    }).catch(() => {});
+    toast(`${formatSerial(id)} registered · RM${fee} · receipt ${rn}`, "success");
+    qs("#issueCardSerial").value = "";
+    qs("#issueCardForm").classList.add("hidden");
+    await loadCards(true);
+  } catch (e) {
+    console.error("issue card failed", e);
+    toast(`Failed: ${e.code || e.message}`, "error");
+  }
+}
+
+qs("#issueCardBtn") && qs("#issueCardBtn").addEventListener("click", openIssueCard);
+qs("#issueCardSubmit") && qs("#issueCardSubmit").addEventListener("click", submitIssueCard);
+qs("#cardSearch") && qs("#cardSearch").addEventListener("input", e => {
+  cardSearch = e.target.value.trim();
+  renderCards();
+});

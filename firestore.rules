@@ -113,6 +113,29 @@ service cloud.firestore {
       allow update, delete: if false;            // never rewritten, never erased
     }
 
+    /* ---------- access cards ----------
+       Keyed by the serial, so the gate is one doc read and a serial can never belong to
+       two houses. A resident may READ the cards of their own house and nothing else;
+       every mutation (issue, activate, renew, block, unblock, replace) is committee-only. */
+    match /cards/{serial} {
+      allow get, list: if isAdmin() || ownsHouse(resource.data);
+      allow create, update: if isAdmin();
+      allow delete: if false;                    // cards are blocked or replaced, never erased
+
+      match /events/{eventId} {
+        allow read: if isAdmin();
+        allow create: if isAdmin();
+        allow update, delete: if false;          // append-only, like payment_events
+      }
+    }
+
+    /* card money gets its own row per ringgit so a fee is never a number without an object */
+    match /card_payments/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
     /* ---------- committee accounts ---------- */
     match /admin_accounts/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());

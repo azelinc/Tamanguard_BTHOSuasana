@@ -217,6 +217,7 @@
       <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="home"><i class="fas fa-gauge-high mr-2"></i>Home</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="news"><i class="fas fa-bullhorn mr-2"></i>News</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="residents"><i class="fas fa-users mr-2"></i>Residents</button>
+      <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="cards"><i class="fas fa-id-card mr-2"></i>Cards</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="visitors"><i class="fas fa-car mr-2"></i>Visitors</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all" data-tab="billing"><i class="fas fa-file-invoice-dollar mr-2"></i>Billing</button>
       <button class="tab-btn px-4 py-2 rounded-lg text-sm font-medium transition-all hidden" data-tab="verify" id="verifyTabBtn"><i class="fas fa-check-double mr-2"></i>Verify<span id="verifyCount" class="ml-2 hidden bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full"></span></button>
@@ -322,6 +323,57 @@
       </div>
 
       <!-- Visitors Tab -->
+      <div id="tab-cards" class="tab-pane hidden space-y-2">
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-4">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h3 class="text-sm font-bold uppercase tracking-widest text-slate-200">Access cards</h3>
+              <p id="cardsSummary" class="text-[11px] text-slate-400 mt-1">—</p>
+            </div>
+            <button id="issueCardBtn" class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-widest">
+              <i class="fas fa-plus mr-1"></i> Issue card
+            </button>
+          </div>
+          <div class="mt-3">
+            <input id="cardSearch" type="text" placeholder="Scan or type a card serial…" autocomplete="off"
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono tracking-wider placeholder:text-slate-500 placeholder:tracking-normal placeholder:font-sans focus:outline-none focus:border-indigo-500">
+          </div>
+          <div id="cardChips" class="mt-2 flex gap-1.5 flex-wrap"></div>
+        </div>
+
+        <div id="issueCardForm" class="hidden bg-slate-800 rounded-xl border border-indigo-500/40 p-4 space-y-3">
+          <div class="text-[10px] font-black uppercase tracking-widest text-indigo-300">Register a card</div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">House</span>
+              <select id="issueCardHouse" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="">— pick a house —</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Card serial</span>
+              <input id="issueCardSerial" type="text" placeholder="e.g. A4F2 19C8" autocomplete="off"
+                class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono tracking-wider">
+            </label>
+            <label class="block">
+              <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Type</span>
+              <select id="issueCardKind" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
+                <option value="new">New card — RM50 (starts UNUSED, activate on hand-over)</option>
+                <option value="renewal">Renewal — RM20 (activates today, +1 year)</option>
+              </select>
+            </label>
+            <div class="flex items-end">
+              <button id="issueCardSubmit" class="w-full px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest">
+                Save &amp; mint receipt
+              </button>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500 leading-relaxed">A new card is registered as UNUSED and starts its one-year clock the moment you tap <b class="text-slate-300">Activate</b> — i.e. when you hand the plastic over. Each card keeps its own clock; a house can hold as many as it pays for.</p>
+        </div>
+
+        <div id="cardsList" class="space-y-2"></div>
+      </div>
+
       <div id="tab-visitors" class="tab-pane hidden">
         <div class="glass rounded-xl overflow-hidden border border-slate-700/50">
             <!-- 1. ADDED: overflow-x-auto wrapper here -->
@@ -1749,6 +1801,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261029a"></script>
+  <script type="module" src="../app.js?v=20261030a"></script>
 </body>
 </html>

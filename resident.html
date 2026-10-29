@@ -195,6 +195,16 @@
         
         <!-- VIEW: BILLS -->
         <section id="view-bills" class="hidden">
+            <!-- ACCESS CARDS: read-only in the resident app. Blocking stays with the
+                 committee; a lost card here only produces a WhatsApp request. -->
+            <div id="myCardsCard" class="hidden bg-slate-800 rounded-2xl p-4 mb-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-300">My access cards</h3>
+                    <span id="myCardsCount" class="text-[9px] font-bold text-slate-400"></span>
+                </div>
+                <div id="myCardsList" class="space-y-2"></div>
+                <button onclick="requestCardHelp()" class="w-full mt-3 py-2.5 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">Renew or report lost — contact committee</button>
+            </div>
             <div class="flex justify-between items-end mb-4 px-1">
                 <h3 class="font-bold text-lg">My Bills</h3>
                 <div class="flex bg-slate-200 p-1 rounded-lg text-[9px] font-bold uppercase">
@@ -414,7 +424,7 @@
         function initApp() {
             document.getElementById('display-unit').innerText = `${myUnit}, ${localStorage.getItem('myRoad')}`;
             if(document.getElementById("qrcode")) qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
-            loadNews(); loadBills(); loadMyVisitors(); watchChatStatus(); loadChat();
+            loadNews(); loadBills(); loadMyVisitors(); loadMyCards(); watchChatStatus(); loadChat();
         }
 
         function switchTab(t) {
@@ -466,6 +476,67 @@
             });
         }
 
+
+        /* ACCESS CARDS — read-only. The status maths mirrors lib/cards.js (blocked beats
+           everything, then no-activation = UNUSED, then the dates). Keep the two in step. */
+        function cardStatusLocal(c) {
+            if (c.blocked) return 'blocked';
+            if (!c.activatedAt || !c.expiresAt) return 'unused';
+            const today = new Date(); const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            const exp = new Date(c.expiresAt + 'T00:00:00');
+            const left = Math.round((exp - t) / 86400000);
+            if (left < 0) return 'expired';
+            if (left <= 30) return 'expiring';
+            return 'active';
+        }
+
+        function fmtSerialLocal(s) {
+            const n = String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return n.length === 8 ? n.slice(0, 4) + '·' + n.slice(4) : n;
+        }
+
+        async function loadMyCards() {
+            const card = document.getElementById('myCardsCard');
+            const list = document.getElementById('myCardsList');
+            if (!card || !list) return;
+            try {
+                const snap = await db.collection('cards')
+                    .where('road', '==', localStorage.getItem('myRoad'))
+                    .where('unitNumber', '==', String(myUnit)).get();
+                const rows = [];
+                snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+                if (!rows.length) { card.classList.add('hidden'); return; }
+                const tone = {
+                    active: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+                    expiring: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+                    expired: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+                    unused: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+                    blocked: 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                };
+                list.innerHTML = rows.map(c => {
+                    const st = cardStatusLocal(c);
+                    const label = st === 'active' ? 'ACTIVE' : st === 'expiring' ? 'EXPIRING SOON'
+                        : st === 'expired' ? 'EXPIRED' : st === 'unused' ? 'NOT ACTIVATED' : 'BLOCKED';
+                    const when = c.expiresAt ? 'Valid until ' + c.expiresAt : 'Ask the committee to activate this card';
+                    return '<div class="flex items-start justify-between gap-3 bg-slate-900/60 rounded-xl px-3 py-2.5">'
+                        + '<div class="min-w-0"><div class="font-mono text-[13px] font-bold text-white tracking-wider">' + fmtSerialLocal(c.id) + '</div>'
+                        + '<div class="text-[10px] text-slate-400 mt-0.5">' + when + '</div></div>'
+                        + '<span class="shrink-0 px-2 py-1 rounded-md border text-[8px] font-black tracking-widest ' + (tone[st] || tone.expired) + '">' + label + '</span></div>';
+                }).join('');
+                const n = document.getElementById('myCardsCount');
+                if (n) n.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
+                card.classList.remove('hidden');
+            } catch (e) {
+                /* cards not switched on yet, or no rule for this house — stay quiet */
+                card.classList.add('hidden');
+            }
+        }
+
+        function requestCardHelp() {
+            const road = localStorage.getItem('myRoad') || '';
+            const msg = 'Assalamualaikum, saya penduduk ' + road + ' No ' + myUnit + '. Saya ingin bertanya tentang kad akses TamanGuard (renew / hilang).';
+            window.open('https://wa.me/' + firstLoginNumber + '?text=' + encodeURIComponent(msg), '_blank');
+        }
 
         function loadBills() {
             const myRoad = localStorage.getItem('myRoad'), monthNames =["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
