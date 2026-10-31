@@ -2055,37 +2055,144 @@ async function cardAction(act, cardId) {
   }
 }
 
-/* --- issuing ----------------------------------------------------------------- */
+/* --- issuing -----------------------------------------------------------------
+   The house is found, not picked from a 342-row dropdown. One box takes a unit
+   number, a name or a phone; the results are ranked so an exact unit always sits
+   on top (typing "1" must reach No 1, not No 10-19). The chosen resident object
+   is kept, so the write never re-parses a display string. */
+let issueHouse = null;
+
+function issueRoadShort(r) {
+  return String(r.road || "").replace("Jalan Suasana ", "") || "—";
+}
+
+/* Phones are stored raw ("0122750485"); the chip reads better as 012-275 0485. */
+function issuePhone(r) {
+  const d = String(r.phone || "").replace(/\D/g, "");
+  if (!d) return "no phone on record";
+  if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)} ${d.slice(6)}`;
+  if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)} ${d.slice(7)}`;
+  return d;
+}
+
+function matchHouses(term) {
+  const q = String(term || "").toLowerCase().trim();
+  if (!q) return [];
+  const toks = q.split(/\s+/);
+  const roadTok = toks.find(t => /^\d+\/\d+[a-z]?$/.test(t));
+  /* "no 1", "#1", "unit 1", "lot 1" all mean the same thing — drop the noise words */
+  const rest = toks
+    .filter(t => t !== roadTok && !["no", "no.", "#", "unit", "lot", "house", "rumah"].includes(t))
+    .join(" ");
+  const road = roadTok ? `Jalan Suasana ${roadTok}`.toLowerCase() : "";
+  const digits = rest.replace(/\D/g, "");
+  const out = [];
+  for (const r of allResidents) {
+    /* street compare must be case-insensitive: people type 3/1c, data says 3/1C */
+    if (road && String(r.road || "").toLowerCase() !== road) continue;
+    const unit = String(r.unitNumber ?? "").toLowerCase();
+    const name = String(r.name || "").toLowerCase();
+    const phone = String(r.phone || "").replace(/\D/g, "");
+    let score = -1;
+    if (!rest) score = road ? 0 : -1;                       // street typed alone
+    else if (unit === rest) score = 0;                       // exact unit
+    else if (unit.startsWith(rest)) score = 1;               // unit prefix
+    else if (name.includes(rest)) score = 2;                 // name
+    else if (digits.length >= 3 && phone.includes(digits)) score = 3;
+    if (score < 0) continue;
+    out.push({ r, score });
+  }
+  out.sort((a, b) => a.score - b.score
+    || String(a.r.road).localeCompare(String(b.r.road), undefined, { numeric: true })
+    || String(a.r.unitNumber).localeCompare(String(b.r.unitNumber), undefined, { numeric: true }));
+  return out.map(x => x.r);
+}
+
+function paintIssueHousePicked() {
+  const chip = qs("#issueCardHousePicked");
+  const name = qs("#issueCardHousePickedName");
+  const meta = qs("#issueCardHousePickedMeta");
+  if (!chip) return;
+  if (!issueHouse) { chip.classList.add("hidden"); return; }
+  if (name) name.textContent = `${issueRoadShort(issueHouse)} · No ${issueHouse.unitNumber}`;
+  if (meta) meta.textContent = [String(issueHouse.name || "—").toUpperCase(),
+    issuePhone(issueHouse)].join(" · ");
+  chip.classList.remove("hidden");
+}
+
+function renderIssueHouseResults() {
+  const box = qs("#issueCardHouseResults");
+  const input = qs("#issueCardHouseSearch");
+  if (!box || !input) return;
+  const term = input.value.trim();
+  if (!term) { box.innerHTML = ""; box.classList.add("hidden"); return; }
+  const rows = matchHouses(term);
+  const shown = rows.slice(0, 6);
+  let html = shown.map(r => `
+    <button type="button" data-house="${escHtml(r.id)}"
+      class="w-full text-left px-3 py-2.5 border-b border-slate-800 last:border-0 hover:bg-indigo-950/70 flex items-center gap-3">
+      <span class="text-sm font-bold text-slate-100 shrink-0">No ${escHtml(r.unitNumber)}</span>
+      <span class="text-[11px] text-slate-400 truncate">${escHtml(r.name || "—")}</span>
+      <span class="ml-auto text-[9px] font-bold uppercase tracking-widest text-slate-500 shrink-0">${escHtml(issueRoadShort(r))}</span>
+    </button>`).join("");
+  if (!shown.length) {
+    html = `<div class="px-3 py-3 text-[11px] text-slate-400">No house matches “${escHtml(term)}”.</div>`;
+  } else if (rows.length > shown.length) {
+    html += `<div class="px-3 py-2 text-[10px] text-slate-500 bg-slate-950/40">${rows.length - shown.length} more — add the street or a name</div>`;
+  }
+  box.innerHTML = html;
+  box.querySelectorAll("[data-house]").forEach(b => {
+    b.onclick = () => pickIssueHouse(b.dataset.house);
+  });
+  box.classList.remove("hidden");
+}
+
+function pickIssueHouse(id) {
+  const r = allResidents.find(x => x.id === id);
+  if (!r) return;
+  issueHouse = r;
+  paintIssueHousePicked();
+  const box = qs("#issueCardHouseResults");
+  if (box) { box.innerHTML = ""; box.classList.add("hidden"); }
+  const input = qs("#issueCardHouseSearch");
+  if (input) input.value = "";
+  const serial = qs("#issueCardSerial");
+  if (serial) serial.focus();
+}
+
+function clearIssueHouse() {
+  issueHouse = null;
+  paintIssueHousePicked();
+  const input = qs("#issueCardHouseSearch");
+  if (input) { input.value = ""; input.focus(); }
+}
+
 function openIssueCard() {
   const form = qs("#issueCardForm");
   if (!form) return;
   form.classList.toggle("hidden");
   if (form.classList.contains("hidden")) return;
-  const pick = qs("#issueCardHouse");
-  if (pick && !pick.options.length) {
-    preloadResidentData().then(() => {
-      const list = allResidents
-        .map(r => `${r.road} No ${r.unitNumber}${r.name ? " — " + r.name : ""}`)
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-      pick.innerHTML = `<option value="">— pick a house —</option>` + list.map(v => `<option value="${v}">${v}</option>`).join("");
-    }).catch(() => {});
+  issueHouse = null;
+  paintIssueHousePicked();
+  const input = qs("#issueCardHouseSearch");
+  if (input) { input.value = ""; input.focus(); }
+  /* the Cards tab never loads the roster itself — it only ever needed one house,
+     and the picker was the only thing that asked for the list */
+  if (!allResidents.length) {
+    preloadResidentData().catch(e => console.error("roster load failed", e));
   }
-  const serial = qs("#issueCardSerial");
-  if (serial) serial.focus();
 }
 
 async function submitIssueCard() {
-  const house = qs("#issueCardHouse")?.value || "";
   const serialRaw = qs("#issueCardSerial")?.value || "";
   const kind = qs("#issueCardKind")?.value || "new";
   const id = normaliseSerial(serialRaw);
-  if (!house) return toast("Pick the house first", "error");
+  if (!issueHouse) return toast("Pick the house first", "error");
   if (!isValidSerial(id)) return toast("Serial looks wrong (6–24 letters/digits)", "error");
   if (allCards.some(c => c.id === id)) return toast("That serial is already registered", "error");
-  const m = house.match(/^(.*) No (\S+?)(?: — .*)?$/);
-  if (!m) return toast("Could not read that house", "error");
-  const road = m[1], unit = m[2];
-  const res = allResidents.find(r => r.road === road && String(r.unitNumber) === String(unit));
+  const road = issueHouse.road;
+  const unit = String(issueHouse.unitNumber);
+  const res = issueHouse;
   const rn = receiptNo(Date.now());
   const fee = feeFor(kind === "new" ? "new" : "renewal");
   try {
@@ -2104,9 +2211,11 @@ async function submitIssueCard() {
       serial: id, road, unitNumber: unit, kind, amount: fee, receiptNo: rn,
       at: serverTimestamp(), by: auth.currentUser?.uid || null,
     }).catch(() => {});
-    toast(`${formatSerial(id)} registered · RM${fee} · receipt ${rn}`, "success");
+    toast(`${formatSerial(id)} registered · ${issueRoadShort(res)} No ${unit} · RM${fee} · receipt ${rn}`, "success");
     qs("#issueCardSerial").value = "";
     qs("#issueCardForm").classList.add("hidden");
+    issueHouse = null;
+    paintIssueHousePicked();
     await loadCards(true);
   } catch (e) {
     console.error("issue card failed", e);
@@ -2114,8 +2223,24 @@ async function submitIssueCard() {
   }
 }
 
+/* Harness hook: app.js is a module, so without this the house finder cannot be
+   driven from a browser console — only window.tg* is reachable. Same pattern as
+   tgPosition / tgRoadGroup. */
+window.tgHouseFinder = { match: matchHouses, open: openIssueCard, pick: pickIssueHouse, render: renderIssueHouseResults };
+
 qs("#issueCardBtn") && qs("#issueCardBtn").addEventListener("click", openIssueCard);
 qs("#issueCardSubmit") && qs("#issueCardSubmit").addEventListener("click", submitIssueCard);
+qs("#issueCardHouseClear") && qs("#issueCardHouseClear").addEventListener("click", clearIssueHouse);
+qs("#issueCardHouseSearch") && qs("#issueCardHouseSearch").addEventListener("input", debounce(renderIssueHouseResults, 80));
+qs("#issueCardHouseSearch") && qs("#issueCardHouseSearch").addEventListener("keydown", e => {
+  if (e.key === "Escape") { const b = qs("#issueCardHouseResults"); if (b) { b.innerHTML = ""; b.classList.add("hidden"); } }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const first = qs("#issueCardHouseResults")?.querySelector("[data-house]");
+    if (first) first.click();
+  }
+});
+
 qs("#cardSearch") && qs("#cardSearch").addEventListener("input", e => {
   cardSearch = e.target.value.trim();
   renderCards();

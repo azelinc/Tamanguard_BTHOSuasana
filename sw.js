@@ -15,7 +15,7 @@
  * Offline still works: the last good HTML is in the cache and is used when the network
  * fails. What no longer happens is serving week-old HTML while online.
  */
-const CACHE = 'tamanguard-v45';
+const CACHE = 'tamanguard-v46';
 
 /* Pre-cached so the app opens with no network at all */
 const HTML = ['/resident.html', '/payments.html', '/guard.html', '/guard/index.html'];

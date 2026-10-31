@@ -343,13 +343,28 @@
 
         <div id="issueCardForm" class="hidden bg-slate-800 rounded-xl border border-indigo-500/40 p-4 space-y-3">
           <div class="text-[10px] font-black uppercase tracking-widest text-indigo-300">Register a card</div>
-          <div class="grid sm:grid-cols-2 gap-3">
+
+          <div class="relative">
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">House</span>
-              <select id="issueCardHouse" class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white">
-                <option value="">— pick a house —</option>
-              </select>
+              <input id="issueCardHouseSearch" type="text" autocomplete="off" spellcheck="false"
+                placeholder="Unit no, name or phone — e.g. 5/3 1, Azly, 0485"
+                class="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500">
             </label>
+            <div id="issueCardHouseResults"
+              class="hidden absolute z-30 left-0 right-0 mt-1 bg-slate-900 border border-slate-700 rounded-lg overflow-hidden shadow-2xl max-h-64 overflow-y-auto"></div>
+          </div>
+
+          <div id="issueCardHousePicked" class="hidden flex items-center gap-2 bg-indigo-950/60 border border-indigo-600/60 rounded-lg px-3 py-2">
+            <div class="min-w-0">
+              <div id="issueCardHousePickedName" class="text-sm font-bold text-indigo-100 truncate"></div>
+              <div id="issueCardHousePickedMeta" class="text-[10px] text-indigo-300 tracking-wide truncate"></div>
+            </div>
+            <button id="issueCardHouseClear" type="button" title="Change house"
+              class="ml-auto shrink-0 text-indigo-300 hover:text-white text-xs font-bold px-2 py-1">✕</button>
+          </div>
+
+          <div class="grid sm:grid-cols-2 gap-3">
             <label class="block">
               <span class="text-[10px] font-bold uppercase tracking-widest text-slate-400">Card serial</span>
               <input id="issueCardSerial" type="text" placeholder="e.g. A4F2 19C8" autocomplete="off"
@@ -1801,6 +1816,6 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261030b"></script>
+  <script type="module" src="../app.js?v=20261031a"></script>
 </body>
 </html>
