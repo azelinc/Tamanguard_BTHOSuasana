@@ -477,6 +477,20 @@
 
       <!-- Analytics Tab -->
       <div id="tab-verify" class="tab-pane hidden">
+        <!-- Bank statement import. The PDF is read in the browser; nothing is uploaded. -->
+        <div class="glass rounded-xl p-5 mb-4">
+          <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div class="min-w-[240px]">
+              <h3 class="font-bold mb-1 text-white">Upload bank statement</h3>
+              <p class="text-[10px] text-slate-500 uppercase tracking-wider">Maybank current-account PDF · read in this browser, never uploaded</p>
+            </div>
+            <button id="stmtPickBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-5 py-2.5 font-bold text-xs uppercase tracking-widest">Choose PDF</button>
+            <input id="stmtFile" type="file" accept="application/pdf" class="hidden">
+          </div>
+          <p id="stmtStatus" class="mt-3 text-xs text-slate-400"></p>
+          <div id="stmtResult"></div>
+        </div>
+
         <div class="glass rounded-xl p-6 mb-4">
           <h3 class="font-bold mb-1 text-white">Payments awaiting verification</h3>
           <p class="text-[10px] text-slate-500 mb-4 uppercase tracking-wider">Recorded by the committee, not yet confirmed against the bank statement. Only a Treasurer or Super Admin can confirm.</p>
@@ -1816,6 +1830,7 @@ window.renderTrends = async function() {
     })();
   </script>
 
-  <script type="module" src="../app.js?v=20261031a"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script type="module" src="../app.js?v=20261031b"></script>
 </body>
 </html>

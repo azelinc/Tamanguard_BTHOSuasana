@@ -152,6 +152,18 @@ t("the same credit twice is marked already and credits nothing", () => {
   assert.equal(classify(l, ctx(new Set([fingerprint(l)]))).state, STATE.ALREADY);
 });
 
+t("two different payers on the same day for the same amount are NOT duplicates", () => {
+  /* Every Maybank credit is described "TRANSFER TO A/C", so a fingerprint built from
+     date+amount+desc alone collides: the real Sept file produced 14 false "already
+     applied" hits and silently dropped RM1,200. The details lines must be part of it. */
+  const a = line("01/09", 80, "ALPHA ZULU *", "Guard Ogos 26");
+  const b = line("01/09", 80, "ECHO FOXTROT GOLF *", "28 jln suasana 5/3");
+  assert.notEqual(fingerprint(a), fingerprint(b));
+  const seen = new Set([fingerprint(a)]);
+  assert.equal(classify(a, ctx(seen)).state, STATE.ALREADY);
+  assert.notEqual(classify(b, ctx(seen)).state, STATE.ALREADY);
+});
+
 t("an exclusion keeps its reason", () => {
   const r = classify({ ...line("08/09", 40, "BANK CHG REVERSAL"), excludeReason: "not a security fee" }, ctx());
   assert.equal(r.state, STATE.EXCLUDED);

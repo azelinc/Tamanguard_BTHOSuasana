@@ -7,6 +7,11 @@ import {
   normaliseSerial, isValidSerial, formatSerial, effectiveStatus, daysLeft,
   activationPatch, renewalPatch, feeFor, receiptNo, houseSummary, todayISO, addYear,
 } from "./lib/cards.js";
+import {
+  indexRegister, classify, reconcile, summarise, allocate, rateOf,
+  STATE, BASIS, REASON,
+} from "./lib/verify-import.js";
+import { parseTransactions, pdfToLines } from "./lib/maybank-parse.js";
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
@@ -2244,4 +2249,287 @@ qs("#issueCardHouseSearch") && qs("#issueCardHouseSearch").addEventListener("key
 qs("#cardSearch") && qs("#cardSearch").addEventListener("input", e => {
   cardSearch = e.target.value.trim();
   renderCards();
+});
+
+/* =====================================================================
+   Bank statement import — Verify tab
+   ---------------------------------------------------------------------
+   The PDF is read with pdf.js in this browser; no byte leaves the device.
+   Matching and allocation live in lib/verify-import.js so a statement import
+   can never disagree with a manual record about "how much money is how many
+   months". Nothing is credited until a ticked row is applied.
+   ===================================================================== */
+
+const STMT_BILLED_THROUGH = { year: 2026, monthIndex: 11 };   // December 2026
+let stmtState = null;
+
+/* Months still owed by a house, oldest first.
+   Derived from the house aggregate rather than 24 invoice reads per house: the
+   ledger was built as coverage (paid through month X), so anything after X is
+   outstanding. If the money is applied later, the aggregate moves with it. */
+function outstandingMonthsFor(house) {
+  if (!house) return [];
+  let yr = 2025, idx = 0;
+  const paid = String(house.soaPaidThrough || "").trim();
+  if (paid) {
+    const m = paid.match(/([A-Za-z]+)\s+(\d{4})/);
+    if (m) {
+      const mi = MONTH_NAMES.findIndex(n => n.toLowerCase() === m[1].toLowerCase());
+      if (mi >= 0) { yr = parseInt(m[2], 10); idx = mi + 1; if (idx > 11) { idx = 0; yr += 1; } }
+    }
+  }
+  const out = [];
+  while (yr < STMT_BILLED_THROUGH.year ||
+         (yr === STMT_BILLED_THROUGH.year && idx <= STMT_BILLED_THROUGH.monthIndex)) {
+    out.push(`${yr}-${String(idx + 1).padStart(2, "0")}`);
+    idx += 1; if (idx > 11) { idx = 0; yr += 1; }
+    if (out.length > 36) break;
+  }
+  return out;
+}
+
+const stmtMonthLabel = ym => {
+  const [y, m] = ym.split("-");
+  return `${MONTH_NAMES[parseInt(m, 10) - 1].slice(0, 3)} ${String(y).slice(2)}`;
+};
+const stmtSpan = months => {
+  if (!months || !months.length) return "";
+  return months.length === 1 ? stmtMonthLabel(months[0])
+    : `${stmtMonthLabel(months[0])}–${stmtMonthLabel(months[months.length - 1])}`;
+};
+
+async function onStatementFile(file) {
+  const status = document.getElementById("stmtStatus");
+  const out = document.getElementById("stmtResult");
+  if (!file) return;
+  status.className = "mt-3 text-xs text-slate-400";
+  status.textContent = `Reading ${file.name}…`;
+  out.innerHTML = "";
+  try {
+    if (!window.pdfjsLib) throw new Error("PDF reader did not load — check the connection and reload");
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const buf = await file.arrayBuffer();
+    const { text, pages } = await pdfToLines(window.pdfjsLib, buf);
+    const parsed = parseTransactions(text);
+    if (!parsed.credits.length) {
+      throw new Error(`No credits found. Read ${text.length} characters over ${pages} page(s) — this does not look like a Maybank transaction listing.`);
+    }
+
+    const index = indexRegister(allResidents);
+    const seen = new Set();
+    const rows = parsed.credits.map(t => {
+      const r = classify({ date: t.entryDate, amount: t.amount, desc: t.desc, details: t.details },
+        { index, outstandingFor: outstandingMonthsFor, seen });
+      seen.add(r.fingerprint);
+      return { ...r, line: t };
+    });
+
+    stmtState = {
+      file: file.name, pages, parsed, rows,
+      rec: reconcile(rows, parsed.creditTotal),
+      picked: {},
+      applied: false,
+    };
+    status.textContent = "";
+    renderStatementResult();
+  } catch (e) {
+    status.className = "mt-3 text-xs text-rose-400";
+    status.textContent = e.message || String(e);
+    stmtState = null;
+  }
+}
+
+function renderStatementResult() {
+  const out = document.getElementById("stmtResult");
+  if (!stmtState) { out.innerHTML = ""; return; }
+  const { rows, parsed, rec } = stmtState;
+  const fmt = n => "RM" + Number(n).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const s = summarise(rows);
+  const chainOk = parsed.balanceBreaks === 0;
+
+  const head = `
+    <div class="flex flex-wrap gap-x-6 gap-y-2 items-center mt-4 mb-3 text-[11px] text-slate-400">
+      <span class="text-white font-bold">${escHtml(stmtState.file)}</span>
+      <span>${stmtState.pages} page${stmtState.pages === 1 ? "" : "s"} · ${parsed.txns.length} lines</span>
+      <span class="text-emerald-400">${parsed.credits.length} credits ${fmt(rec.expected)}</span>
+      ${parsed.debits.length ? `<span>${parsed.debits.length} debits ${fmt(parsed.debitTotal)} ignored</span>` : ""}
+      <span class="${chainOk ? "text-emerald-400" : "text-rose-400"}">balance chain ${parsed.balanceChecked - parsed.balanceBreaks}/${parsed.balanceChecked}${chainOk ? " ✓" : " ✗"}</span>
+    </div>`;
+
+  const inv = `
+    <div class="rounded-lg px-3 py-2 mb-3 text-[11px] ${rec.balanced ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/10 text-rose-300 border border-rose-500/30"}">
+      ${rec.balanced ? "✓" : "✗"} ${escHtml(rec.verdict)}
+      <span class="text-slate-400"> — ${s.confirmedLines} confirmed · ${s.proposedLines} proposed · ${s.humanLines} need a house</span>
+    </div>`;
+
+  const rowsHtml = rows.map((r, i) => {
+    const house = r.house || stmtState.picked[i];
+    const picked = !!stmtState.picked[i];
+    const months = house ? allocate(r.amount, rateOf(house), outstandingMonthsFor(house)) : null;
+    const basis = r.basis === BASIS.REF ? "pay ref" : r.basis === BASIS.ADDRESS ? "address" : r.basis === BASIS.NAME ? "name" : "—";
+    const badge = r.state === STATE.ALREADY ? "already applied"
+      : r.state === STATE.EXCLUDED ? "excluded"
+      : house ? (picked ? "picked" : r.confidence === "confirmed" ? "confirmed" : "proposed")
+      : "needs a house";
+    const cls = badge === "confirmed" ? "text-emerald-400" : badge === "proposed" ? "text-amber-300"
+      : badge === "needs a house" ? "text-slate-500" : badge === "already applied" ? "text-slate-500" : "text-slate-400";
+    const tickable = !!house && months && months.count > 0 && r.state !== STATE.ALREADY;
+    const ticked = tickable && (r.confidence === "confirmed" || picked);
+    return `
+      <tr class="border-b border-slate-800/60">
+        <td class="py-2 px-2 w-8">${tickable ? `<input type="checkbox" data-tick="${i}" ${ticked ? "checked" : ""} class="accent-indigo-500">` : ""}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-400 whitespace-nowrap">${escHtml(r.line.day)}/${escHtml(r.line.month)}</td>
+        <td class="py-2 px-2 text-[11px] text-slate-300 max-w-[260px] truncate" title="${escHtml(r.line.text)}">${escHtml(r.line.text || "")}</td>
+        <td class="py-2 px-2 text-[11px] font-mono text-white whitespace-nowrap text-right">${fmt(r.amount)}</td>
+        <td class="py-2 px-2 text-[11px] ${cls} whitespace-nowrap">${house ? `${escHtml(String(house.road || "").replace("Jalan Suasana ", ""))} No ${escHtml(house.unitNumber)}` : '<span class="text-slate-500">—</span>'}</td>
+        <td class="py-2 px-2 text-[10px] text-slate-400 whitespace-nowrap">${months && months.count ? escHtml(stmtSpan(months.months)) : ""}</td>
+        <td class="py-2 px-2 text-[10px] ${cls} whitespace-nowrap">${escHtml(badge)}${r.basis && house && r.state === STATE.MATCHED ? ` <span class="text-slate-600">· ${escHtml(basis)}</span>` : ""}</td>
+        <td class="py-2 px-2 text-right">${!house ? `<button data-find="${i}" class="text-[10px] text-indigo-400 underline">find house</button>` : ""}</td>
+      </tr>
+      ${stmtState.pickOpen === i ? `<tr><td colspan="8" class="pb-3 px-2"><div class="bg-slate-800/70 rounded-lg p-2">
+          <input data-search="${i}" placeholder="type a unit, a name, or a ref" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-2 text-white text-xs outline-none">
+          <div data-results="${i}" class="mt-2 space-y-1"></div>
+        </div></td></tr>` : ""}`;
+  }).join("");
+
+  const tickCount = rows.filter((r, i) => {
+    const house = r.house || stmtState.picked[i];
+    if (!house || r.state === STATE.ALREADY) return false;
+    const alloc = allocate(r.amount, rateOf(house), outstandingMonthsFor(house));
+    return alloc.count > 0;
+  }).length;
+  const selected = out.querySelectorAll("[data-tick]:checked").length;
+
+  out.innerHTML = head + inv + `
+    <div class="overflow-x-auto">
+      <table class="w-full text-left">
+        <thead class="text-[10px] uppercase text-slate-500 border-b border-slate-700">
+          <tr>
+            <th class="py-2 px-2 w-8"></th><th class="py-2 px-2">Date</th><th class="py-2 px-2">Payer / remark</th>
+            <th class="py-2 px-2 text-right">Amount</th><th class="py-2 px-2">House</th><th class="py-2 px-2">Months</th>
+            <th class="py-2 px-2">State</th><th class="py-2 px-2"></th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    ${parsed.warnings.length ? `<p class="mt-2 text-[10px] text-amber-300">${parsed.warnings.length} parse warning(s): ${escHtml(parsed.warnings.slice(0, 3).join(" · "))}</p>` : ""}
+    <div class="flex items-center justify-between gap-3 mt-4 flex-wrap">
+      <p class="text-[10px] text-slate-500">Ticked rows will mark their months paid against the statement reference. Nothing happens until you apply.</p>
+      <button id="stmtApplyBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-5 py-2.5 font-bold text-xs uppercase tracking-widest ${selected ? "" : "opacity-40 cursor-not-allowed"}">
+        Apply ${selected} credit${selected === 1 ? "" : "s"}
+      </button>
+    </div>`;
+
+  wireStatementTable();
+}
+
+function wireStatementTable() {
+  const out = document.getElementById("stmtResult");
+  out.querySelectorAll("[data-find]").forEach(b => b.addEventListener("click", () => {
+    stmtState.pickOpen = parseInt(b.dataset.find, 10);
+    renderStatementResult();
+    const inp = out.querySelector("[data-search]");
+    if (inp) inp.focus();
+  }));
+
+  out.querySelectorAll("[data-search]").forEach(inp => inp.addEventListener("input", () => {
+    const i = parseInt(inp.dataset.search, 10);
+    const box = out.querySelector(`[data-results="${i}"]`);
+    const term = inp.value.trim();
+    if (term.length < 1) { box.innerHTML = ""; return; }
+    const hits = (window.tgHouseFinder ? window.tgHouseFinder.match(term) : []).slice(0, 5);
+    box.innerHTML = hits.length
+      ? hits.map(h => `<button data-pick="${i}" data-ref="${escHtml(h.payRef || "")}" class="block w-full text-left px-2 py-1.5 rounded hover:bg-slate-700 text-[11px] text-slate-200">
+          ${escHtml(String(h.road || "").replace("Jalan Suasana ", ""))} No ${escHtml(h.unitNumber)} <span class="text-slate-500">· ${escHtml(h.name || "")}</span></button>`).join("")
+      : `<p class="text-[10px] text-slate-500 px-2">nothing matches "${escHtml(term)}"</p>`;
+    box.querySelectorAll("[data-pick]").forEach(btn => btn.addEventListener("click", () => {
+      const idx = parseInt(btn.dataset.pick, 10);
+      const house = allResidents.find(h => String(h.payRef) === btn.dataset.ref);
+      if (!house) return;
+      stmtState.picked[idx] = house;
+      stmtState.pickOpen = null;
+      renderStatementResult();
+    }));
+  }));
+
+  out.querySelectorAll("[data-tick]").forEach(cb => cb.addEventListener("change", () => {
+    const n = out.querySelectorAll("[data-tick]:checked").length;
+    const btn = document.getElementById("stmtApplyBtn");
+    if (btn) { btn.classList.toggle("opacity-40", !n); btn.classList.toggle("cursor-not-allowed", !n); btn.textContent = `Apply ${n} credit${n === 1 ? "" : "s"}`; }
+  }));
+
+  const apply = document.getElementById("stmtApplyBtn");
+  if (apply) apply.addEventListener("click", applyStatementPayments);
+}
+
+async function applyStatementPayments() {
+  if (!stmtState) return;
+  const out = document.getElementById("stmtResult");
+  const ticks = [...out.querySelectorAll("[data-tick]:checked")].map(cb => parseInt(cb.dataset.tick, 10));
+  if (!ticks.length) return;
+
+  const jobs = [];
+  for (const i of ticks) {
+    const r = stmtState.rows[i];
+    const house = r.house || stmtState.picked[i];
+    if (!house) continue;
+    const alloc = allocate(r.amount, rateOf(house), outstandingMonthsFor(house));
+    if (!alloc.count) continue;
+    jobs.push({ house, months: alloc.months, ref: `${r.line.day}/${r.line.month} ${r.line.text}`.slice(0, 120), amount: r.amount });
+  }
+  if (!jobs.length) { toast("Nothing to apply", "error"); return; }
+  if (!confirm(`Mark ${jobs.reduce((s, j) => s + j.months.length, 0)} month(s) paid across ${jobs.length} house(s)?`)) return;
+
+  const btn = document.getElementById("stmtApplyBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Applying…"; }
+  let done = 0, missed = 0;
+  try {
+    for (const job of jobs) {
+      for (const ym of job.months) {
+        const [y, m] = ym.split("-");
+        const snap = await getDocs(query(collection(db, "invoices"),
+          where("road", "==", job.house.road),
+          where("unitNumber", "==", String(job.house.unitNumber)),
+          where("year", "==", parseInt(y, 10)),
+          where("month", "==", MONTH_NAMES[parseInt(m, 10) - 1])));
+        const target = snap.docs.find(d => ["pending", "provisional"].includes(d.data().status));
+        if (!target) { missed++; continue; }
+        const inv = target.data();
+        const amt = parseFloat(inv.amount) || 0;
+        await updateDoc(doc(db, "invoices", target.id), {
+          status: "paid",
+          verification: "verified",
+          verifiedBy: auth.currentUser.uid,
+          verifiedAt: serverTimestamp(),
+          verifyNote: job.ref,
+          statementFile: stmtState.file,
+        });
+        await logPaymentEvent(target.id, "verified", inv.status || "?", "paid", job.ref);
+        bumpResidentAggregate(job.house.road, job.house.unitNumber,
+          { paid: amt, paidCount: 1, ...(inv.status === "provisional" ? { pending: -amt, pendingCount: -1 } : {}) });
+        await bumpMonthly(inv.month, inv.year,
+          { paid: amt, paidCount: 1, ...(inv.status === "provisional" ? { pending: -amt, pendingCount: -1 } : {}) }, job.house.road);
+        done++;
+      }
+    }
+    stmtState.applied = true;
+    toast(`Applied ${done} month(s)${missed ? `, ${missed} already settled` : ""}`, "success");
+    loadBilling(true); loadStats(); renderResidents();
+    renderStatementResult();
+  } catch (e) {
+    toast("Apply failed: " + (e.message || e), "error");
+  } finally {
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const pick = document.getElementById("stmtPickBtn");
+  const input = document.getElementById("stmtFile");
+  if (pick && input) {
+    pick.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => onStatementFile(input.files[0]));
+  }
 });
