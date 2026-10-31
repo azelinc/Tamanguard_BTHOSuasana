@@ -170,14 +170,6 @@
                </div>
                <div class="text-slate-400"><i class="fas fa-chevron-right text-xs"></i></div>
             </div>
-            <div id="homeCardStrip" onclick="switchTab('bills')" class="hidden mt-2 bg-slate-800 rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer active:scale-[0.98]">
-                <div class="text-lg">🪪</div>
-                <div class="flex-1 min-w-0">
-                    <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">Access card</div>
-                    <div id="homeCardText" class="text-[11px] font-bold text-white mt-0.5">—</div>
-                </div>
-                <div id="homeCardPill" class="shrink-0 px-2 py-1 rounded-md text-[8px] font-black tracking-widest"></div>
-            </div>
         </section>
 
         <!-- VIEW: NEWS & CHAT -->
@@ -511,29 +503,6 @@
             return n.length === 8 ? n.slice(0, 4) + '·' + n.slice(4) : n;
         }
 
-        /* One-line card strip on the landing screen. Only shown when the house actually
-           has a card, so the 300+ houses without one never see a dead row. */
-        function renderHomeCardStrip(rows) {
-            const strip = document.getElementById('homeCardStrip');
-            const text = document.getElementById('homeCardText');
-            const pill = document.getElementById('homeCardPill');
-            if (!strip || !text || !pill) return;
-            if (!rows || !rows.length) { strip.classList.add('hidden'); return; }
-            const mine = rows.slice().sort(function (a, b) {
-                var rank = { blocked: 0, expired: 1, expiring: 2, unused: 3, active: 4 };
-                return rank[cardStatusLocal(a)] - rank[cardStatusLocal(b)];
-            })[0];
-            const st = cardStatusLocal(mine);
-            const label = st === 'active' ? 'ACTIVE' : st === 'expiring' ? 'EXPIRING' : st === 'expired' ? 'EXPIRED' : st === 'unused' ? 'NOT ACTIVE' : 'BLOCKED';
-            const tone = { active: 'bg-emerald-500/20 text-emerald-300', expiring: 'bg-amber-500/20 text-amber-300',
-                           expired: 'bg-slate-500/20 text-slate-300', unused: 'bg-indigo-500/20 text-indigo-300',
-                           blocked: 'bg-rose-500/20 text-rose-300' }[st] || 'bg-slate-500/20 text-slate-300';
-            text.textContent = fmtSerialLocal(mine.id) + (mine.expiresAt ? ' · until ' + mine.expiresAt : ' · not activated yet');
-            pill.className = 'shrink-0 px-2 py-1 rounded-md text-[8px] font-black tracking-widest ' + tone;
-            pill.textContent = label;
-            strip.classList.remove('hidden');
-        }
-
         /* Collapsed by default: one line the resident can ignore. The header carries the
            worst status so the line is still informative without opening it. */
         function toggleMyCards() {
@@ -581,7 +550,6 @@
                     const n0 = document.getElementById('myCardsCount');
                     if (n0) n0.textContent = 'none yet';
                     setCardsPill([]);
-                    renderHomeCardStrip([]);
                     card.classList.remove('hidden');
                     return;
                 }
@@ -605,7 +573,6 @@
                 const n = document.getElementById('myCardsCount');
                 if (n) n.textContent = rows.length + (rows.length === 1 ? ' card' : ' cards');
                 setCardsPill(rows);
-                renderHomeCardStrip(rows);
                 card.classList.remove('hidden');
             } catch (e) {
                 /* cards not switched on yet, or no rule for this house — stay quiet */
