@@ -212,18 +212,6 @@
                     <button onclick="requestCardHelp()" class="w-full mt-3 py-2.5 rounded-xl bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest">Renew or report lost — contact committee</button>
                 </div>
             </div>
-            <!-- Payment reference, always visible on the tab residents actually land on.
-                 It was reachable only through the Pay Now modal, and the Sept statement
-                 proves the cost: 0 of 45 credits quoted it. -->
-            <div class="bg-slate-800 rounded-2xl mb-4 px-4 py-3 flex items-center gap-3">
-                <div class="text-lg flex-none">💳</div>
-                <div class="flex-1 min-w-0">
-                    <div class="text-[9px] font-black uppercase tracking-widest text-slate-400">Pay by transfer</div>
-                    <div class="text-[11px] font-bold text-white mt-0.5">MAYBANK &middot; 5123 8963 2240</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5 truncate">remark: <span id="pay-ref-inline" class="font-mono font-black text-indigo-300 tracking-wider">--</span></div>
-                </div>
-                <button onclick="copyPayRef()" class="shrink-0 bg-indigo-600 text-white text-[8px] font-black uppercase tracking-widest px-2.5 py-2 rounded-lg">Copy ref</button>
-            </div>
             <div class="flex justify-between items-end mb-4 px-1">
                 <div><h3 class="font-bold text-lg">My Bills</h3>
                     <button onclick="openPaymentHistory()" class="text-[9px] font-black uppercase tracking-widest text-indigo-600 mt-0.5">Payment history ›</button></div>
@@ -444,7 +432,7 @@
         function initApp() {
             document.getElementById('display-unit').innerText = `${myUnit}, ${localStorage.getItem('myRoad')}`;
             if(document.getElementById("qrcode")) qrObj = new QRCode(document.getElementById("qrcode"), { width: 180, height: 180 });
-            loadNews(); loadBills(); loadMyVisitors(); loadMyCards(); watchChatStatus(); loadChat(); loadPayRef();
+            loadNews(); loadBills(); loadMyVisitors(); loadMyCards(); watchChatStatus(); loadChat();
         }
 
         function switchTab(t) {
@@ -1053,16 +1041,13 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
         }
 
         /* The committee matches a bank transfer by this code, so it must be visible
-           before the resident leaves to pay — both on the bills tab and in the modal.
-           Cached in localStorage; 1 read on first use. */
-        let payRefValue = '';
+           before the resident leaves to pay. Cached in localStorage; 1 read on first use. */
         async function loadPayRef() {
-            const els = [document.getElementById('pay-ref-code'), document.getElementById('pay-ref-inline')].filter(Boolean);
-            if (!els.length) return;
-            const show = (v) => { payRefValue = v; els.forEach(e => { e.innerText = v; }); };
+            const el = document.getElementById('pay-ref-code');
+            if (!el) return;
             const houseKey = `${localStorage.getItem('myRoad')}|${myUnit}`;
             let ref = localStorage.getItem('myPayRefFor') === houseKey ? localStorage.getItem('myPayRef') : null;
-            if (ref) { show(ref); return; }
+            if (ref) { el.innerText = ref; return; }
             try {
                 /* Read our own document by uid: rules now allow a resident to read only
                    the house they are signed in as, so a unitNumber+road query is refused. */
@@ -1070,10 +1055,10 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
                 const snap = me ? await db.collection("residents").doc(me.uid).get() : null;
                 if (snap && snap.exists) {
                     ref = snap.data().payRef || '';
-                    if (ref) { localStorage.setItem('myPayRef', ref); localStorage.setItem('myPayRefFor', houseKey); show(ref); }
-                    else show('ASK COMMITTEE');
-                } else show('ASK COMMITTEE');
-            } catch (e) { show('ASK COMMITTEE'); }
+                    if (ref) { localStorage.setItem('myPayRef', ref); localStorage.setItem('myPayRefFor', houseKey); el.innerText = ref; }
+                    else el.innerText = 'ASK COMMITTEE';
+                } else el.innerText = 'ASK COMMITTEE';
+            } catch (e) { el.innerText = 'ASK COMMITTEE'; }
         }
 
         /* Bank apps want digits, so copy without the display spaces. */
@@ -1086,9 +1071,7 @@ function updatePaymasterUI(count, total, hasI, pCount = 0, pTotal = 0) {
         }
 
         function copyPayRef() {
-            const ref = payRefValue || localStorage.getItem('myPayRef')
-                || document.getElementById('pay-ref-inline')?.innerText
-                || document.getElementById('pay-ref-code')?.innerText;
+            const ref = localStorage.getItem('myPayRef') || document.getElementById('pay-ref-code').innerText;
             if (!ref || ref === '--' || ref === 'ASK COMMITTEE') return showToast("Reference not loaded", "error");
             const done = () => showToast("Copied: " + ref, "success");
             if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ref).then(done).catch(done);
